@@ -44,6 +44,49 @@ import {
 } from '@/lib/treeUtils'
 import type { FolderScope, TreeNode } from '@shared/types'
 
+const TREE_INDENT = 12
+const TREE_BASE_PADDING = 8
+const GUIDE_X = (level: number): number => TREE_BASE_PADDING + level * TREE_INDENT + 7
+
+function treeRowPadding(depth: number): number {
+  return depth * TREE_INDENT + TREE_BASE_PADDING
+}
+
+function TreeIndentGuides({
+  depth,
+  ancestorContinues,
+  isLastSibling
+}: {
+  depth: number
+  ancestorContinues: boolean[]
+  isLastSibling: boolean
+}): React.JSX.Element | null {
+  if (depth === 0) return null
+
+  const currentLevel = depth - 1
+
+  return (
+    <div className="pointer-events-none absolute inset-y-0 left-0" aria-hidden>
+      {ancestorContinues.map((continues, level) =>
+        continues ? (
+          <span
+            key={`ancestor-${level}`}
+            className="absolute top-0 bottom-0 w-px bg-sidebar-border/50"
+            style={{ left: GUIDE_X(level) }}
+          />
+        ) : null
+      )}
+      <span
+        className={cn(
+          'absolute top-0 w-px bg-sidebar-border/50',
+          isLastSibling ? 'h-1/2' : 'bottom-0'
+        )}
+        style={{ left: GUIDE_X(currentLevel) }}
+      />
+    </div>
+  )
+}
+
 const SORTABLE_TRANSITION = 'transform 220ms cubic-bezier(0.25, 1, 0.5, 1)'
 
 const dropAnimation: DropAnimation = {
@@ -55,6 +98,7 @@ interface SidebarTreeProps {
   scope: FolderScope
   parentId: string | null
   depth?: number
+  ancestorContinues?: boolean[]
   disabled?: boolean
   categoryId?: string
   onAddScene?: (chapterId: string) => void
@@ -89,6 +133,8 @@ function HoverAddButton({ onClick, className }: { onClick: () => void; className
 function TreeItemRow({
   node,
   depth,
+  ancestorContinues = [],
+  isLastSibling = false,
   isSelected,
   isFolderNode,
   isExpandable,
@@ -100,6 +146,8 @@ function TreeItemRow({
 }: {
   node: TreeNode
   depth: number
+  ancestorContinues?: boolean[]
+  isLastSibling?: boolean
   isSelected?: boolean
   isFolderNode?: boolean
   isExpandable?: boolean
@@ -115,13 +163,20 @@ function TreeItemRow({
   return (
     <div
       className={cn(
-        'group flex min-w-0 items-center gap-0.5 rounded-md py-1 pr-2 text-xs select-none',
+        'group relative flex min-w-0 items-center gap-0.5 rounded-md py-1 pr-2 text-xs select-none',
         !overlay && 'cursor-pointer',
         isSelected ? 'bg-accent text-accent-foreground' : !overlay && 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
         overlay && 'cursor-grabbing bg-sidebar text-foreground shadow-md ring-1 ring-border'
       )}
-      style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      style={{ paddingLeft: `${treeRowPadding(depth)}px` }}
     >
+      {!overlay && (
+        <TreeIndentGuides
+          depth={depth}
+          ancestorContinues={ancestorContinues}
+          isLastSibling={isLastSibling}
+        />
+      )}
       {isExpandable ? (
         <button
           type="button"
@@ -158,6 +213,8 @@ function TreeItemRow({
 function SortableTreeItem({
   node,
   depth,
+  ancestorContinues = [],
+  isLastSibling = false,
   isSelected,
   isFolderNode,
   isExpandable,
@@ -174,6 +231,8 @@ function SortableTreeItem({
 }: {
   node: TreeNode
   depth: number
+  ancestorContinues?: boolean[]
+  isLastSibling?: boolean
   isSelected: boolean
   isFolderNode?: boolean
   isExpandable?: boolean
@@ -218,6 +277,8 @@ function SortableTreeItem({
         <TreeItemRow
           node={node}
           depth={depth}
+          ancestorContinues={ancestorContinues}
+          isLastSibling={isLastSibling}
           isSelected={isSelected}
           isFolderNode={isFolderNode}
           isExpandable={isExpandable}
@@ -235,6 +296,7 @@ export function SidebarTree({
   scope,
   parentId,
   depth = 0,
+  ancestorContinues,
   disabled = false,
   categoryId,
   onAddScene,
@@ -392,7 +454,7 @@ export function SidebarTree({
         if (e.key === 'Escape') setRenamingId(null)
       }}
       className="mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1 text-xs"
-      style={{ marginLeft: `${depth * 12 + 8}px` }}
+      style={{ marginLeft: `${treeRowPadding(depth)}px` }}
     />
   )
 
@@ -409,6 +471,8 @@ export function SidebarTree({
         <SortableContext items={children.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {children.map((node, index) => {
             const isLast = index === children.length - 1
+            const rowAncestors = ancestorContinues ?? []
+            const childAncestors = [...rowAncestors, !isLast]
             const folderNode = isFolder(node)
             const sceneChapter = node.type === 'chapter' && isChapterFolder(node)
             const isExpandable = folderNode || sceneChapter
@@ -424,6 +488,8 @@ export function SidebarTree({
                 <SortableTreeItem
                   node={node}
                   depth={depth}
+                  ancestorContinues={rowAncestors}
+                  isLastSibling={isLast}
                   isSelected={isNodeSelected(node)}
                   isFolderNode={folderNode}
                   isExpandable={isExpandable}
@@ -455,6 +521,7 @@ export function SidebarTree({
                     scope={scope}
                     parentId={node.id}
                     depth={depth + 1}
+                    ancestorContinues={childAncestors}
                     disabled={disabled}
                     categoryId={categoryId}
                     onAddScene={onAddScene}
@@ -475,6 +542,7 @@ export function SidebarTree({
                         chapterId={node.id}
                         scenes={scenes}
                         depth={depth + 1}
+                        ancestorContinues={childAncestors}
                         isLastChapter={isLast}
                         renamingId={renamingId}
                         renameValue={renameValue}
@@ -526,6 +594,7 @@ function SceneList({
   chapterId,
   scenes,
   depth,
+  ancestorContinues = [],
   isLastChapter,
   renamingId,
   renameValue,
@@ -541,6 +610,7 @@ function SceneList({
   chapterId: string
   scenes: TreeNode[]
   depth: number
+  ancestorContinues?: boolean[]
   isLastChapter: boolean
   renamingId: string | null
   renameValue: string
@@ -586,8 +656,9 @@ function SceneList({
       onDragCancel={() => setActiveDragId(null)}
     >
       <SortableContext items={scenes.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-      {scenes.map((scene, sceneIndex) =>
-        renamingId === scene.id ? (
+      {scenes.map((scene, sceneIndex) => {
+        const isLastScene = sceneIndex === scenes.length - 1
+        return renamingId === scene.id ? (
           <input
             key={scene.id}
             autoFocus
@@ -600,13 +671,15 @@ function SceneList({
               if (e.key === 'Escape') setRenamingId(null)
             }}
             className="mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1 text-xs"
-            style={{ marginLeft: `${depth * 12 + 8}px` }}
+            style={{ marginLeft: `${treeRowPadding(depth)}px` }}
           />
         ) : (
           <SortableTreeItem
             key={scene.id}
             node={scene}
             depth={depth}
+            ancestorContinues={ancestorContinues}
+            isLastSibling={isLastScene}
             isSelected={selectedNodeId === scene.id}
             onSelect={() => setSelectedNodeId(scene.id)}
             onRename={() => startRename(scene)}
@@ -617,9 +690,9 @@ function SceneList({
             }
             onOpenNewWindow={() => onOpenNewWindow(scene)}
             onDoubleClick={() => startRename(scene)}
-            className={isLastChapter && sceneIndex === scenes.length - 1 ? 'mb-1' : undefined}
+            className={isLastChapter && isLastScene ? 'mb-1' : undefined}
             trailingAction={
-              sceneIndex === scenes.length - 1 && onAddScene ? (
+              isLastScene && onAddScene ? (
                 <HoverAddButton
                   className="group-hover/chapter:opacity-100"
                   onClick={() => onAddScene(chapterId)}
@@ -628,7 +701,7 @@ function SceneList({
             }
           />
         )
-      )}
+      })}
       </SortableContext>
     </DndContext>
   )
