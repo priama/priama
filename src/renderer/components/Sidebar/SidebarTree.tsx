@@ -22,7 +22,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown, ChevronRight, Folder, GripVertical, Plus } from 'lucide-react'
-import { useAppStore } from '@/store/appStore'
+import { useAppStore, type PendingRenameTarget } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import {
   makeMoveToTrashCommand,
@@ -44,6 +44,49 @@ import {
 } from '@/lib/treeUtils'
 import type { FolderScope, TreeNode } from '@shared/types'
 
+const TREE_INDENT = 12
+const TREE_BASE_PADDING = 8
+const GUIDE_X = (level: number): number => TREE_BASE_PADDING + level * TREE_INDENT + 7
+
+function treeRowPadding(depth: number): number {
+  return depth * TREE_INDENT + TREE_BASE_PADDING
+}
+
+function TreeIndentGuides({
+  depth,
+  ancestorContinues,
+  isLastSibling
+}: {
+  depth: number
+  ancestorContinues: boolean[]
+  isLastSibling: boolean
+}): React.JSX.Element | null {
+  if (depth === 0) return null
+
+  const currentLevel = depth - 1
+
+  return (
+    <div className="pointer-events-none absolute inset-y-0 left-0" aria-hidden>
+      {ancestorContinues.map((continues, level) =>
+        continues ? (
+          <span
+            key={`ancestor-${level}`}
+            className="absolute top-0 bottom-0 w-px bg-sidebar-border/50"
+            style={{ left: GUIDE_X(level) }}
+          />
+        ) : null
+      )}
+      <span
+        className={cn(
+          'absolute top-0 w-px bg-sidebar-border/50',
+          isLastSibling ? 'h-1/2' : 'bottom-0'
+        )}
+        style={{ left: GUIDE_X(currentLevel) }}
+      />
+    </div>
+  )
+}
+
 const SORTABLE_TRANSITION = 'transform 220ms cubic-bezier(0.25, 1, 0.5, 1)'
 
 const dropAnimation: DropAnimation = {
@@ -55,6 +98,7 @@ interface SidebarTreeProps {
   scope: FolderScope
   parentId: string | null
   depth?: number
+  ancestorContinues?: boolean[]
   disabled?: boolean
   categoryId?: string
   onAddScene?: (chapterId: string) => void
@@ -89,6 +133,8 @@ function HoverAddButton({ onClick, className }: { onClick: () => void; className
 function TreeItemRow({
   node,
   depth,
+  ancestorContinues = [],
+  isLastSibling = false,
   isSelected,
   isFolderNode,
   isExpandable,
@@ -100,6 +146,8 @@ function TreeItemRow({
 }: {
   node: TreeNode
   depth: number
+  ancestorContinues?: boolean[]
+  isLastSibling?: boolean
   isSelected?: boolean
   isFolderNode?: boolean
   isExpandable?: boolean
@@ -115,13 +163,20 @@ function TreeItemRow({
   return (
     <div
       className={cn(
-        'group flex min-w-0 items-center gap-0.5 rounded-md py-1 pr-2 text-xs select-none',
+        'group relative flex min-w-0 items-center gap-0.5 rounded-md py-1 pr-2 text-xs select-none',
         !overlay && 'cursor-pointer',
         isSelected ? 'bg-accent text-accent-foreground' : !overlay && 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
         overlay && 'cursor-grabbing bg-sidebar text-foreground shadow-md ring-1 ring-border'
       )}
-      style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      style={{ paddingLeft: `${treeRowPadding(depth)}px` }}
     >
+      {!overlay && (
+        <TreeIndentGuides
+          depth={depth}
+          ancestorContinues={ancestorContinues}
+          isLastSibling={isLastSibling}
+        />
+      )}
       {isExpandable ? (
         <button
           type="button"
@@ -158,6 +213,8 @@ function TreeItemRow({
 function SortableTreeItem({
   node,
   depth,
+  ancestorContinues = [],
+  isLastSibling = false,
   isSelected,
   isFolderNode,
   isExpandable,
@@ -174,6 +231,8 @@ function SortableTreeItem({
 }: {
   node: TreeNode
   depth: number
+  ancestorContinues?: boolean[]
+  isLastSibling?: boolean
   isSelected: boolean
   isFolderNode?: boolean
   isExpandable?: boolean
@@ -218,6 +277,8 @@ function SortableTreeItem({
         <TreeItemRow
           node={node}
           depth={depth}
+          ancestorContinues={ancestorContinues}
+          isLastSibling={isLastSibling}
           isSelected={isSelected}
           isFolderNode={isFolderNode}
           isExpandable={isExpandable}
@@ -235,6 +296,7 @@ export function SidebarTree({
   scope,
   parentId,
   depth = 0,
+  ancestorContinues,
   disabled = false,
   categoryId,
   onAddScene,
@@ -260,7 +322,13 @@ export function SidebarTree({
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const pendingRenameNodeId = useAppStore((s) => s.pendingRenameNodeId)
-  const pendingRenameTarget = useAppStore((s) => s.pendingRenameTarget)
+  const pendingRenameTargets = useAppStore((s) => s.pendingRenameTargets)
+
+  const isPendingSidebarRename = (nodeId: string): boolean =>
+    pendingRenameNodeId === nodeId && pendingRenameTargets.includes('sidebar')
+
+  const sidebarRenameAutoFocus = (nodeId: string): boolean =>
+    isPendingSidebarRename(nodeId) && !pendingRenameTargets.includes('panel')
 
   const children = useMemo(() => {
     const raw = getChildren(nodes, parentId, scope)
@@ -293,17 +361,20 @@ export function SidebarTree({
     const trimmed = renameValue.trim()
     if (!trimmed) {
       setRenamingId(null)
+      useAppStore.getState().clearPendingRename()
       return
     }
     const node = nodes.find((n) => n.id === id)
     if (!node || trimmed === node.title) {
       setRenamingId(null)
+      useAppStore.getState().clearPendingRename()
       return
     }
     await useHistoryStore.getState().push(
       makeRenameCommand({ id, oldTitle: node.title, newTitle: trimmed })
     )
     setRenamingId(null)
+    useAppStore.getState().clearPendingRename()
   }
 
   const startRename = (node: TreeNode): void => {
@@ -312,14 +383,10 @@ export function SidebarTree({
   }
 
   useEffect(() => {
-    if (pendingRenameTarget !== 'sidebar' || !pendingRenameNodeId) return
-    const node = useAppStore.getState().consumePendingRename('sidebar', (n) => {
-      if (children.some((c) => c.id === n.id)) return true
-      if (n.type === 'scene' && n.parentId && children.some((c) => c.id === n.parentId)) return true
-      return false
-    })
-    if (node) startRename(node)
-  }, [pendingRenameNodeId, pendingRenameTarget, children])
+    if (!pendingRenameNodeId || !pendingRenameTargets.includes('sidebar')) return
+    const node = nodes.find((n) => n.id === pendingRenameNodeId)
+    if (node) setRenameValue(node.title)
+  }, [pendingRenameNodeId, pendingRenameTargets, nodes])
 
   const handleSelect = (node: TreeNode): void => {
     if (isFolder(node)) {
@@ -380,19 +447,22 @@ export function SidebarTree({
     await useHistoryStore.getState().push(makeReorderCommand({ previousNodes: nodesBefore, newItems: items }))
   }
 
-  const renderRenameInput = (id: string): React.JSX.Element => (
+  const renderRenameInput = (id: string, autoFocus = true): React.JSX.Element => (
     <input
-      autoFocus
+      autoFocus={autoFocus}
       value={renameValue}
       onFocus={(e) => e.currentTarget.select()}
       onChange={(e) => setRenameValue(e.target.value)}
       onBlur={() => void handleRename(id)}
       onKeyDown={(e) => {
         if (e.key === 'Enter') void handleRename(id)
-        if (e.key === 'Escape') setRenamingId(null)
+        if (e.key === 'Escape') {
+          setRenamingId(null)
+          useAppStore.getState().clearPendingRename()
+        }
       }}
       className="mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1 text-xs"
-      style={{ marginLeft: `${depth * 12 + 8}px` }}
+      style={{ marginLeft: `${treeRowPadding(depth)}px` }}
     />
   )
 
@@ -409,14 +479,20 @@ export function SidebarTree({
         <SortableContext items={children.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {children.map((node, index) => {
             const isLast = index === children.length - 1
+            const rowAncestors = ancestorContinues ?? []
+            const childAncestors = [...rowAncestors, !isLast]
             const folderNode = isFolder(node)
             const sceneChapter = node.type === 'chapter' && isChapterFolder(node)
             const isExpandable = folderNode || sceneChapter
             const expanded = expandedSections.has(node.id)
             const scenes = sceneChapter ? getScenes(nodes, node.id) : []
 
-            if (renamingId === node.id) {
-              return <div key={node.id}>{renderRenameInput(node.id)}</div>
+            if (renamingId === node.id || isPendingSidebarRename(node.id)) {
+              return (
+                <div key={node.id}>
+                  {renderRenameInput(node.id, sidebarRenameAutoFocus(node.id))}
+                </div>
+              )
             }
 
             return (
@@ -424,6 +500,8 @@ export function SidebarTree({
                 <SortableTreeItem
                   node={node}
                   depth={depth}
+                  ancestorContinues={rowAncestors}
+                  isLastSibling={isLast}
                   isSelected={isNodeSelected(node)}
                   isFolderNode={folderNode}
                   isExpandable={isExpandable}
@@ -455,6 +533,7 @@ export function SidebarTree({
                     scope={scope}
                     parentId={node.id}
                     depth={depth + 1}
+                    ancestorContinues={childAncestors}
                     disabled={disabled}
                     categoryId={categoryId}
                     onAddScene={onAddScene}
@@ -475,6 +554,7 @@ export function SidebarTree({
                         chapterId={node.id}
                         scenes={scenes}
                         depth={depth + 1}
+                        ancestorContinues={childAncestors}
                         isLastChapter={isLast}
                         renamingId={renamingId}
                         renameValue={renameValue}
@@ -486,6 +566,8 @@ export function SidebarTree({
                         onOpenNewWindow={onOpenNewWindow}
                         onAddScene={onAddScene}
                         disabled={disabled}
+                        pendingRenameNodeId={pendingRenameNodeId}
+                        pendingRenameTargets={pendingRenameTargets}
                       />
                     </div>
                   </div>
@@ -526,6 +608,7 @@ function SceneList({
   chapterId,
   scenes,
   depth,
+  ancestorContinues = [],
   isLastChapter,
   renamingId,
   renameValue,
@@ -536,11 +619,14 @@ function SceneList({
   confirmTrash,
   onOpenNewWindow,
   onAddScene,
-  disabled
+  disabled,
+  pendingRenameNodeId,
+  pendingRenameTargets
 }: {
   chapterId: string
   scenes: TreeNode[]
   depth: number
+  ancestorContinues?: boolean[]
   isLastChapter: boolean
   renamingId: string | null
   renameValue: string
@@ -552,6 +638,8 @@ function SceneList({
   onOpenNewWindow: (node: TreeNode) => void
   onAddScene?: (chapterId: string) => void
   disabled?: boolean
+  pendingRenameNodeId: string | null
+  pendingRenameTargets: PendingRenameTarget[]
 }): React.JSX.Element {
   const { selectedNodeId, setSelectedNodeId, setNodes, nodes } = useAppStore()
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
@@ -586,27 +674,38 @@ function SceneList({
       onDragCancel={() => setActiveDragId(null)}
     >
       <SortableContext items={scenes.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-      {scenes.map((scene, sceneIndex) =>
-        renamingId === scene.id ? (
+      {scenes.map((scene, sceneIndex) => {
+        const isLastScene = sceneIndex === scenes.length - 1
+        const isPendingSidebarRename =
+          pendingRenameNodeId === scene.id && pendingRenameTargets.includes('sidebar')
+        const showRename = renamingId === scene.id || isPendingSidebarRename
+        const renameAutoFocus = isPendingSidebarRename && !pendingRenameTargets.includes('panel')
+
+        return showRename ? (
           <input
             key={scene.id}
-            autoFocus
+            autoFocus={renameAutoFocus}
             value={renameValue}
             onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => setRenameValue(e.target.value)}
             onBlur={() => onRename(scene.id)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') onRename(scene.id)
-              if (e.key === 'Escape') setRenamingId(null)
+              if (e.key === 'Escape') {
+                setRenamingId(null)
+                useAppStore.getState().clearPendingRename()
+              }
             }}
             className="mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1 text-xs"
-            style={{ marginLeft: `${depth * 12 + 8}px` }}
+            style={{ marginLeft: `${treeRowPadding(depth)}px` }}
           />
         ) : (
           <SortableTreeItem
             key={scene.id}
             node={scene}
             depth={depth}
+            ancestorContinues={ancestorContinues}
+            isLastSibling={isLastScene}
             isSelected={selectedNodeId === scene.id}
             onSelect={() => setSelectedNodeId(scene.id)}
             onRename={() => startRename(scene)}
@@ -628,7 +727,7 @@ function SceneList({
             }
           />
         )
-      )}
+      })}
       </SortableContext>
     </DndContext>
   )

@@ -3,6 +3,7 @@ import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-c
 import { ComboField } from '@/components/UI/ComboField'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
+import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import {
   DEFAULT_BESTIARY_META,
   OPTIONAL_BESTIARY_CATEGORY_ID,
@@ -37,6 +38,8 @@ export function BestiaryPanel({
 }): React.JSX.Element {
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
+  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
+    usePendingPanelRename(nodeId)
 
   const speciesSuggestions = useEntryFieldSuggestions(
     OPTIONAL_BESTIARY_CATEGORY_ID,
@@ -89,7 +92,17 @@ export function BestiaryPanel({
       />
 
       <Field label="Name">
-        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+        <SpellCheckedInput
+          ref={nameRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onFocus={handleFocus}
+          onKeyDown={(e) => handleKeyDown(e, save)}
+          onBlur={() => {
+            handleBlur()
+            save()
+          }}
+        />
       </Field>
 
       <div className="grid grid-cols-3 gap-2">

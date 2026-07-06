@@ -50,21 +50,17 @@ import {
   updatePreferences,
   updateRecentPrimaryPath,
   updateWindowLayout,
-  getWindowLayout,
-  getWindowLayoutRepaired
+  getWindowLayout
 } from './config'
 import {
   setMainWindow,
-  detachPanel,
-  reattachPanel,
   openDocumentWindow,
   openImageViewerWindow,
   openDevicePreviewWindow,
   broadcast,
   saveSecondaryWindowState,
   closeAllChildren,
-  getMainWindow,
-  getPanelOwnerWindowId
+  getMainWindow
 } from './windowManager'
 import {
   getNavigationState,
@@ -323,7 +319,6 @@ function registerIpcHandlers(): void {
     await removeFromRecent(projectId)
     if (result.wasOpen) {
       closeAllChildren()
-      await updateWindowLayout({ sidebarDetached: false, entityDetached: false })
       resetNavigationState()
       broadcastSync()
     }
@@ -369,7 +364,6 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('tomes:closeProject', async () => {
     closeAllChildren()
-    await updateWindowLayout({ sidebarDetached: false, entityDetached: false })
     closeProject()
     resetNavigationState()
     broadcastSync()
@@ -424,42 +418,6 @@ function registerIpcHandlers(): void {
     return { success: true }
   })
 
-  ipcMain.handle('windows:detach', async (event, { panel }) => {
-    const ownerWindow = BrowserWindow.fromWebContents(event.sender)
-    if (!ownerWindow) return { success: false }
-
-    const config = await getConfig()
-    detachPanel(panel, ownerWindow, config.preferences.theme)
-
-    const mainWin = getMainWindow()
-    if (ownerWindow.id === mainWin?.id) {
-      const layout = await getWindowLayout()
-      await updateWindowLayout({
-        sidebarDetached: panel === 'sidebar' ? true : layout.sidebarDetached,
-        entityDetached: panel === 'entity' ? true : layout.entityDetached
-      })
-    }
-    return { success: true }
-  })
-
-  ipcMain.handle('windows:reattach', async (event, { panel }) => {
-    const sourceWindow = BrowserWindow.fromWebContents(event.sender)
-    if (!sourceWindow) return { success: false }
-
-    const ownerWindowId = getPanelOwnerWindowId(sourceWindow, panel)
-    reattachPanel(panel, sourceWindow)
-
-    const mainWin = getMainWindow()
-    if (ownerWindowId !== undefined && ownerWindowId === mainWin?.id) {
-      const layout = await getWindowLayout()
-      await updateWindowLayout({
-        sidebarDetached: panel === 'sidebar' ? false : layout.sidebarDetached,
-        entityDetached: panel === 'entity' ? false : layout.entityDetached
-      })
-    }
-    return { success: true }
-  })
-
   ipcMain.handle('windows:openDocument', async (_, { nodeId, title }) => {
     const config = await getConfig()
     openDocumentWindow(nodeId, title, config.preferences.theme)
@@ -479,11 +437,8 @@ function registerIpcHandlers(): void {
     return { success: true }
   })
 
-  ipcMain.handle('windows:getLayout', async (event) => {
-    const sender = BrowserWindow.fromWebContents(event.sender)
-    const mainWin = getMainWindow()
-    const mainId = sender && mainWin && sender.id === mainWin.id ? mainWin.id : undefined
-    return getWindowLayoutRepaired(mainId)
+  ipcMain.handle('windows:getLayout', async () => {
+    return getWindowLayout()
   })
 
   ipcMain.handle('windows:updateLayout', async (_, updates) => {

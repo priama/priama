@@ -3,8 +3,6 @@ import { join } from 'path'
 import fse from 'fs-extra'
 import type { PriamaConfig, RecentProjectEntry, PriamaPreferences } from '@shared/types'
 import { COVER_COLORS } from '@shared/types'
-import { isPanelWindowOpen } from './windowManager'
-
 const CONFIG_FILENAME = 'priama-config.json'
 
 function getConfigPath(): string {
@@ -131,8 +129,6 @@ export async function updateWindowLayout(
   const defaults: import('@shared/types').WindowLayoutState = {
     sidebarWidth: 280,
     rightPanelWidth: 320,
-    sidebarDetached: false,
-    entityDetached: false,
     secondaryWindows: []
   }
   config.windowLayout = { ...defaults, ...config.windowLayout, ...updates }
@@ -146,33 +142,9 @@ export async function getWindowLayout(): Promise<import('@shared/types').WindowL
     config.windowLayout ?? {
       sidebarWidth: 280,
       rightPanelWidth: 320,
-      sidebarDetached: false,
-      entityDetached: false,
       secondaryWindows: []
     }
   )
-}
-
-/** Clear stale detached flags when the child panel window no longer exists. */
-export async function getWindowLayoutRepaired(
-  mainWindowId?: number
-): Promise<import('@shared/types').WindowLayoutState> {
-  const layout = await getWindowLayout()
-  if (mainWindowId === undefined) return layout
-
-  const repairs: Partial<import('@shared/types').WindowLayoutState> = {}
-
-  if (layout.sidebarDetached && !isPanelWindowOpen(mainWindowId, 'sidebar')) {
-    repairs.sidebarDetached = false
-  }
-  if (layout.entityDetached && !isPanelWindowOpen(mainWindowId, 'entity')) {
-    repairs.entityDetached = false
-  }
-
-  if (Object.keys(repairs).length > 0) {
-    return updateWindowLayout(repairs)
-  }
-  return layout
 }
 
 export async function updateRecentPrimaryPath(projectId: string, primaryPath: string): Promise<void> {

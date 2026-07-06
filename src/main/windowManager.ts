@@ -1,11 +1,8 @@
 import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import type { DevicePreviewRequestOptions, WindowBounds, WindowLayoutState } from '@shared/types'
-import { getNavigationState } from './navigationState'
-import { getSyncState } from './tomes/projectStore'
 
-export type PanelType = 'sidebar' | 'entity'
-export type ChildWindowKind = PanelType | 'workspace' | 'imageViewer' | 'devicePreview'
+export type ChildWindowKind = 'workspace' | 'imageViewer' | 'devicePreview'
 
 interface ChildWindowRecord {
   window: BrowserWindow
@@ -13,11 +10,9 @@ interface ChildWindowRecord {
   nodeId?: string
   imagePath?: string
   ownerWindowId: number
-  panel?: PanelType
 }
 
 const children = new Map<string, ChildWindowRecord>()
-const reattachingPanels = new Set<string>()
 let mainWindowRef: BrowserWindow | null = null
 
 export function setMainWindow(win: BrowserWindow): void {
@@ -28,21 +23,8 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindowRef
 }
 
-export function isPanelWindowOpen(ownerWindowId: number, panel: PanelType): boolean {
-  return [...children.values()].some(
-    (record) =>
-      record.kind === panel &&
-      record.ownerWindowId === ownerWindowId &&
-      !record.window.isDestroyed()
-  )
-}
-
 export function themeBackground(theme: 'light' | 'dark'): string {
   return theme === 'dark' ? '#1a1a1a' : '#fafafa'
-}
-
-function panelKey(ownerWindowId: number, panel: PanelType): string {
-  return `${ownerWindowId}:${panel}`
 }
 
 function loadUrl(win: BrowserWindow, hash: string): void {
@@ -63,109 +45,12 @@ function defaultBounds(width: number, height: number): WindowBounds {
   }
 }
 
-function getOwnerWindow(ownerWindowId: number): BrowserWindow | null {
-  const win = BrowserWindow.fromId(ownerWindowId)
-  return win && !win.isDestroyed() ? win : null
-}
-
 export function broadcast(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
       win.webContents.send(channel, payload)
     }
   }
-}
-
-function pushPanelStateToChild(win: BrowserWindow): void {
-  win.webContents.once('did-finish-load', () => {
-    if (win.isDestroyed()) return
-    win.webContents.send('sync:navigation', getNavigationState())
-    win.webContents.send('sync:state', getSyncState())
-  })
-}
-
-export function detachPanel(
-  panel: PanelType,
-  ownerWindow: BrowserWindow,
-  theme: 'light' | 'dark',
-  bounds?: WindowBounds
-): BrowserWindow {
-  const ownerWindowId = ownerWindow.id
-  const existing = [...children.entries()].find(
-    ([, r]) => r.kind === panel && r.ownerWindowId === ownerWindowId
-  )
-  if (existing) {
-    existing[1].window.focus()
-    return existing[1].window
-  }
-
-  const b = bounds ?? defaultBounds(panel === 'sidebar' ? 300 : 360, 700)
-  const win = new BrowserWindow({
-    x: b.x,
-    y: b.y,
-    width: b.width,
-    height: b.height,
-    minWidth: 200,
-    minHeight: 400,
-    frame: false,
-    titleBarStyle: 'hidden',
-    movable: true,
-    resizable: true,
-    minimizable: false,
-    maximizable: false,
-    closable: false,
-    show: false,
-    backgroundColor: themeBackground(theme),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  })
-
-  const id = win.id.toString()
-  children.set(id, { window: win, kind: panel, ownerWindowId, panel })
-
-  win.once('ready-to-show', () => win.show())
-
-  win.on('closed', () => {
-    children.delete(id)
-    const key = panelKey(ownerWindowId, panel)
-    if (!reattachingPanels.has(key)) {
-      getOwnerWindow(ownerWindowId)?.webContents.send('windows:panelClosed', { panel })
-    }
-    reattachingPanels.delete(key)
-  })
-
-  loadUrl(win, `child=${panel}`)
-  pushPanelStateToChild(win)
-  return win
-}
-
-export function getPanelOwnerWindowId(sourceWindow: BrowserWindow, panel: PanelType): number | undefined {
-  const record = [...children.values()].find(
-    (r) => r.window.id === sourceWindow.id && r.kind === panel
-  )
-  return record?.ownerWindowId
-}
-
-export function reattachPanel(panel: PanelType, sourceWindow: BrowserWindow): void {
-  const entry = [...children.entries()].find(
-    ([, r]) => r.window.id === sourceWindow.id && r.kind === panel
-  )
-  if (!entry) return
-
-  const { ownerWindowId } = entry[1]
-  const key = panelKey(ownerWindowId, panel)
-  reattachingPanels.add(key)
-  const win = entry[1].window
-  if (!win.isDestroyed()) {
-    win.setClosable(true)
-    win.close()
-  }
-  children.delete(entry[0])
-  getOwnerWindow(ownerWindowId)?.webContents.send('windows:panelReattached', { panel })
 }
 
 export function openDocumentWindow(

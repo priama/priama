@@ -9,6 +9,7 @@ import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
+import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import { useArrayFieldSuggestions } from '@/hooks/useArrayFieldSuggestions'
 import { cn } from '@/lib/utils'
 import {
@@ -126,6 +127,8 @@ export function CharacterPanel({
   const nodes = useAppStore((s) => s.nodes)
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
+  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
+    usePendingPanelRename(nodeId)
 
   const otherCharacters = useMemo(
     () => nodes.filter((n) => n.type === 'character' && !n.deletedAt && n.id !== nodeId),
@@ -193,7 +196,17 @@ export function CharacterPanel({
       />
 
       <Field label="Name">
-        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+        <SpellCheckedInput
+          ref={nameRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onFocus={handleFocus}
+          onKeyDown={(e) => handleKeyDown(e, save)}
+          onBlur={() => {
+            handleBlur()
+            save()
+          }}
+        />
       </Field>
       <Field label="Also known as">
         <CommaSeparatedField

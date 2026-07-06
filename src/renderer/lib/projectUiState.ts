@@ -23,13 +23,6 @@ export function captureProjectUiState(): ProjectUiState {
   const s = useAppStore.getState()
   const categories = s.categories
 
-  let rightPanelOpen = s.rightPanelOpen
-  const hasSelection = Boolean(s.selectedEntityId || s.selectedEntryId)
-
-  if (s.entityDetached) {
-    rightPanelOpen = hasSelection
-  }
-
   return {
     sectionOrder: [...s.sectionOrder],
     selectedNodeId: s.selectedNodeId,
@@ -39,7 +32,7 @@ export function captureProjectUiState(): ProjectUiState {
     selectedEntryId: s.selectedEntryId,
     selectedEntryCategoryId: s.selectedEntryCategoryId,
     expandedSections: [...s.expandedSections],
-    rightPanelOpen
+    rightPanelOpen: s.rightPanelOpen
   }
 }
 

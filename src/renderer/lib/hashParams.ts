@@ -15,11 +15,6 @@ export function useSearchParams(): URLSearchParams {
   }, [hash])
 }
 
-export function isDetachedPanelWindow(): boolean {
-  const hash = window.location.hash
-  return hash.includes('child=sidebar') || hash.includes('child=entity')
-}
-
 export function isWorkspaceWindow(): boolean {
   return window.location.hash.includes('child=workspace')
 }
@@ -30,8 +25,4 @@ export function isImageViewerWindow(): boolean {
 
 export function isDevicePreviewWindow(): boolean {
   return window.location.hash.includes('child=devicePreview')
-}
-
-export function isChildWindow(): boolean {
-  return window.location.hash.includes('child=')
 }

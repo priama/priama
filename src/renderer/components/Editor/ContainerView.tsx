@@ -162,6 +162,7 @@ function SortableCard({
   readOnly,
   menuVariant = 'manuscript',
   renaming,
+  renameAutoFocus = true,
   renameValue,
   onRenameValueChange,
   onRenameCommit,
@@ -187,6 +188,7 @@ function SortableCard({
   readOnly?: boolean
   menuVariant?: 'manuscript' | 'wiki' | 'trash'
   renaming?: boolean
+  renameAutoFocus?: boolean
   renameValue?: string
   onRenameValueChange?: (value: string) => void
   onRenameCommit?: () => void
@@ -250,7 +252,7 @@ function SortableCard({
         {folderNode && <Folder className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
         {renaming ? (
           <input
-            autoFocus
+            autoFocus={renameAutoFocus}
             value={renameValue ?? node.title}
             onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => onRenameValueChange?.(e.target.value)}
@@ -358,19 +360,22 @@ export function ContainerView({
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const pendingRenameNodeId = useAppStore((s) => s.pendingRenameNodeId)
-  const pendingRenameTarget = useAppStore((s) => s.pendingRenameTarget)
+  const pendingRenameTargets = useAppStore((s) => s.pendingRenameTargets)
   const nodes = useAppStore((s) => s.nodes)
 
+  const isPendingContainerRename = (nodeId: string): boolean =>
+    pendingRenameNodeId === nodeId && pendingRenameTargets.includes('container')
+
+  const containerRenameAutoFocus = (nodeId: string): boolean =>
+    isPendingContainerRename(nodeId) && !pendingRenameTargets.includes('panel')
+
   useEffect(() => {
-    if (pendingRenameTarget !== 'container' || !pendingRenameNodeId) return
-    const node = useAppStore.getState().consumePendingRename('container', (n) =>
-      items.some((item) => item.id === n.id)
-    )
-    if (node) {
-      setRenamingId(node.id)
+    if (!pendingRenameNodeId || !pendingRenameTargets.includes('container')) return
+    const node = nodes.find((n) => n.id === pendingRenameNodeId)
+    if (node && items.some((item) => item.id === pendingRenameNodeId)) {
       setRenameValue(node.title)
     }
-  }, [pendingRenameNodeId, pendingRenameTarget, items])
+  }, [pendingRenameNodeId, pendingRenameTargets, nodes, items])
 
   const startRename = (node: TreeNode): void => {
     setRenamingId(node.id)
@@ -381,17 +386,20 @@ export function ContainerView({
     const trimmed = renameValue.trim()
     if (!trimmed) {
       setRenamingId(null)
+      useAppStore.getState().clearPendingRename()
       return
     }
     const node = nodes.find((n) => n.id === id)
     if (!node || trimmed === node.title) {
       setRenamingId(null)
+      useAppStore.getState().clearPendingRename()
       return
     }
     await useHistoryStore.getState().push(
       makeRenameCommand({ id, oldTitle: node.title, newTitle: trimmed })
     )
     setRenamingId(null)
+    useAppStore.getState().clearPendingRename()
   }
 
   const sensors = useSensors(
@@ -417,18 +425,24 @@ export function ContainerView({
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={items.map((n) => n.id)} strategy={rectSortingStrategy}>
             <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((node) => (
+              {items.map((node) => {
+                const showRename = renamingId === node.id || isPendingContainerRename(node.id)
+                return (
                 <SortableCard
                   key={node.id}
                   node={node}
                   isSelected={selectedNodeId === node.id}
                   readOnly={readOnly}
                   menuVariant={menuVariant}
-                  renaming={renamingId === node.id}
+                  renaming={showRename}
+                  renameAutoFocus={containerRenameAutoFocus(node.id)}
                   renameValue={renameValue}
                   onRenameValueChange={setRenameValue}
                   onRenameCommit={() => void handleRenameCommit(node.id)}
-                  onRenameCancel={() => setRenamingId(null)}
+                  onRenameCancel={() => {
+                    setRenamingId(null)
+                    useAppStore.getState().clearPendingRename()
+                  }}
                   onSelect={() => onSelect(node)}
                   onRename={
                     onRename
@@ -449,7 +463,8 @@ export function ContainerView({
                   onPermanentDelete={onPermanentDelete ? () => onPermanentDelete(node) : undefined}
                   onConfirm={setConfirm}
                 />
-              ))}
+                )
+              })}
             </div>
           </SortableContext>
         </DndContext>

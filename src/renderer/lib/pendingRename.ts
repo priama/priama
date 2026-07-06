@@ -11,14 +11,14 @@ function ensureSectionExpanded(sectionId: string): void {
   if (!expandedSections.has(sectionId)) toggleSection(sectionId)
 }
 
-/** After creating a node, open inline rename in the sidebar tree or container cards. */
+/** After creating a node, set pending rename on one or more UI surfaces. */
 export function requestRenameAfterCreate(
   createdId: string | null | undefined,
-  target: PendingRenameTarget
+  ...targets: PendingRenameTarget[]
 ): void {
-  if (createdId) {
-    useAppStore.getState().requestRename(createdId, target)
-  }
+  if (!createdId || targets.length === 0) return
+  if (targets.includes('sidebar')) expandSidebarToNode(createdId)
+  useAppStore.getState().requestRename(createdId, ...targets)
 }
 
 export function expandSidebarToNode(nodeId: string): void {
@@ -38,25 +38,16 @@ export function expandSidebarToNode(nodeId: string): void {
     }
   }
 
-  if ((node.parentId ?? null) !== null) return
-
   if (node.type === 'chapter' || node.type === 'scene') {
     ensureSectionExpanded('manuscript')
-    return
-  }
-
-  if (node.type === 'entry' && node.categoryId) {
+  } else if (node.type === 'entry' && node.categoryId) {
     ensureSectionExpanded(node.categoryId)
-    return
+  } else {
+    const categoryId = categoryIdForWikiNodeType(node.type)
+    if (categoryId) ensureSectionExpanded(categoryId)
   }
 
-  const categoryId = categoryIdForWikiNodeType(node.type)
-  if (categoryId) {
-    ensureSectionExpanded(categoryId)
-    return
-  }
-
-  if (isFolder(node)) {
+  if ((node.parentId ?? null) === null && isFolder(node)) {
     const scope = getFolderScope(node) ?? 'manuscript'
     expandSectionForScope(state.nodes, state.categories, scope, node.id)
   }
@@ -86,7 +77,5 @@ function expandSectionForScope(
 }
 
 export function requestSidebarRenameAfterCreate(createdId: string | null | undefined): void {
-  if (!createdId) return
-  expandSidebarToNode(createdId)
-  useAppStore.getState().requestRename(createdId, 'sidebar')
+  requestRenameAfterCreate(createdId, 'sidebar')
 }

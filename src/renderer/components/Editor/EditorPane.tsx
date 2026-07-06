@@ -146,7 +146,7 @@ export function EditorPane(): React.JSX.Element {
       selectContainer(categoryId)
     }
     if (createdId) {
-      requestRenameAfterCreate(createdId, 'container')
+      requestRenameAfterCreate(createdId, 'container', 'sidebar')
     }
   }
 
@@ -162,7 +162,7 @@ export function EditorPane(): React.JSX.Element {
     } else {
       setSelectedNodeId(chapterId)
     }
-    requestRenameAfterCreate(chapterId, 'container')
+    requestRenameAfterCreate(chapterId, 'container', 'sidebar')
   }
 
   const createScene = async (chapterId: string): Promise<void> => {
@@ -171,7 +171,7 @@ export function EditorPane(): React.JSX.Element {
     )
     if (createdId) {
       setSelectedNodeId(createdId)
-      requestRenameAfterCreate(createdId, 'container')
+      requestRenameAfterCreate(createdId, 'container', 'sidebar')
     }
   }
 
