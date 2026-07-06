@@ -976,9 +976,12 @@ export async function getRecentProjectsWithStatus(): Promise<
   import('@shared/types').RecentProjectWithStatus[]
 > {
   const config = await getConfig()
+  const sorted = [...config.recentProjects].sort(
+    (a, b) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime()
+  )
 
   return Promise.all(
-    config.recentProjects.map(async (p) => ({
+    sorted.map(async (p) => ({
       ...p,
       exists: await fse.pathExists(p.primaryPath)
     }))
