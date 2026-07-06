@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { isValidContainerId, pruneContainerNavigation } from './projectUiState'
 import { sanitizeProjectUiState } from './projectUiState'
 import type { CategoryDefinition, ProjectUiState, TreeNode } from './types'
 
@@ -19,16 +20,26 @@ function sceneChapter(id: string): TreeNode {
 }
 
 function folder(id: string): TreeNode {
+  return manuscriptFolder(id, null)
+}
+
+function manuscriptFolder(
+  id: string,
+  parentId: string | null,
+  title = 'Folder',
+  deletedAt?: string
+): TreeNode {
   return {
     id,
-    parentId: null,
+    parentId,
     type: 'folder',
-    title: 'Folder',
+    title,
     sortOrder: 0,
     content: '',
     metadata: JSON.stringify({ scope: 'manuscript' }),
     createdAt: '',
-    updatedAt: ''
+    updatedAt: '',
+    ...(deletedAt ? { deletedAt } : {})
   }
 }
 
@@ -67,5 +78,85 @@ describe('sanitizeProjectUiState expandedSections', () => {
     const ui = { ...baseUi, expandedSections: ['manuscript', chapter.id] }
     const result = sanitizeProjectUiState(ui, [chapter], categories)
     expect(result.expandedSections).not.toContain(chapter.id)
+  })
+})
+
+describe('isValidContainerId', () => {
+  it('rejects trashed folder container ids', () => {
+    const f = manuscriptFolder('folder-a', null, 'A', '2026-01-01T00:00:00.000Z')
+    expect(isValidContainerId('folder:folder-a', [f], categories)).toBe(false)
+  })
+
+  it('accepts active folder container ids', () => {
+    const f = manuscriptFolder('folder-a', null)
+    expect(isValidContainerId('folder:folder-a', [f], categories)).toBe(true)
+  })
+})
+
+describe('pruneContainerNavigation', () => {
+  const a = manuscriptFolder('a', null, 'A')
+  const b = manuscriptFolder('b', 'a', 'B')
+  const c = manuscriptFolder('c', 'b', 'C')
+
+  it('cascade trash resets to manuscript', () => {
+    const trashed = [
+      manuscriptFolder('a', null, 'A', 't'),
+      manuscriptFolder('b', 'a', 'B', 't'),
+      manuscriptFolder('c', 'b', 'C', 't')
+    ]
+    const result = pruneContainerNavigation(
+      {
+        containerHistory: ['manuscript', 'folder:a', 'folder:b', 'folder:c'],
+        containerHistoryIndex: 3,
+        selectedContainerId: 'folder:c'
+      },
+      trashed,
+      categories
+    )
+    expect(result.selectedContainerId).toBe('manuscript')
+    expect(result.containerHistory).toEqual(['manuscript'])
+    expect(result.containerHistoryIndex).toBe(0)
+  })
+
+  it('partial subtree trash falls back to tree parent folder', () => {
+    const nodes = [a, b, manuscriptFolder('c', 'b', 'C', 't')]
+    const result = pruneContainerNavigation(
+      {
+        containerHistory: ['manuscript', 'folder:a', 'folder:b', 'folder:c'],
+        containerHistoryIndex: 3,
+        selectedContainerId: 'folder:c'
+      },
+      nodes,
+      categories
+    )
+    expect(result.selectedContainerId).toBe('folder:b')
+    expect(result.containerHistoryIndex).toBe(2)
+  })
+
+  it('null selection prunes history without coercing selection', () => {
+    const trashed = [manuscriptFolder('c', 'b', 'C', 't')]
+    const result = pruneContainerNavigation(
+      {
+        containerHistory: ['manuscript', 'folder:c'],
+        containerHistoryIndex: 1,
+        selectedContainerId: null
+      },
+      trashed,
+      categories
+    )
+    expect(result.selectedContainerId).toBeNull()
+    expect(result.containerHistory).toEqual(['manuscript'])
+    expect(result.containerHistoryIndex).toBe(0)
+  })
+
+  it('leaves valid navigation unchanged', () => {
+    const nodes = [a, b, c]
+    const state = {
+      containerHistory: ['manuscript', 'folder:a', 'folder:b'],
+      containerHistoryIndex: 2,
+      selectedContainerId: 'folder:b'
+    }
+    const result = pruneContainerNavigation(state, nodes, categories)
+    expect(result).toEqual(state)
   })
 })

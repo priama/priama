@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAppStore } from '@/store/appStore'
+import { isValidContainerId } from '@shared/projectUiState'
 import { useHistoryStore } from '@/store/historyStore'
 import {
   makeCreateChapterCommand,
@@ -70,15 +71,22 @@ export function EditorPane(): React.JSX.Element {
     containerGoForward
   } = useAppStore()
 
-  const canGoBack = containerHistoryIndex > 0
-  const canGoForward = containerHistoryIndex < containerHistory.length - 1
+  const canGoBack = containerHistory
+    .slice(0, containerHistoryIndex)
+    .some((id) => isValidContainerId(id, nodes, categories))
+  const canGoForward = containerHistory
+    .slice(containerHistoryIndex + 1)
+    .some((id) => isValidContainerId(id, nodes, categories))
 
   const buildBreadcrumb = (folderId: string): string => {
     const parts: string[] = []
-    let current = nodes.find((n) => n.id === folderId)
+    let current = nodes.find((n) => n.id === folderId && !n.deletedAt)
     while (current) {
       parts.unshift(current.title)
-      current = current.parentId ? nodes.find((n) => n.id === current!.parentId) : undefined
+      if (!current.parentId) break
+      const parent = nodes.find((n) => n.id === current!.parentId && !n.deletedAt)
+      if (!parent) break
+      current = parent
     }
     return parts.join(' / ')
   }
@@ -425,7 +433,7 @@ export function EditorPane(): React.JSX.Element {
   const folderId = selectedContainerId ? parseFolderContainerId(selectedContainerId) : null
   if (folderId) {
     const folder = nodes.find((n) => n.id === folderId)
-    if (folder && isFolder(folder)) {
+    if (folder && isFolder(folder) && !folder.deletedAt) {
       const folderScope = getFolderScope(folder) ?? 'manuscript'
       const folderCategoryId =
         folderScope === 'entry'

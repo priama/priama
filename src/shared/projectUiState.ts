@@ -1,6 +1,8 @@
 import type {
   CategoryDefinition,
   ChapterMeta,
+  FolderMeta,
+  FolderScope,
   ProjectUiState,
   TreeNode,
   WikiEntityType
@@ -9,11 +11,13 @@ import {
   BUILTIN_CATEGORY_IDS,
   DEFAULT_CHAPTER_META,
   DEFAULT_EXPANDED_SECTIONS,
+  DEFAULT_FOLDER_META,
   DEFAULT_SECTION_ORDER,
   migrateExpandedSections,
   migrateSectionOrder,
   parseMetadata
 } from './types'
+import { folderScopeForCategory } from './categoryPresets'
 
 const LEGACY_SECTION_TO_CATEGORY: Record<string, string> = {
   characters: BUILTIN_CATEGORY_IDS.characters,
@@ -96,7 +100,7 @@ export function normalizeProjectUiState(
   }
 }
 
-function isValidContainerId(
+export function isValidContainerId(
   id: string,
   nodes: TreeNode[],
   categories: CategoryDefinition[]
@@ -112,6 +116,156 @@ function isValidContainerId(
     return nodes.some((n) => n.id === folderId && n.type === 'folder' && !n.deletedAt)
   }
   return false
+}
+
+export interface ContainerNavState {
+  containerHistory: string[]
+  containerHistoryIndex: number
+  selectedContainerId: string | null
+}
+
+function folderContainerId(folderId: string): string {
+  return `folder:${folderId}`
+}
+
+function parseFolderContainerId(id: string): string | null {
+  if (!id.startsWith('folder:')) return null
+  return id.slice('folder:'.length)
+}
+
+function resolveScopeRootContainerId(scope: FolderScope, categories: CategoryDefinition[]): string {
+  if (scope === 'manuscript') return 'manuscript'
+  const cat = categories.find((c) => folderScopeForCategory(c) === scope)
+  return cat?.id ?? 'manuscript'
+}
+
+function resolveFallbackFromTreeAncestry(
+  folderId: string,
+  nodes: TreeNode[],
+  categories: CategoryDefinition[]
+): string | null {
+  let current = nodes.find((n) => n.id === folderId)
+  while (current?.parentId) {
+    const parent = nodes.find((n) => n.id === current!.parentId)
+    if (parent?.type === 'folder') {
+      const parentContainerId = folderContainerId(parent.id)
+      if (isValidContainerId(parentContainerId, nodes, categories)) {
+        return parentContainerId
+      }
+    }
+    current = parent
+  }
+  return null
+}
+
+function resolveFallbackFromHistory(
+  originalHistory: string[],
+  startIndex: number,
+  nodes: TreeNode[],
+  categories: CategoryDefinition[]
+): string | null {
+  for (let i = startIndex; i >= 0; i--) {
+    const id = originalHistory[i]
+    if (isValidContainerId(id, nodes, categories)) return id
+  }
+  return null
+}
+
+function resolveInvalidContainerSelection(
+  invalidId: string,
+  state: ContainerNavState,
+  nodes: TreeNode[],
+  categories: CategoryDefinition[]
+): string {
+  const folderId = parseFolderContainerId(invalidId)
+  if (folderId) {
+    const fromTree = resolveFallbackFromTreeAncestry(folderId, nodes, categories)
+    if (fromTree) return fromTree
+
+    const fromHistory = resolveFallbackFromHistory(
+      state.containerHistory,
+      state.containerHistoryIndex,
+      nodes,
+      categories
+    )
+    if (fromHistory) return fromHistory
+
+    const folder = nodes.find((n) => n.id === folderId)
+    if (folder?.type === 'folder') {
+      const meta = parseMetadata<FolderMeta>(folder.metadata, DEFAULT_FOLDER_META)
+      return resolveScopeRootContainerId(meta.scope, categories)
+    }
+  }
+
+  const fromHistory = resolveFallbackFromHistory(
+    state.containerHistory,
+    state.containerHistoryIndex,
+    nodes,
+    categories
+  )
+  if (fromHistory) return fromHistory
+
+  return 'manuscript'
+}
+
+function syncHistoryToSelection(
+  filteredHistory: string[],
+  selectedContainerId: string
+): { containerHistory: string[]; containerHistoryIndex: number } {
+  const index = filteredHistory.indexOf(selectedContainerId)
+  if (index >= 0) {
+    return { containerHistory: filteredHistory, containerHistoryIndex: index }
+  }
+  return {
+    containerHistory: [selectedContainerId],
+    containerHistoryIndex: 0
+  }
+}
+
+export function pruneContainerNavigation(
+  state: ContainerNavState,
+  nodes: TreeNode[],
+  categories: CategoryDefinition[]
+): ContainerNavState {
+  const filteredHistory = state.containerHistory.filter((id) =>
+    isValidContainerId(id, nodes, categories)
+  )
+
+  if (state.selectedContainerId === null) {
+    let index = state.containerHistoryIndex
+    if (filteredHistory.length === 0) {
+      index = -1
+    } else if (index >= filteredHistory.length) {
+      index = filteredHistory.length - 1
+    }
+    return {
+      containerHistory: filteredHistory,
+      containerHistoryIndex: index,
+      selectedContainerId: null
+    }
+  }
+
+  let selectedContainerId = state.selectedContainerId
+
+  if (!isValidContainerId(selectedContainerId, nodes, categories)) {
+    selectedContainerId = resolveInvalidContainerSelection(
+      selectedContainerId,
+      state,
+      nodes,
+      categories
+    )
+  }
+
+  const { containerHistory, containerHistoryIndex } = syncHistoryToSelection(
+    filteredHistory,
+    selectedContainerId
+  )
+
+  return {
+    containerHistory,
+    containerHistoryIndex,
+    selectedContainerId
+  }
 }
 
 function isValidWikiNode(node: TreeNode | undefined, type: WikiEntityType): boolean {
