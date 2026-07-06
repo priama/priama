@@ -7,7 +7,7 @@ import { resolveCategoryForNode, wikiNodeTypeForCategory } from '@shared/categor
 import type { TreeNode } from '@shared/types'
 import { mergeIncomingNodes } from '@/lib/contentPersistence'
 import { makeCreateNodeCommand } from '@/lib/commands'
-import { requestRenameAfterCreate, requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
+import { requestRenameAfterCreate } from '@/lib/pendingRename'
 import { folderContainerId, isFolder, isWikiEntityType } from '@/lib/treeUtils'
 import { useAppStore, type PendingRenameTarget } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
@@ -17,7 +17,7 @@ export type CreateSource = 'sidebar' | 'container'
 export type OpenCategoryOptions = {
   renameAfterCreate?: boolean
   source?: CreateSource
-  renameTarget?: PendingRenameTarget
+  renameTarget?: PendingRenameTarget | PendingRenameTarget[]
 }
 
 /** Ensure node exists in store: local → entity.getById → tree.getAll. */
@@ -37,39 +37,32 @@ export async function ensureNodeInStore(nodeId: string): Promise<TreeNode | null
   return useAppStore.getState().nodes.find((n) => n.id === nodeId) ?? null
 }
 
-export function resolveRenameTargetForNode(
+export function resolveRenameTargetsForNode(
   node: TreeNode,
   source: CreateSource
-): PendingRenameTarget {
-  if (node.type === 'note') return 'panel'
+): PendingRenameTarget[] {
+  if (node.type === 'note') return ['panel', 'sidebar']
 
   const { categories } = useAppStore.getState()
   const categoryId = resolveCategoryForNode(node)
   const category = findCategory(categories, categoryId)
 
-  if (categoryOpensInRightPanel(category)) return 'panel'
-  if (source === 'container') return 'container'
-  return 'sidebar'
-}
-
-function dispatchRenameAfterCreate(nodeId: string, target: PendingRenameTarget): void {
-  if (target === 'sidebar') {
-    requestSidebarRenameAfterCreate(nodeId)
-    return
-  }
-  queueMicrotask(() => requestRenameAfterCreate(nodeId, target))
+  if (categoryOpensInRightPanel(category)) return ['panel', 'sidebar']
+  if (source === 'container') return ['container', 'sidebar']
+  return ['sidebar']
 }
 
 function applyRenameAfterCreate(node: TreeNode, opts?: OpenCategoryOptions): void {
   if (opts?.renameTarget) {
-    dispatchRenameAfterCreate(node.id, opts.renameTarget)
+    const targets = Array.isArray(opts.renameTarget) ? opts.renameTarget : [opts.renameTarget]
+    requestRenameAfterCreate(node.id, ...targets)
     return
   }
 
   if (!opts?.renameAfterCreate) return
 
-  const target = resolveRenameTargetForNode(node, opts.source ?? 'sidebar')
-  dispatchRenameAfterCreate(node.id, target)
+  const targets = resolveRenameTargetsForNode(node, opts.source ?? 'sidebar')
+  requestRenameAfterCreate(node.id, ...targets)
 }
 
 export function selectCategoryHeader(categoryId: string): void {

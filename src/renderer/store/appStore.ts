@@ -38,7 +38,7 @@ interface AppState {
   containerHistoryIndex: number
 
   pendingRenameNodeId: string | null
-  pendingRenameTarget: PendingRenameTarget | null
+  pendingRenameTargets: PendingRenameTarget[]
 
   setProject: (path: string, meta: ProjectMeta, nodes?: TreeNode[]) => void
   closeProject: () => void
@@ -76,11 +76,9 @@ interface AppState {
   setRightPanelWidth: (width: number) => void
   applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
 
-  requestRename: (id: string, target: PendingRenameTarget) => void
-  consumePendingRename: (
-    target: PendingRenameTarget,
-    matches: (node: TreeNode) => boolean
-  ) => TreeNode | null
+  requestRename: (id: string, ...targets: PendingRenameTarget[]) => void
+  hasPendingRename: (target: PendingRenameTarget, nodeId?: string) => boolean
+  clearPendingRenameTarget: (target: PendingRenameTarget) => void
   clearPendingRename: () => void
 }
 
@@ -117,7 +115,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   showBookSettingsModal: false,
 
   pendingRenameNodeId: null,
-  pendingRenameTarget: null,
+  pendingRenameTargets: [],
 
   setProject: (path, meta, nodes) =>
     set({
@@ -148,7 +146,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       lastSaved: null,
       backupWarningCount: 0,
       pendingRenameNodeId: null,
-      pendingRenameTarget: null,
+      pendingRenameTargets: [],
       containerHistory: [],
       containerHistoryIndex: -1
     }),
@@ -314,21 +312,30 @@ export const useAppStore = create<AppState>((set, get) => ({
       rightPanelOpen: nav.rightPanelOpen,
       sectionOrder: migrateSectionOrder(nav.sectionOrder, get().categories),
       pendingRenameNodeId: null,
-      pendingRenameTarget: null
+      pendingRenameTargets: []
     }),
 
-  requestRename: (id, target) => set({ pendingRenameNodeId: id, pendingRenameTarget: target }),
+  requestRename: (id, ...targets) =>
+    set({ pendingRenameNodeId: id, pendingRenameTargets: targets }),
 
-  consumePendingRename: (target, matches) => {
-    const { pendingRenameNodeId, pendingRenameTarget, nodes } = get()
-    if (!pendingRenameNodeId || pendingRenameTarget !== target) return null
-    const node = nodes.find((n) => n.id === pendingRenameNodeId)
-    if (!node || !matches(node)) return null
-    set({ pendingRenameNodeId: null, pendingRenameTarget: null })
-    return node
+  hasPendingRename: (target, nodeId) => {
+    const { pendingRenameNodeId, pendingRenameTargets } = get()
+    if (!pendingRenameNodeId || !pendingRenameTargets.includes(target)) return false
+    if (nodeId !== undefined && pendingRenameNodeId !== nodeId) return false
+    return true
   },
 
-  clearPendingRename: () => set({ pendingRenameNodeId: null, pendingRenameTarget: null })
+  clearPendingRenameTarget: (target) => {
+    const { pendingRenameTargets } = get()
+    const next = pendingRenameTargets.filter((t) => t !== target)
+    if (next.length === 0) {
+      set({ pendingRenameNodeId: null, pendingRenameTargets: [] })
+    } else {
+      set({ pendingRenameTargets: next })
+    }
+  },
+
+  clearPendingRename: () => set({ pendingRenameNodeId: null, pendingRenameTargets: [] })
 }))
 
 export function getSelectedNode(state: AppState): TreeNode | null {

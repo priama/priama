@@ -127,7 +127,8 @@ export function PeoplePanel({
   const nodes = useAppStore((s) => s.nodes)
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
-  const { inputRef: nameRef, handleFocus, handleBlur } = usePendingPanelRename(nodeId)
+  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
+    usePendingPanelRename(nodeId)
 
   const otherPeople = useMemo(
     () =>
@@ -216,6 +217,7 @@ export function PeoplePanel({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onFocus={handleFocus}
+          onKeyDown={(e) => handleKeyDown(e, save)}
           onBlur={() => {
             handleBlur()
             save()

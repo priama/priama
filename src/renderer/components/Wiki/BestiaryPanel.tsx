@@ -38,7 +38,8 @@ export function BestiaryPanel({
 }): React.JSX.Element {
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
-  const { inputRef: nameRef, handleFocus, handleBlur } = usePendingPanelRename(nodeId)
+  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
+    usePendingPanelRename(nodeId)
 
   const speciesSuggestions = useEntryFieldSuggestions(
     OPTIONAL_BESTIARY_CATEGORY_ID,
@@ -96,6 +97,7 @@ export function BestiaryPanel({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onFocus={handleFocus}
+          onKeyDown={(e) => handleKeyDown(e, save)}
           onBlur={() => {
             handleBlur()
             save()

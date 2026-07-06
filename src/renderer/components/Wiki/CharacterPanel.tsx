@@ -127,7 +127,8 @@ export function CharacterPanel({
   const nodes = useAppStore((s) => s.nodes)
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
-  const { inputRef: nameRef, handleFocus, handleBlur } = usePendingPanelRename(nodeId)
+  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
+    usePendingPanelRename(nodeId)
 
   const otherCharacters = useMemo(
     () => nodes.filter((n) => n.type === 'character' && !n.deletedAt && n.id !== nodeId),
@@ -200,6 +201,7 @@ export function CharacterPanel({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onFocus={handleFocus}
+          onKeyDown={(e) => handleKeyDown(e, save)}
           onBlur={() => {
             handleBlur()
             save()

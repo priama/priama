@@ -269,7 +269,8 @@ export function EntryPanel({
 }: EntryPanelProps): React.JSX.Element {
   const [name, setName] = useState(title)
   const [meta, setMeta] = useState<MetaRecord>(() => parseEntryMeta(metadata))
-  const { inputRef: nameRef, handleFocus, handleBlur } = usePendingPanelRename(nodeId)
+  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
+    usePendingPanelRename(nodeId)
 
   useEffect(() => {
     setName(title)
@@ -304,6 +305,7 @@ export function EntryPanel({
           value={name}
           onChange={(e) => setName(e.target.value)}
           onFocus={handleFocus}
+          onKeyDown={(e) => handleKeyDown(e, () => save(undefined, name))}
           onBlur={() => {
             handleBlur()
             save(undefined, name)

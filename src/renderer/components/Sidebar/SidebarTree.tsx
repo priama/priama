@@ -22,7 +22,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown, ChevronRight, Folder, GripVertical, Plus } from 'lucide-react'
-import { useAppStore } from '@/store/appStore'
+import { useAppStore, type PendingRenameTarget } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import {
   makeMoveToTrashCommand,
@@ -322,7 +322,13 @@ export function SidebarTree({
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const pendingRenameNodeId = useAppStore((s) => s.pendingRenameNodeId)
-  const pendingRenameTarget = useAppStore((s) => s.pendingRenameTarget)
+  const pendingRenameTargets = useAppStore((s) => s.pendingRenameTargets)
+
+  const isPendingSidebarRename = (nodeId: string): boolean =>
+    pendingRenameNodeId === nodeId && pendingRenameTargets.includes('sidebar')
+
+  const sidebarRenameAutoFocus = (nodeId: string): boolean =>
+    isPendingSidebarRename(nodeId) && !pendingRenameTargets.includes('panel')
 
   const children = useMemo(() => {
     const raw = getChildren(nodes, parentId, scope)
@@ -355,17 +361,20 @@ export function SidebarTree({
     const trimmed = renameValue.trim()
     if (!trimmed) {
       setRenamingId(null)
+      useAppStore.getState().clearPendingRename()
       return
     }
     const node = nodes.find((n) => n.id === id)
     if (!node || trimmed === node.title) {
       setRenamingId(null)
+      useAppStore.getState().clearPendingRename()
       return
     }
     await useHistoryStore.getState().push(
       makeRenameCommand({ id, oldTitle: node.title, newTitle: trimmed })
     )
     setRenamingId(null)
+    useAppStore.getState().clearPendingRename()
   }
 
   const startRename = (node: TreeNode): void => {
@@ -374,14 +383,10 @@ export function SidebarTree({
   }
 
   useEffect(() => {
-    if (pendingRenameTarget !== 'sidebar' || !pendingRenameNodeId) return
-    const node = useAppStore.getState().consumePendingRename('sidebar', (n) => {
-      if (children.some((c) => c.id === n.id)) return true
-      if (n.type === 'scene' && n.parentId && children.some((c) => c.id === n.parentId)) return true
-      return false
-    })
-    if (node) startRename(node)
-  }, [pendingRenameNodeId, pendingRenameTarget, children])
+    if (!pendingRenameNodeId || !pendingRenameTargets.includes('sidebar')) return
+    const node = nodes.find((n) => n.id === pendingRenameNodeId)
+    if (node) setRenameValue(node.title)
+  }, [pendingRenameNodeId, pendingRenameTargets, nodes])
 
   const handleSelect = (node: TreeNode): void => {
     if (isFolder(node)) {
@@ -442,16 +447,19 @@ export function SidebarTree({
     await useHistoryStore.getState().push(makeReorderCommand({ previousNodes: nodesBefore, newItems: items }))
   }
 
-  const renderRenameInput = (id: string): React.JSX.Element => (
+  const renderRenameInput = (id: string, autoFocus = true): React.JSX.Element => (
     <input
-      autoFocus
+      autoFocus={autoFocus}
       value={renameValue}
       onFocus={(e) => e.currentTarget.select()}
       onChange={(e) => setRenameValue(e.target.value)}
       onBlur={() => void handleRename(id)}
       onKeyDown={(e) => {
         if (e.key === 'Enter') void handleRename(id)
-        if (e.key === 'Escape') setRenamingId(null)
+        if (e.key === 'Escape') {
+          setRenamingId(null)
+          useAppStore.getState().clearPendingRename()
+        }
       }}
       className="mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1 text-xs"
       style={{ marginLeft: `${treeRowPadding(depth)}px` }}
@@ -479,8 +487,12 @@ export function SidebarTree({
             const expanded = expandedSections.has(node.id)
             const scenes = sceneChapter ? getScenes(nodes, node.id) : []
 
-            if (renamingId === node.id) {
-              return <div key={node.id}>{renderRenameInput(node.id)}</div>
+            if (renamingId === node.id || isPendingSidebarRename(node.id)) {
+              return (
+                <div key={node.id}>
+                  {renderRenameInput(node.id, sidebarRenameAutoFocus(node.id))}
+                </div>
+              )
             }
 
             return (
@@ -554,6 +566,8 @@ export function SidebarTree({
                         onOpenNewWindow={onOpenNewWindow}
                         onAddScene={onAddScene}
                         disabled={disabled}
+                        pendingRenameNodeId={pendingRenameNodeId}
+                        pendingRenameTargets={pendingRenameTargets}
                       />
                     </div>
                   </div>
@@ -605,7 +619,9 @@ function SceneList({
   confirmTrash,
   onOpenNewWindow,
   onAddScene,
-  disabled
+  disabled,
+  pendingRenameNodeId,
+  pendingRenameTargets
 }: {
   chapterId: string
   scenes: TreeNode[]
@@ -622,6 +638,8 @@ function SceneList({
   onOpenNewWindow: (node: TreeNode) => void
   onAddScene?: (chapterId: string) => void
   disabled?: boolean
+  pendingRenameNodeId: string | null
+  pendingRenameTargets: PendingRenameTarget[]
 }): React.JSX.Element {
   const { selectedNodeId, setSelectedNodeId, setNodes, nodes } = useAppStore()
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
@@ -658,17 +676,25 @@ function SceneList({
       <SortableContext items={scenes.map((s) => s.id)} strategy={verticalListSortingStrategy}>
       {scenes.map((scene, sceneIndex) => {
         const isLastScene = sceneIndex === scenes.length - 1
-        return renamingId === scene.id ? (
+        const isPendingSidebarRename =
+          pendingRenameNodeId === scene.id && pendingRenameTargets.includes('sidebar')
+        const showRename = renamingId === scene.id || isPendingSidebarRename
+        const renameAutoFocus = isPendingSidebarRename && !pendingRenameTargets.includes('panel')
+
+        return showRename ? (
           <input
             key={scene.id}
-            autoFocus
+            autoFocus={renameAutoFocus}
             value={renameValue}
             onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => setRenameValue(e.target.value)}
             onBlur={() => onRename(scene.id)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') onRename(scene.id)
-              if (e.key === 'Escape') setRenamingId(null)
+              if (e.key === 'Escape') {
+                setRenamingId(null)
+                useAppStore.getState().clearPendingRename()
+              }
             }}
             className="mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1 text-xs"
             style={{ marginLeft: `${treeRowPadding(depth)}px` }}
@@ -690,9 +716,9 @@ function SceneList({
             }
             onOpenNewWindow={() => onOpenNewWindow(scene)}
             onDoubleClick={() => startRename(scene)}
-            className={isLastChapter && isLastScene ? 'mb-1' : undefined}
+            className={isLastChapter && sceneIndex === scenes.length - 1 ? 'mb-1' : undefined}
             trailingAction={
-              isLastScene && onAddScene ? (
+              sceneIndex === scenes.length - 1 && onAddScene ? (
                 <HoverAddButton
                   className="group-hover/chapter:opacity-100"
                   onClick={() => onAddScene(chapterId)}

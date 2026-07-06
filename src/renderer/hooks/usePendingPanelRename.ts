@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, type FocusEvent, type RefObject } from 'react'
+import { useCallback, useLayoutEffect, useRef, type FocusEvent, type KeyboardEvent, type RefObject } from 'react'
 import { useAppStore } from '@/store/appStore'
 
 type PendingPanelRename = {
@@ -6,14 +6,15 @@ type PendingPanelRename = {
   shouldRename: boolean
   handleFocus: (e: FocusEvent<HTMLInputElement>) => void
   handleBlur: () => void
+  handleKeyDown: (e: KeyboardEvent<HTMLInputElement>, onSave: () => void) => void
 }
 
 export function usePendingPanelRename(nodeId: string): PendingPanelRename {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const pendingRenameNodeId = useAppStore((s) => s.pendingRenameNodeId)
-  const pendingRenameTarget = useAppStore((s) => s.pendingRenameTarget)
+  const pendingRenameTargets = useAppStore((s) => s.pendingRenameTargets)
   const shouldRename =
-    pendingRenameNodeId === nodeId && pendingRenameTarget === 'panel'
+    pendingRenameNodeId === nodeId && pendingRenameTargets.includes('panel')
 
   const focusAndSelect = useCallback((): boolean => {
     const el = inputRef.current
@@ -53,5 +54,15 @@ export function usePendingPanelRename(nodeId: string): PendingPanelRename {
     if (shouldRename) useAppStore.getState().clearPendingRename()
   }, [shouldRename])
 
-  return { inputRef, shouldRename, handleFocus, handleBlur }
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>, onSave: () => void) => {
+      if (e.key !== 'Enter') return
+      e.preventDefault()
+      onSave()
+      useAppStore.getState().clearPendingRename()
+    },
+    []
+  )
+
+  return { inputRef, shouldRename, handleFocus, handleBlur, handleKeyDown }
 }
