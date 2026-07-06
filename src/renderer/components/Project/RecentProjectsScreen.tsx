@@ -103,14 +103,13 @@ export function RecentProjectsScreen(): React.JSX.Element {
 
   return (
     <div className="flex h-screen flex-col text-[var(--launch-ink)]">
-      <header className="flex shrink-0 items-start justify-between gap-6 border-b border-[var(--launch-hairline)] px-12 pb-[22px] pt-12">
+      <header className="flex shrink-0 items-start justify-between gap-6 px-12 pb-[22px] pt-12">
         <div>
           <h1 className="font-serif text-[28px] font-bold leading-[1.15] tracking-[0.2px] text-[var(--launch-accent)]">
             Priama
           </h1>
           <p className="mt-1 text-[12.5px] tracking-[0.1px] text-[var(--launch-ink-faint)]">
-            Free forever, fully offline, no account needed — made for writers by{' '}
-            <span className="text-[var(--launch-ink-dim)]">@cigardev</span>.
+            Free forever, fully offline, no account needed — made for writers.
           </p>
         </div>
         <div className="mt-1 flex shrink-0 gap-[10px]">

@@ -1,10 +1,20 @@
 import { useAppStore, type PendingRenameTarget } from '@/store/appStore'
-import { getCategoryScopedChildren, getFolderScope, isFolder } from '@/lib/treeUtils'
+import { getCategoryScopedChildren, getFolderScope } from '@/lib/treeUtils'
 import { categoryIdForWikiNodeType } from '@shared/categoryNodeKind'
 import { folderScopeForCategory } from '@shared/categoryPresets'
 import type { TreeNode } from '@shared/types'
 
 export type { PendingRenameTarget }
+
+const RENAME_FOCUS_PRIORITY: PendingRenameTarget[] = ['panel', 'sidebar', 'container']
+
+/** One surface auto-focuses when multiple pending-rename targets are active. */
+export function shouldAutoFocusPendingRename(target: PendingRenameTarget): boolean {
+  const { pendingRenameNodeId, pendingRenameTargets } = useAppStore.getState()
+  if (!pendingRenameNodeId || !pendingRenameTargets.includes(target)) return false
+  const winner = RENAME_FOCUS_PRIORITY.find((t) => pendingRenameTargets.includes(t))
+  return winner === target
+}
 
 function ensureSectionExpanded(sectionId: string): void {
   const { expandedSections, toggleSection } = useAppStore.getState()
@@ -42,14 +52,12 @@ export function expandSidebarToNode(nodeId: string): void {
     ensureSectionExpanded('manuscript')
   } else if (node.type === 'entry' && node.categoryId) {
     ensureSectionExpanded(node.categoryId)
+  } else if (node.type === 'folder') {
+    const scope = getFolderScope(node) ?? 'manuscript'
+    expandSectionForScope(state.nodes, state.categories, scope, node.id)
   } else {
     const categoryId = categoryIdForWikiNodeType(node.type)
     if (categoryId) ensureSectionExpanded(categoryId)
-  }
-
-  if ((node.parentId ?? null) === null && isFolder(node)) {
-    const scope = getFolderScope(node) ?? 'manuscript'
-    expandSectionForScope(state.nodes, state.categories, scope, node.id)
   }
 }
 

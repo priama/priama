@@ -31,6 +31,7 @@ import {
   makeReparentCommand
 } from '@/lib/commands'
 import { openCategoryItem } from '@/lib/categoryNavigation'
+import { shouldAutoFocusPendingRename } from '@/lib/pendingRename'
 import { TreeContextMenu } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import { cn } from '@/lib/utils'
@@ -46,10 +47,17 @@ import type { FolderScope, TreeNode } from '@shared/types'
 
 const TREE_INDENT = 12
 const TREE_BASE_PADDING = 8
-const GUIDE_X = (level: number): number => TREE_BASE_PADDING + level * TREE_INDENT + 7
+const TREE_MAX_VISUAL_DEPTH = 7
+
+function visualTreeDepth(depth: number): number {
+  return Math.min(depth, TREE_MAX_VISUAL_DEPTH)
+}
+
+const GUIDE_X = (level: number): number =>
+  TREE_BASE_PADDING + visualTreeDepth(level) * TREE_INDENT + 7
 
 function treeRowPadding(depth: number): number {
-  return depth * TREE_INDENT + TREE_BASE_PADDING
+  return visualTreeDepth(depth) * TREE_INDENT + TREE_BASE_PADDING
 }
 
 function TreeIndentGuides({
@@ -204,7 +212,9 @@ function TreeItemRow({
         <GripVertical className="h-3 w-3 text-muted-foreground" />
       </button>
       {isFolderNode && <Folder className="h-3 w-3 shrink-0 opacity-70" />}
-      <span className="min-w-0 flex-1 truncate">{node.title}</span>
+      <span className="min-w-0 flex-1 truncate" title={node.title}>
+        {node.title}
+      </span>
       {trailingAction}
     </div>
   )
@@ -327,9 +337,6 @@ export function SidebarTree({
   const isPendingSidebarRename = (nodeId: string): boolean =>
     pendingRenameNodeId === nodeId && pendingRenameTargets.includes('sidebar')
 
-  const sidebarRenameAutoFocus = (nodeId: string): boolean =>
-    isPendingSidebarRename(nodeId) && !pendingRenameTargets.includes('panel')
-
   const children = useMemo(() => {
     const raw = getChildren(nodes, parentId, scope)
     if (scope === 'entry' && categoryId) {
@@ -359,22 +366,33 @@ export function SidebarTree({
 
   const handleRename = async (id: string): Promise<void> => {
     const trimmed = renameValue.trim()
+    const store = useAppStore.getState()
+    const isPending = store.hasPendingRename('sidebar', id)
+
     if (!trimmed) {
       setRenamingId(null)
-      useAppStore.getState().clearPendingRename()
+      if (isPending) {
+        store.clearPendingRenameTarget('sidebar')
+      } else {
+        store.clearPendingRename()
+      }
       return
     }
     const node = nodes.find((n) => n.id === id)
     if (!node || trimmed === node.title) {
       setRenamingId(null)
-      useAppStore.getState().clearPendingRename()
+      if (isPending) {
+        store.clearPendingRenameTarget('sidebar')
+      } else {
+        store.clearPendingRename()
+      }
       return
     }
     await useHistoryStore.getState().push(
       makeRenameCommand({ id, oldTitle: node.title, newTitle: trimmed })
     )
     setRenamingId(null)
-    useAppStore.getState().clearPendingRename()
+    store.clearPendingRename()
   }
 
   const startRename = (node: TreeNode): void => {
@@ -490,7 +508,7 @@ export function SidebarTree({
             if (renamingId === node.id || isPendingSidebarRename(node.id)) {
               return (
                 <div key={node.id}>
-                  {renderRenameInput(node.id, sidebarRenameAutoFocus(node.id))}
+                  {renderRenameInput(node.id, shouldAutoFocusPendingRename('sidebar'))}
                 </div>
               )
             }
@@ -679,7 +697,7 @@ function SceneList({
         const isPendingSidebarRename =
           pendingRenameNodeId === scene.id && pendingRenameTargets.includes('sidebar')
         const showRename = renamingId === scene.id || isPendingSidebarRename
-        const renameAutoFocus = isPendingSidebarRename && !pendingRenameTargets.includes('panel')
+        const renameAutoFocus = shouldAutoFocusPendingRename('sidebar')
 
         return showRename ? (
           <input
