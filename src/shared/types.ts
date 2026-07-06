@@ -651,8 +651,6 @@ export interface SecondaryWindowState {
 export interface WindowLayoutState {
   sidebarWidth: number
   rightPanelWidth: number
-  sidebarDetached: boolean
-  entityDetached: boolean
   secondaryWindows: SecondaryWindowState[]
 }
 

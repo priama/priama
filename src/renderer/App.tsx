@@ -14,7 +14,7 @@ import { useProject } from '@/hooks/useProject'
 import { useStructuralUndoShortcuts } from '@/hooks/useStructuralUndoShortcuts'
 import { useHistoryStore } from '@/store/historyStore'
 import { useContentPersistence } from '@/hooks/useContentPersistence'
-import { useNavigationSync, useNavigationSyncPublisher, hydrateNavigationFromMain } from '@/hooks/useNavigationSync'
+import { useNavigationSync, useNavigationSyncPublisher } from '@/hooks/useNavigationSync'
 import { useProjectUiPersistence } from '@/hooks/useProjectUiPersistence'
 import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
 import { applyOpenProjectResult } from '@/lib/applyOpenProject'
@@ -26,8 +26,6 @@ import { SIDEBAR_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, RIGHT_PANEL_MAX_WIDTH } from 
 export function AppLayout(): React.JSX.Element {
   const {
     isProjectOpen,
-    sidebarDetached,
-    entityDetached,
     setShowNewProjectModal,
     showExportDialog,
     setShowExportDialog,
@@ -35,8 +33,6 @@ export function AppLayout(): React.JSX.Element {
     setShowBookSettingsModal,
     setSidebarWidth,
     setRightPanelWidth,
-    setSidebarDetached,
-    setEntityDetached,
     setSelectedNodeId,
   } = useAppStore()
   const params = useSearchParams()
@@ -73,10 +69,8 @@ export function AppLayout(): React.JSX.Element {
           Math.max(RIGHT_PANEL_MIN_WIDTH, layout.rightPanelWidth ?? RIGHT_PANEL_MIN_WIDTH)
         )
       )
-      setSidebarDetached(layout.sidebarDetached ?? false)
-      setEntityDetached(layout.entityDetached ?? false)
     })
-  }, [isSecondary, setSidebarWidth, setRightPanelWidth, setSidebarDetached, setEntityDetached])
+  }, [isSecondary, setSidebarWidth, setRightPanelWidth])
 
   useEffect(() => {
     const unsubOpen = window.electronAPI.on('menu:openProject', () => openProject())
@@ -111,23 +105,6 @@ export function AppLayout(): React.JSX.Element {
         setQuitWarningPaths(unreachableBackupPaths)
       }
     })
-    const unsubPanelReattached = window.electronAPI.on('windows:panelReattached', (data: unknown) => {
-      const { panel } = data as { panel: 'sidebar' | 'entity' }
-      if (panel === 'sidebar') setSidebarDetached(false)
-      if (panel === 'entity') setEntityDetached(false)
-      void hydrateNavigationFromMain()
-    })
-    const unsubPanelClosed = window.electronAPI.on('windows:panelClosed', (data: unknown) => {
-      const { panel } = data as { panel: 'sidebar' | 'entity' }
-      if (panel === 'sidebar') {
-        setSidebarDetached(false)
-        void window.electronAPI.windows.updateLayout({ sidebarDetached: false })
-      }
-      if (panel === 'entity') {
-        setEntityDetached(false)
-        void window.electronAPI.windows.updateLayout({ entityDetached: false })
-      }
-    })
     return () => {
       unsubOpen()
       unsubNew()
@@ -136,8 +113,6 @@ export function AppLayout(): React.JSX.Element {
       unsubDevicePreview()
       unsubOpened()
       unsubBeforeQuit()
-      unsubPanelReattached()
-      unsubPanelClosed()
     }
   }, [
     openProject,
@@ -145,9 +120,7 @@ export function AppLayout(): React.JSX.Element {
     isSecondary,
     setShowNewProjectModal,
     setShowExportDialog,
-    isProjectOpen,
-    setSidebarDetached,
-    setEntityDetached
+    isProjectOpen
   ])
 
   if (isSecondary && !secondaryHydrated) {
@@ -170,21 +143,17 @@ export function AppLayout(): React.JSX.Element {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <div className="flex flex-1 overflow-hidden">
-        {!sidebarDetached && (
-          <ErrorBoundary region="Sidebar">
-            <Sidebar />
-          </ErrorBoundary>
-        )}
+        <ErrorBoundary region="Sidebar">
+          <Sidebar />
+        </ErrorBoundary>
         <main className="drag-region flex flex-1 flex-col overflow-hidden bg-background">
           <ErrorBoundary region="Editor" fallbackClassName="flex-1">
             <EditorPane />
           </ErrorBoundary>
         </main>
-        {!entityDetached && (
-          <ErrorBoundary region="Details Panel">
-            <EntityPanel />
-          </ErrorBoundary>
-        )}
+        <ErrorBoundary region="Details Panel">
+          <EntityPanel />
+        </ErrorBoundary>
       </div>
       <StatusBar />
       <ExportDialog open={showExportDialog} onOpenChange={setShowExportDialog} />

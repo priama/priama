@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { X, PanelRightOpen } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
@@ -10,7 +10,6 @@ import { renderEntryPanel } from '@/components/Wiki/entryPanelRegistry'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
 import { ensureNodeInStore } from '@/lib/categoryNavigation'
-import { publishNavigationSyncAsync } from '@/lib/navigationSync'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { cn } from '@/lib/utils'
@@ -185,11 +184,7 @@ function LorePanel({
   )
 }
 
-interface EntityPanelProps {
-  detached?: boolean
-}
-
-export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.Element | null {
+export function EntityPanel(): React.JSX.Element | null {
   const {
     nodes,
     selectedEntityId,
@@ -203,8 +198,7 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
     setSelectedEntity,
     selectEntry,
     updateNodeInStore,
-    setDirty,
-    setEntityDetached
+    setDirty
   } = useAppStore()
 
   const activeId = selectedEntryId ?? selectedEntityId
@@ -291,24 +285,9 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
     setDirty(true)
   }
 
-  const handleDetach = (): void => {
-    void publishNavigationSyncAsync()
-      .then(() => window.electronAPI.windows.detach('entity'))
-      .then(() => {
-        setEntityDetached(true)
-      })
-  }
-
-  if (!detached && !activeId) return null
+  if (!activeId) return null
 
   if (!node && activeId) {
-    if (detached) {
-      return (
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          <p className="text-sm">Select an entity to view details</p>
-        </div>
-      )
-    }
     return (
       <aside
         className="relative flex h-full shrink-0 flex-col border-l border-border bg-card"
@@ -333,51 +312,38 @@ export function EntityPanel({ detached = false }: EntityPanelProps): React.JSX.E
   return (
     <aside
       className="relative flex h-full shrink-0 flex-col border-l border-border bg-card"
-      style={{ width: detached ? '100%' : rightPanelWidth }}
+      style={{ width: rightPanelWidth }}
     >
-      {!detached && (
-        <div
-          {...handleProps}
-          className={cn(handleProps.className, 'left-0')}
-          style={{ left: 0 }}
-        />
-      )}
-      {!detached && (
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <div>
-            <h2 className="text-sm font-semibold capitalize">
-              {panelType === 'entry' ? (entryCategory?.name ?? 'Entry') : panelType}
-            </h2>
-            <p className="text-xs text-muted-foreground">{node.title}</p>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              title="Detach panel"
-              onClick={handleDetach}
-            >
-              <PanelRightOpen className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => {
-                setRightPanelOpen(false)
-                if (selectedEntryId) {
-                  selectEntry(null, null)
-                } else {
-                  setSelectedEntity(null, null)
-                }
-              }}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+      <div
+        {...handleProps}
+        className={cn(handleProps.className, 'left-0')}
+        style={{ left: 0 }}
+      />
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div>
+          <h2 className="text-sm font-semibold capitalize">
+            {panelType === 'entry' ? (entryCategory?.name ?? 'Entry') : panelType}
+          </h2>
+          <p className="text-xs text-muted-foreground">{node.title}</p>
         </div>
-      )}
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              setRightPanelOpen(false)
+              if (selectedEntryId) {
+                selectEntry(null, null)
+              } else {
+                setSelectedEntity(null, null)
+              }
+            }}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
 
       <ScrollArea className="flex-1">
         <div className="p-4">

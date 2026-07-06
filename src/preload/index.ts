@@ -54,8 +54,6 @@ export interface ElectronAPI {
     getSyncState: () => Promise<SyncState>
   }
   windows: {
-    detach: (panel: 'sidebar' | 'entity') => Promise<{ success: boolean }>
-    reattach: (panel: 'sidebar' | 'entity') => Promise<{ success: boolean }>
     openDocument: (nodeId: string, title: string) => Promise<{ success: boolean }>
     openImageViewer: (imagePath: string, title: string) => Promise<{ success: boolean }>
     openDevicePreview: (options: DevicePreviewRequestOptions) => Promise<{ success: boolean }>
@@ -148,8 +146,6 @@ const api: ElectronAPI = {
     getSyncState: () => ipcRenderer.invoke('tomes:getSyncState')
   },
   windows: {
-    detach: (panel) => ipcRenderer.invoke('windows:detach', { panel }),
-    reattach: (panel) => ipcRenderer.invoke('windows:reattach', { panel }),
     openDocument: (nodeId, title) => ipcRenderer.invoke('windows:openDocument', { nodeId, title }),
     openImageViewer: (imagePath, title) =>
       ipcRenderer.invoke('windows:openImageViewer', { imagePath, title }),

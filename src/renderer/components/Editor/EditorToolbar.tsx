@@ -72,8 +72,8 @@ function ToolbarButton({
 }
 
 export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbarProps): React.JSX.Element {
-  const { sidebarWidth, sidebarDetached, setShowBookSettingsModal } = useAppStore()
-  const isSidebarContracted = !sidebarDetached && sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
+  const { sidebarWidth, setShowBookSettingsModal } = useAppStore()
+  const isSidebarContracted = sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
 
   useEffect(() => {
     if (!editor) return

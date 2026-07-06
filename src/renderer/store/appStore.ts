@@ -29,8 +29,6 @@ interface AppState {
   sidebarWidth: number
   rightPanelWidth: number
   rightPanelOpen: boolean
-  sidebarDetached: boolean
-  entityDetached: boolean
 
   showNewProjectModal: boolean
   showExportDialog: boolean
@@ -76,8 +74,6 @@ interface AppState {
   setShowBookSettingsModal: (show: boolean) => void
   setSidebarWidth: (width: number) => void
   setRightPanelWidth: (width: number) => void
-  setSidebarDetached: (detached: boolean) => void
-  setEntityDetached: (detached: boolean) => void
   applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
 
   requestRename: (id: string, target: PendingRenameTarget) => void
@@ -116,8 +112,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   sidebarWidth: SIDEBAR_MAX_WIDTH,
   rightPanelWidth: 320,
   rightPanelOpen: true,
-  sidebarDetached: false,
-  entityDetached: false,
   showNewProjectModal: false,
   showExportDialog: false,
   showBookSettingsModal: false,
@@ -281,18 +275,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSelectedEntity: (id, type) => {
     const reopenPanel = id !== null
-    if (reopenPanel && get().entityDetached) {
-      void window.electronAPI.windows.updateLayout({ entityDetached: false })
-      set({
-        selectedEntityId: id,
-        selectedEntityType: type,
-        selectedEntryId: null,
-        selectedEntryCategoryId: null,
-        rightPanelOpen: true,
-        entityDetached: false
-      })
-      return
-    }
     set({
       selectedEntityId: id,
       selectedEntityType: type,
@@ -319,8 +301,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowBookSettingsModal: (show) => set({ showBookSettingsModal: show }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
-  setSidebarDetached: (detached) => set({ sidebarDetached: detached }),
-  setEntityDetached: (detached) => set({ entityDetached: detached }),
 
   applyNavigationSync: (nav) =>
     set({

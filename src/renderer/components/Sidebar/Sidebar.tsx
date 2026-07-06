@@ -4,7 +4,6 @@ import {
   BookOpen,
   Plus,
   GripVertical,
-  PanelLeftOpen,
   Trash2,
   Settings2
 } from 'lucide-react'
@@ -27,7 +26,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/UI/tooltip'
-import { Button } from '@/components/UI/button'
 import { ChapterStructureModal } from '@/components/Project/ChapterStructureModal'
 import { CategoryManagerModal } from '@/components/Sidebar/CategoryManagerModal'
 import { SidebarTree } from '@/components/Sidebar/SidebarTree'
@@ -46,7 +44,6 @@ import { makeCreateChapterCommand, makeCreateNodeCommand } from '@/lib/commands'
 import { createCategoryItem } from '@/lib/categoryNavigation'
 import { requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
-import { publishNavigationSyncAsync } from '@/lib/navigationSync'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import { cn } from '@/lib/utils'
 import {
@@ -186,11 +183,7 @@ function SectionHeader({
   )
 }
 
-interface SidebarProps {
-  detached?: boolean
-}
-
-export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
+export function Sidebar(): React.JSX.Element {
   const {
     nodes,
     categories,
@@ -205,9 +198,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     toggleSection,
     setSectionOrder,
     updateCategories,
-    setSidebarWidth,
-    setSidebarDetached,
-    setEntityDetached
+    setSidebarWidth
   } = useAppStore()
 
   const [showChapterModal, setShowChapterModal] = useState(false)
@@ -215,9 +206,8 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   const [showTrashEmpty, setShowTrashEmpty] = useState(false)
   const [showCategoryManager, setShowCategoryManager] = useState(false)
 
-  const iconOnly = !detached && sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
-  const showSidebarDetach = sidebarWidth >= SIDEBAR_MAX_WIDTH * 0.5
-  const width = detached ? '100%' : sidebarWidth
+  const iconOnly = sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
+  const width = sidebarWidth
   const trashCategories = getTrashCategories(nodes)
 
   const { handleProps } = useResizeHandle(sidebarWidth, setSidebarWidth, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH)
@@ -281,9 +271,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
   const openInNewWindow = (node: import('@shared/types').TreeNode): void => {
     if (node.type === 'note') {
       selectWikiEntity(node.id, node.type)
-      void publishNavigationSyncAsync()
-        .then(() => window.electronAPI.windows.detach('entity'))
-        .then(() => setEntityDetached(true))
+      void window.electronAPI.windows.openDocument(node.id, node.title)
       return
     }
     void window.electronAPI.windows.openDocument(node.id, node.title)
@@ -311,12 +299,6 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
 
     await updateCategories(merged)
     await window.electronAPI.tomes.updateUiState(captureProjectUiState())
-  }
-
-  const handleDetach = (): void => {
-    void publishNavigationSyncAsync()
-      .then(() => window.electronAPI.windows.detach('sidebar'))
-      .then(() => setSidebarDetached(true))
   }
 
   const handleTrashHeaderClick = (): void => {
@@ -350,17 +332,9 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
     <>
       <TooltipProvider delayDuration={200}>
         <aside className="relative flex h-full shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-150" style={{ width }}>
-          {!detached && (
-            <div className="drag-region flex h-9 shrink-0 items-center justify-end border-b border-sidebar-border px-2" style={{ paddingLeft: SIDEBAR_TITLEBAR_INSET }}>
-              {showSidebarDetach && (
-                <Button variant="ghost" size="icon" className="no-drag h-7 w-7" title="Detach sidebar" onClick={handleDetach}>
-                  <PanelLeftOpen className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          )}
+          <div className="drag-region flex h-9 shrink-0 items-center justify-end border-b border-sidebar-border px-2" style={{ paddingLeft: SIDEBAR_TITLEBAR_INSET }} />
 
-          <div className={cn('relative flex min-h-0 flex-1 flex-col', !detached && 'border-r border-sidebar-border')}>
+          <div className="relative flex min-h-0 flex-1 flex-col border-r border-sidebar-border">
             <div className={cn('sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto', iconOnly ? 'py-1' : 'py-2')}>
               {!iconOnly && projectMeta && (
                 <div className="mb-1 flex min-w-0 items-center gap-2 px-2">
@@ -486,7 +460,7 @@ export function Sidebar({ detached = false }: SidebarProps): React.JSX.Element {
               )}
             </div>
 
-            {!detached && <div {...handleProps} className={cn(handleProps.className, 'right-0')} style={{ right: 0 }} />}
+            <div {...handleProps} className={cn(handleProps.className, 'right-0')} style={{ right: 0 }} />
           </div>
         </aside>
       </TooltipProvider>
