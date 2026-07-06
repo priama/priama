@@ -7,6 +7,7 @@ import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
 import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
+import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import { cn } from '@/lib/utils'
 import {
   DEFAULT_PEOPLE_META,
@@ -126,6 +127,7 @@ export function PeoplePanel({
   const nodes = useAppStore((s) => s.nodes)
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
+  const { inputRef: nameRef, handleFocus, handleBlur } = usePendingPanelRename(nodeId)
 
   const otherPeople = useMemo(
     () =>
@@ -209,7 +211,16 @@ export function PeoplePanel({
       />
 
       <Field label="Name">
-        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+        <SpellCheckedInput
+          ref={nameRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onFocus={handleFocus}
+          onBlur={() => {
+            handleBlur()
+            save()
+          }}
+        />
       </Field>
       <Field label="Known As">
         <SpellCheckedInput

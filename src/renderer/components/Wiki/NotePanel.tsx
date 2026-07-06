@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
+import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import { markContentDirty, registerActiveNoteContent } from '@/lib/contentPersistence'
 import type { NoteMeta } from '@shared/types'
 
@@ -36,6 +37,7 @@ export function NotePanel({
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
   const [body, setBody] = useState(content)
+  const { inputRef: nameRef, handleFocus, handleBlur } = usePendingPanelRename(nodeId)
 
   useEffect(() => {
     setMeta(metadata)
@@ -67,7 +69,16 @@ export function NotePanel({
   return (
     <div className="space-y-4">
       <Field label="Title">
-        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={saveFields} />
+        <SpellCheckedInput
+          ref={nameRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onFocus={handleFocus}
+          onBlur={() => {
+            handleBlur()
+            saveFields()
+          }}
+        />
       </Field>
       <Field label="Tags">
         <SpellCheckedInput

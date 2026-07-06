@@ -9,11 +9,15 @@ import { mergeIncomingNodes } from '@/lib/contentPersistence'
 import { makeCreateNodeCommand } from '@/lib/commands'
 import { requestRenameAfterCreate, requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
 import { folderContainerId, isFolder, isWikiEntityType } from '@/lib/treeUtils'
-import { useAppStore } from '@/store/appStore'
+import { useAppStore, type PendingRenameTarget } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 
+export type CreateSource = 'sidebar' | 'container'
+
 export type OpenCategoryOptions = {
-  renameTarget?: 'sidebar' | 'container'
+  renameAfterCreate?: boolean
+  source?: CreateSource
+  renameTarget?: PendingRenameTarget
 }
 
 /** Ensure node exists in store: local → entity.getById → tree.getAll. */
@@ -33,15 +37,39 @@ export async function ensureNodeInStore(nodeId: string): Promise<TreeNode | null
   return useAppStore.getState().nodes.find((n) => n.id === nodeId) ?? null
 }
 
-function applyRenameAfterCreate(
-  nodeId: string,
-  renameTarget: 'sidebar' | 'container' | undefined
-): void {
-  if (renameTarget === 'sidebar') {
+export function resolveRenameTargetForNode(
+  node: TreeNode,
+  source: CreateSource
+): PendingRenameTarget {
+  if (node.type === 'note') return 'panel'
+
+  const { categories } = useAppStore.getState()
+  const categoryId = resolveCategoryForNode(node)
+  const category = findCategory(categories, categoryId)
+
+  if (categoryOpensInRightPanel(category)) return 'panel'
+  if (source === 'container') return 'container'
+  return 'sidebar'
+}
+
+function dispatchRenameAfterCreate(nodeId: string, target: PendingRenameTarget): void {
+  if (target === 'sidebar') {
     requestSidebarRenameAfterCreate(nodeId)
-  } else if (renameTarget === 'container') {
-    requestRenameAfterCreate(nodeId, 'container')
+    return
   }
+  queueMicrotask(() => requestRenameAfterCreate(nodeId, target))
+}
+
+function applyRenameAfterCreate(node: TreeNode, opts?: OpenCategoryOptions): void {
+  if (opts?.renameTarget) {
+    dispatchRenameAfterCreate(node.id, opts.renameTarget)
+    return
+  }
+
+  if (!opts?.renameAfterCreate) return
+
+  const target = resolveRenameTargetForNode(node, opts.source ?? 'sidebar')
+  dispatchRenameAfterCreate(node.id, target)
 }
 
 export function selectCategoryHeader(categoryId: string): void {
@@ -53,18 +81,22 @@ export async function openPanelCategoryItem(
   categoryId: string | null,
   opts?: OpenCategoryOptions
 ): Promise<void> {
-  if (!categoryId) return
-
+  const resolvedCategoryId = categoryId ?? resolveCategoryForNode(node)
   const { selectEntry, setSelectedEntity } = useAppStore.getState()
 
   if (isWikiEntityType(node.type)) {
     setSelectedEntity(node.id, node.type)
   } else if (node.type === 'entry') {
-    selectEntry(node.id, categoryId)
+    if (!resolvedCategoryId) return
+    selectEntry(node.id, resolvedCategoryId)
+  } else if (node.type === 'note') {
+    setSelectedEntity(node.id, node.type)
+  } else {
+    return
   }
 
-  if (opts?.renameTarget) {
-    applyRenameAfterCreate(node.id, opts.renameTarget)
+  if (opts?.renameAfterCreate || opts?.renameTarget) {
+    applyRenameAfterCreate(node, opts)
   }
 }
 
@@ -74,8 +106,8 @@ export async function openEditorCategoryItem(
   opts?: OpenCategoryOptions
 ): Promise<void> {
   useAppStore.getState().setSelectedNodeId(node.id)
-  if (opts?.renameTarget) {
-    applyRenameAfterCreate(node.id, opts.renameTarget)
+  if (opts?.renameAfterCreate || opts?.renameTarget) {
+    applyRenameAfterCreate(node, opts)
   }
 }
 
@@ -101,7 +133,6 @@ export async function openCategoryItem(
   const categoryId = resolveCategoryForNode(node)
   const category = findCategory(categories, categoryId)
 
-  // Notes open in the right panel regardless of category mode (Plan 3 may reconcile mode on the definition).
   if (node.type === 'note') {
     await openPanelCategoryItem(node, categoryId, opts)
     return
@@ -120,7 +151,7 @@ export async function openCategoryItem(
 export async function createCategoryItem(
   categoryId: string,
   parentId: string | null,
-  source: 'sidebar' | 'container'
+  source: CreateSource
 ): Promise<string | null> {
   const { categories } = useAppStore.getState()
   const category = findCategory(categories, categoryId)
@@ -134,11 +165,6 @@ export async function createCategoryItem(
   )
   if (!createdId) return null
 
-  if (source === 'container') {
-    requestRenameAfterCreate(createdId, 'container')
-    return createdId
-  }
-
-  await openCategoryItem(createdId, { renameTarget: 'sidebar' })
+  await openCategoryItem(createdId, { renameAfterCreate: true, source })
   return createdId
 }

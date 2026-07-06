@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { CategoryDefinition, FolderScope, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
 import { DEFAULT_SECTION_ORDER, DEFAULT_EXPANDED_SECTIONS, migrateExpandedSections, migrateSectionOrder, SIDEBAR_MAX_WIDTH } from '@shared/types'
 
-export type PendingRenameTarget = 'sidebar' | 'container'
+export type PendingRenameTarget = 'sidebar' | 'container' | 'panel'
 
 interface AppState {
   projectPath: string | null

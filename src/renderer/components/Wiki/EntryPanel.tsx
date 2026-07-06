@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
+import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import type {
   CategoryDefinition,
   PanelBlock,
@@ -268,6 +269,7 @@ export function EntryPanel({
 }: EntryPanelProps): React.JSX.Element {
   const [name, setName] = useState(title)
   const [meta, setMeta] = useState<MetaRecord>(() => parseEntryMeta(metadata))
+  const { inputRef: nameRef, handleFocus, handleBlur } = usePendingPanelRename(nodeId)
 
   useEffect(() => {
     setName(title)
@@ -298,9 +300,14 @@ export function EntryPanel({
     <div className="space-y-4">
       <Field label="Name">
         <SpellCheckedInput
+          ref={nameRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onBlur={() => save(undefined, name)}
+          onFocus={handleFocus}
+          onBlur={() => {
+            handleBlur()
+            save(undefined, name)
+          }}
         />
       </Field>
 

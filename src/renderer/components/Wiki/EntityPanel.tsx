@@ -11,6 +11,7 @@ import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
 import { ensureNodeInStore } from '@/lib/categoryNavigation'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
+import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { cn } from '@/lib/utils'
 import {
@@ -57,6 +58,7 @@ function LocationPanel({
 }): React.JSX.Element {
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
+  const { inputRef: nameRef, handleFocus, handleBlur } = usePendingPanelRename(nodeId)
   const typeSuggestions = useFieldSuggestions('location', 'type', nodeId)
 
   useEffect(() => {
@@ -90,7 +92,16 @@ function LocationPanel({
       />
 
       <Field label="Name">
-        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+        <SpellCheckedInput
+          ref={nameRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onFocus={handleFocus}
+          onBlur={() => {
+            handleBlur()
+            save()
+          }}
+        />
       </Field>
       <Field label="Type">
         <ComboField
@@ -127,6 +138,7 @@ function LorePanel({
 }): React.JSX.Element {
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
+  const { inputRef: nameRef, handleFocus, handleBlur } = usePendingPanelRename(nodeId)
   const categorySuggestions = useFieldSuggestions('lore', 'category', nodeId)
 
   useEffect(() => {
@@ -160,7 +172,16 @@ function LorePanel({
       />
 
       <Field label="Name">
-        <SpellCheckedInput value={name} onChange={(e) => setName(e.target.value)} onBlur={save} />
+        <SpellCheckedInput
+          ref={nameRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onFocus={handleFocus}
+          onBlur={() => {
+            handleBlur()
+            save()
+          }}
+        />
       </Field>
       <Field label="Category">
         <ComboField
