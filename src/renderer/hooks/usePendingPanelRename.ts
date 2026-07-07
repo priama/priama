@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, type FocusEvent, type KeyboardEvent, type RefObject } from 'react'
 import { useAppStore } from '@/store/appStore'
+import { shouldAutoFocusPendingRename } from '@/lib/pendingRename'
 
 type PendingPanelRename = {
   inputRef: RefObject<HTMLInputElement | null>
@@ -25,7 +26,7 @@ export function usePendingPanelRename(nodeId: string): PendingPanelRename {
   }, [])
 
   useLayoutEffect(() => {
-    if (!shouldRename) return
+    if (!shouldRename || !shouldAutoFocusPendingRename('panel')) return
 
     if (focusAndSelect()) return
 

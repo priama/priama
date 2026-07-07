@@ -29,7 +29,7 @@ import { Label } from '@/components/UI/label'
 import { cn } from '@/lib/utils'
 import { detectPathLabel } from '@shared/pathUtils'
 import { PROJECT_TEMPLATES } from '@shared/types'
-import { FICTION_PRESET_IDS, resolveCategoriesFromPresetIds } from '@shared/categoryPresets'
+import { resolveCategoriesFromPresetIds } from '@shared/categoryPresets'
 import type { TemplateId, CategoryDefinition } from '@shared/types'
 import { useProject } from '@/hooks/useProject'
 
@@ -69,10 +69,8 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const [error, setError] = useState<string | null>(null)
   const [hiddenForPicker, setHiddenForPicker] = useState(false)
   const [pickingFolder, setPickingFolder] = useState(false)
-  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId>('fiction')
-  const [selectedCategories, setSelectedCategories] = useState<CategoryDefinition[]>(() =>
-    resolveCategoriesFromPresetIds([...FICTION_PRESET_IDS])
-  )
+  const [selectedTemplateId, setSelectedTemplateId] = useState<TemplateId | null>(null)
+  const [selectedCategories, setSelectedCategories] = useState<CategoryDefinition[]>([])
 
   const reset = (): void => {
     setStep(1)
@@ -83,8 +81,8 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
     setBackupRows([])
     setCreating(false)
     setError(null)
-    setSelectedTemplateId('fiction')
-    setSelectedCategories(resolveCategoriesFromPresetIds([...FICTION_PRESET_IDS]))
+    setSelectedTemplateId(null)
+    setSelectedCategories([])
   }
 
   const handleClose = (value: boolean): void => {
@@ -130,7 +128,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   }
 
   const handleCreate = async (): Promise<void> => {
-    if (!primaryDir || !title.trim() || !author.trim()) return
+    if (!primaryDir || !title.trim() || !author.trim() || !selectedTemplateId) return
     setCreating(true)
     setStep(5)
     setError(null)
@@ -260,7 +258,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
 
                     {templateCategories.length === 0 && (
                       <p className="mt-2 text-xs italic text-muted-foreground/60">
-                        No categories — just the manuscript.
+                        No categories. Just the manuscript.
                       </p>
                     )}
                   </button>
@@ -272,7 +270,9 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
               <Button variant="ghost" onClick={() => setStep(1)}>
                 Back
               </Button>
-              <Button onClick={() => setStep(3)}>Next</Button>
+              <Button onClick={() => setStep(3)} disabled={selectedTemplateId === null}>
+                Next
+              </Button>
             </DialogFooter>
           </>
         )}
@@ -282,7 +282,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
             <DialogHeader>
               <DialogTitle>Primary Save Location</DialogTitle>
               <DialogDescription>
-                This is your main working copy. Choose a folder you trust — Documents, Desktop, or
+                This is your main working copy. Choose a folder you trust, such as Documents, Desktop, or
                 inside your iCloud/Google Drive folder.
               </DialogDescription>
             </DialogHeader>

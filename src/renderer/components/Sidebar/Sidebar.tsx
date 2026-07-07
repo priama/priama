@@ -332,7 +332,7 @@ export function Sidebar(): React.JSX.Element {
     <>
       <TooltipProvider delayDuration={200}>
         <aside className="relative flex h-full shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-150" style={{ width }}>
-          <div className="drag-region flex h-9 shrink-0 items-center justify-end border-b border-sidebar-border px-2" style={{ paddingLeft: SIDEBAR_TITLEBAR_INSET }} />
+          <div className="drag-region flex h-9 shrink-0 items-center justify-end px-2" style={{ paddingLeft: SIDEBAR_TITLEBAR_INSET }} />
 
           <div className="relative flex min-h-0 flex-1 flex-col border-r border-sidebar-border">
             <div className={cn('sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto', iconOnly ? 'py-1' : 'py-2')}>

@@ -22,6 +22,7 @@ import { countNodeWords, isFolder, isChapterFolder, isSimpleChapter, stripNodeCo
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeRenameCommand } from '@/lib/commands'
+import { shouldAutoFocusPendingRename } from '@/lib/pendingRename'
 import { TreeContextMenu, EmptyAreaContextMenu, type MoveToFolder } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import type { TreeNode } from '@shared/types'
@@ -366,9 +367,6 @@ export function ContainerView({
   const isPendingContainerRename = (nodeId: string): boolean =>
     pendingRenameNodeId === nodeId && pendingRenameTargets.includes('container')
 
-  const containerRenameAutoFocus = (nodeId: string): boolean =>
-    isPendingContainerRename(nodeId) && !pendingRenameTargets.includes('panel')
-
   useEffect(() => {
     if (!pendingRenameNodeId || !pendingRenameTargets.includes('container')) return
     const node = nodes.find((n) => n.id === pendingRenameNodeId)
@@ -384,22 +382,33 @@ export function ContainerView({
 
   const handleRenameCommit = async (id: string): Promise<void> => {
     const trimmed = renameValue.trim()
+    const store = useAppStore.getState()
+    const isPending = store.hasPendingRename('container', id)
+
     if (!trimmed) {
       setRenamingId(null)
-      useAppStore.getState().clearPendingRename()
+      if (isPending) {
+        store.clearPendingRenameTarget('container')
+      } else {
+        store.clearPendingRename()
+      }
       return
     }
     const node = nodes.find((n) => n.id === id)
     if (!node || trimmed === node.title) {
       setRenamingId(null)
-      useAppStore.getState().clearPendingRename()
+      if (isPending) {
+        store.clearPendingRenameTarget('container')
+      } else {
+        store.clearPendingRename()
+      }
       return
     }
     await useHistoryStore.getState().push(
       makeRenameCommand({ id, oldTitle: node.title, newTitle: trimmed })
     )
     setRenamingId(null)
-    useAppStore.getState().clearPendingRename()
+    store.clearPendingRename()
   }
 
   const sensors = useSensors(
@@ -435,7 +444,7 @@ export function ContainerView({
                   readOnly={readOnly}
                   menuVariant={menuVariant}
                   renaming={showRename}
-                  renameAutoFocus={containerRenameAutoFocus(node.id)}
+                  renameAutoFocus={shouldAutoFocusPendingRename('container')}
                   renameValue={renameValue}
                   onRenameValueChange={setRenameValue}
                   onRenameCommit={() => void handleRenameCommit(node.id)}

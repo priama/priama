@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { CategoryDefinition, FolderScope, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
 import { DEFAULT_SECTION_ORDER, DEFAULT_EXPANDED_SECTIONS, migrateExpandedSections, migrateSectionOrder, SIDEBAR_MAX_WIDTH } from '@shared/types'
+import { isValidContainerId, pruneContainerNavigation } from '@shared/projectUiState'
 
 export type PendingRenameTarget = 'sidebar' | 'container' | 'panel'
 
@@ -164,7 +165,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ projectMeta: meta })
   },
 
-  setNodes: (nodes) => set({ nodes }),
+  setNodes: (nodes) => {
+    const s = get()
+    const pruned = pruneContainerNavigation(
+      {
+        containerHistory: s.containerHistory,
+        containerHistoryIndex: s.containerHistoryIndex,
+        selectedContainerId: s.selectedContainerId
+      },
+      nodes,
+      s.categories
+    )
+    set({ nodes, ...pruned })
+  },
   addNode: (node) => set((s) => ({ nodes: [...s.nodes, node] })),
   upsertNode: (node) =>
     set((s) => {
@@ -229,24 +242,36 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   containerGoBack: () => {
-    const { containerHistory, containerHistoryIndex } = get()
-    if (containerHistoryIndex <= 0) return
-    const newIndex = containerHistoryIndex - 1
-    set({
-      selectedContainerId: containerHistory[newIndex],
-      selectedNodeId: null,
-      containerHistoryIndex: newIndex
-    })
+    const { containerHistory, containerHistoryIndex, nodes, categories } = get()
+    let newIndex = containerHistoryIndex - 1
+    while (newIndex >= 0) {
+      const id = containerHistory[newIndex]
+      if (isValidContainerId(id, nodes, categories)) {
+        set({
+          selectedContainerId: id,
+          selectedNodeId: null,
+          containerHistoryIndex: newIndex
+        })
+        return
+      }
+      newIndex--
+    }
   },
   containerGoForward: () => {
-    const { containerHistory, containerHistoryIndex } = get()
-    if (containerHistoryIndex >= containerHistory.length - 1) return
-    const newIndex = containerHistoryIndex + 1
-    set({
-      selectedContainerId: containerHistory[newIndex],
-      selectedNodeId: null,
-      containerHistoryIndex: newIndex
-    })
+    const { containerHistory, containerHistoryIndex, nodes, categories } = get()
+    let newIndex = containerHistoryIndex + 1
+    while (newIndex < containerHistory.length) {
+      const id = containerHistory[newIndex]
+      if (isValidContainerId(id, nodes, categories)) {
+        set({
+          selectedContainerId: id,
+          selectedNodeId: null,
+          containerHistoryIndex: newIndex
+        })
+        return
+      }
+      newIndex++
+    }
   },
   selectWikiEntity: (id, type) => get().setSelectedEntity(id, type),
   toggleSection: (section) => {

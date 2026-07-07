@@ -91,10 +91,14 @@ export async function addRecentProject(entry: Omit<RecentProjectEntry, 'coverCol
 export async function updateRecentLastOpened(projectId: string): Promise<void> {
   const config = await getConfig()
   const entry = config.recentProjects.find((p) => p.id === projectId)
-  if (entry) {
-    entry.lastOpened = new Date().toISOString()
-    await saveConfig(config)
-  }
+  if (!entry) return
+
+  entry.lastOpened = new Date().toISOString()
+  config.recentProjects = [
+    entry,
+    ...config.recentProjects.filter((p) => p.id !== projectId)
+  ]
+  await saveConfig(config)
 }
 
 export async function removeFromRecent(projectId: string): Promise<void> {

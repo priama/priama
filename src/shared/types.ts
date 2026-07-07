@@ -310,7 +310,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: 'fiction',
     name: 'Fiction',
-    description: 'Characters, Locations, Lore, and Notes — the classic setup for novels and short stories.',
+    description: 'Characters, Locations, Lore, and Notes. The classic setup for novels, short stories, and long complex stories.',
     presetIds: [
       BUILTIN_CATEGORY_IDS.characters,
       BUILTIN_CATEGORY_IDS.locations,
@@ -321,7 +321,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: 'non-fiction',
     name: 'Non-Fiction',
-    description: 'People, Sources, Concepts, and Notes — built for research-driven writing.',
+    description: 'People, Sources, Concepts, and Notes. Built for journalism, narrative non-fiction, and research-driven books.',
     presetIds: [
       NF_PEOPLE_CATEGORY_ID,
       'nf-sources',
