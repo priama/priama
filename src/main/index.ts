@@ -3,7 +3,6 @@ import { join } from 'path'
 import {
   createProject,
   openProject,
-  peekProjectLock,
   closeProject,
   getProjectMeta,
   updateProjectMeta,
@@ -124,7 +123,15 @@ async function openProjectFromPath(tomesPath: string): Promise<void> {
     return
   }
 
-  mainWindow?.webContents.send('tomes:requestOpenProject', { path: tomesPath })
+  try {
+    const result = await openProject(tomesPath)
+    mainWindow?.webContents.send('tomes:projectOpened', result)
+  } catch (err) {
+    dialog.showErrorBox(
+      'Open Failed',
+      err instanceof Error ? err.message : 'Could not open project'
+    )
+  }
 }
 
 function createWindow(): void {
@@ -290,14 +297,8 @@ function registerIpcHandlers(): void {
     return createProject(input)
   })
 
-  ipcMain.handle('tomes:peekProjectLock', async (_, { path }) => {
-    return peekProjectLock(path)
-  })
-
   ipcMain.handle('tomes:openProject', async (_, { path }) => {
-    const result = await openProject(path)
-    mainWindow?.webContents.send('tomes:projectOpened', result)
-    return result
+    return openProject(path)
   })
 
   ipcMain.handle('tomes:saveProject', async () => {

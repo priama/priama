@@ -577,12 +577,6 @@ export interface SaveResult {
   unreachableBackupPaths?: string[]
 }
 
-export interface TomesLockInfo {
-  hostname: string
-  pid: number
-  openedAt: string
-}
-
 export interface RecentProjectEntry {
   id: string
   title: string

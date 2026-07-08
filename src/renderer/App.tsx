@@ -12,11 +12,12 @@ import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
 import { Toaster } from '@/components/UI/toast'
 import { useProject } from '@/hooks/useProject'
 import { useStructuralUndoShortcuts } from '@/hooks/useStructuralUndoShortcuts'
+import { useHistoryStore } from '@/store/historyStore'
 import { useContentPersistence } from '@/hooks/useContentPersistence'
 import { useNavigationSync, useNavigationSyncPublisher } from '@/hooks/useNavigationSync'
 import { useProjectUiPersistence } from '@/hooks/useProjectUiPersistence'
 import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
-import { openProjectAtPath } from '@/lib/applyOpenProject'
+import { applyOpenProjectResult } from '@/lib/applyOpenProject'
 import { useThemeSync } from '@/hooks/useThemeSync'
 import { isWorkspaceWindow } from '@/lib/hashParams'
 import { useSearchParams } from '@/lib/hashParams'
@@ -86,12 +87,17 @@ export function AppLayout(): React.JSX.Element {
       if (!isProjectOpen || isSecondary) return
       void window.electronAPI.windows.openDevicePreview({ scope: 'manuscript' })
     })
-    const unsubRequestOpen = window.electronAPI.on('tomes:requestOpenProject', (data: unknown) => {
+    const unsubOpened = window.electronAPI.on('tomes:projectOpened', (data: unknown) => {
       if (isSecondary) return
-      const { path } = data as { path: string }
-      void openProjectAtPath(path).catch((err) => {
-        console.error('Failed to open project:', err)
-      })
+      useHistoryStore.getState().clear()
+      applyOpenProjectResult(
+        data as {
+          path: string
+          meta: import('@shared/types').ProjectMeta
+          nodes: import('@shared/types').TreeNode[]
+          uiState: import('@shared/types').ProjectUiState
+        }
+      )
     })
     const unsubBeforeQuit = window.electronAPI.on('tomes:beforeQuit', (data: unknown) => {
       const { unreachableBackupPaths } = data as { unreachableBackupPaths: string[] }
@@ -105,7 +111,7 @@ export function AppLayout(): React.JSX.Element {
       unsubExport()
       unsubCloseProject()
       unsubDevicePreview()
-      unsubRequestOpen()
+      unsubOpened()
       unsubBeforeQuit()
     }
   }, [
