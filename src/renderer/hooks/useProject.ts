@@ -3,7 +3,7 @@ import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty, flushAndSaveProject, resetPersistenceState } from '@/lib/contentPersistence'
-import { applyOpenProjectResult } from '@/lib/applyOpenProject'
+import { openProjectAtPath as openProjectAtPathFlow } from '@/lib/applyOpenProject'
 import { runWithNavigationPublishSuppressed } from '@/lib/navigationSync'
 import { flushProjectUiState } from '@/hooks/useProjectUiPersistence'
 import type { CreateProjectInput } from '@shared/types'
@@ -75,10 +75,7 @@ export function useProject(): {
   const openProjectAtPath = useCallback(
     async (path: string) => {
       try {
-        await flushAllDirty()
-        useHistoryStore.getState().clear()
-        const result = await window.electronAPI.tomes.openProject(path)
-        await applyOpenProjectResult(result)
+        await openProjectAtPathFlow(path)
         setBackupWarningCount(0)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Could not open project'
@@ -98,8 +95,7 @@ export function useProject(): {
         templateId: input.templateId ?? 'fiction',
         categories: input.categories ?? defaultFictionCategories()
       })
-      const openResult = await window.electronAPI.tomes.openProject(result.path)
-      await applyOpenProjectResult(openResult)
+      await openProjectAtPathFlow(result.path, { skipLockPeek: true })
     },
     []
   )

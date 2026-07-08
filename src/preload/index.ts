@@ -17,6 +17,7 @@ import type {
   ProjectUiState,
   RecentProjectWithStatus,
   SaveResult,
+  TomesLockInfo,
   TreeNode,
   WindowLayoutState
 } from '@shared/types'
@@ -32,6 +33,7 @@ export interface ElectronAPI {
   tomes: {
     createProject: (input: CreateProjectInput) => Promise<{ path: string; meta: ProjectMeta; projectRoot: string }>
     openProject: (path: string) => Promise<{ path: string; meta: ProjectMeta; nodes: TreeNode[]; uiState: ProjectUiState }>
+    peekProjectLock: (path: string) => Promise<{ existingLock?: TomesLockInfo }>
     saveProject: () => Promise<SaveResult>
     closeProject: () => Promise<{ success: boolean }>
     getProjectInfo: () => Promise<{ path: string; meta: ProjectMeta } | null>
@@ -120,6 +122,7 @@ const api: ElectronAPI = {
   tomes: {
     createProject: (input) => ipcRenderer.invoke('tomes:createProject', input),
     openProject: (path) => ipcRenderer.invoke('tomes:openProject', { path }),
+    peekProjectLock: (path) => ipcRenderer.invoke('tomes:peekProjectLock', { path }),
     saveProject: () => ipcRenderer.invoke('tomes:saveProject'),
     closeProject: () => ipcRenderer.invoke('tomes:closeProject'),
     getProjectInfo: () => ipcRenderer.invoke('tomes:getProjectInfo'),
