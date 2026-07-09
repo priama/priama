@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
+import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import { markContentDirty, registerActiveNoteContent } from '@/lib/contentPersistence'
 import type { NoteMeta } from '@shared/types'
@@ -25,25 +26,27 @@ export function NotePanel({
   title,
   content,
   metadata,
+  metadataSource,
   onUpdate
 }: {
   nodeId: string
   title: string
   content: string
   metadata: NoteMeta
+  metadataSource: string
   onUpdate: (updates: { metadata?: NoteMeta; title?: string; content?: string }) => void
 }): React.JSX.Element {
   const updateNodeInStore = useAppStore((s) => s.updateNodeInStore)
-  const [meta, setMeta] = useState(metadata)
-  const [name, setName] = useState(title)
-  const [body, setBody] = useState(content)
   const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
     usePendingPanelRename(nodeId)
-
-  useEffect(() => {
-    setMeta(metadata)
-    setName(title)
-  }, [nodeId, metadata, title])
+  const { meta, setMeta, name, setName } = usePanelNodeState({
+    nodeId,
+    title,
+    metadata,
+    metadataSource,
+    nameInputRef: nameRef
+  })
+  const [body, setBody] = useState(content)
 
   useEffect(() => {
     setBody(content)

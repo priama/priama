@@ -36,6 +36,7 @@ function BestiaryEntryPanel(props: EntryPanelRenderProps): React.JSX.Element {
       nodeId={props.nodeId}
       title={props.title}
       metadata={meta}
+      metadataSource={props.rawMetadata}
       onUpdate={(m, title) =>
         props.onUpdate({
           metadata: serializeMetadata(m),
@@ -56,6 +57,7 @@ function PeopleEntryPanel(props: EntryPanelRenderProps): React.JSX.Element {
       nodeId={props.nodeId}
       title={props.title}
       metadata={meta}
+      metadataSource={props.rawMetadata}
       onUpdate={(m, title) =>
         props.onUpdate({
           metadata: serializeMetadata(m),

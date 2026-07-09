@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback } from 'react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { ComboField } from '@/components/UI/ComboField'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
+import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import {
   DEFAULT_BESTIARY_META,
@@ -29,17 +30,24 @@ export function BestiaryPanel({
   nodeId,
   title,
   metadata,
+  metadataSource,
   onUpdate
 }: {
   nodeId: string
   title: string
   metadata: BestiaryMeta
+  metadataSource: string
   onUpdate: (meta: BestiaryMeta, title?: string) => void
 }): React.JSX.Element {
-  const [meta, setMeta] = useState(metadata)
-  const [name, setName] = useState(title)
   const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
     usePendingPanelRename(nodeId)
+  const { meta, setMeta, name, setName } = usePanelNodeState({
+    nodeId,
+    title,
+    metadata,
+    metadataSource,
+    nameInputRef: nameRef
+  })
 
   const speciesSuggestions = useEntryFieldSuggestions(
     OPTIONAL_BESTIARY_CATEGORY_ID,
@@ -60,11 +68,6 @@ export function BestiaryPanel({
     nodeId,
     DEFAULT_BESTIARY_META
   )
-
-  useEffect(() => {
-    setMeta(metadata)
-    setName(title)
-  }, [nodeId, metadata, title])
 
   const save = useCallback(() => {
     onUpdate(meta, name !== title ? name : undefined)
