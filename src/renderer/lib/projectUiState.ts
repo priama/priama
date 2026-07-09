@@ -50,7 +50,7 @@ function toNavigationSyncState(ui: ProjectUiState): NavigationSyncState {
   }
 }
 
-export function applyProjectUiState(
+function applyProjectUiState(
   ui: ProjectUiState,
   nodes: TreeNode[],
   categories: CategoryDefinition[]

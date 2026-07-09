@@ -1,7 +1,6 @@
 import { dialog, BrowserWindow, app } from 'electron'
 import { homedir } from 'os'
 import { join } from 'path'
-import { PROJECT_FILENAME } from '@shared/types'
 
 const TOMES_FILTER = {
   name: 'Priama Project',
@@ -89,5 +88,3 @@ export async function showSaveExportDialog(
   }
   return filePath
 }
-
-export { PROJECT_FILENAME }

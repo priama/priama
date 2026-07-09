@@ -66,11 +66,7 @@ function applyRenameAfterCreate(node: TreeNode, opts?: OpenCategoryOptions): voi
   requestRenameAfterCreate(node.id, ...targets)
 }
 
-export function selectCategoryHeader(categoryId: string): void {
-  useAppStore.getState().selectContainer(categoryId)
-}
-
-export async function openPanelCategoryItem(
+async function openPanelCategoryItem(
   node: TreeNode,
   categoryId: string | null,
   opts?: OpenCategoryOptions
@@ -94,7 +90,7 @@ export async function openPanelCategoryItem(
   }
 }
 
-export async function openEditorCategoryItem(
+async function openEditorCategoryItem(
   node: TreeNode,
   _categoryId: string | null,
   opts?: OpenCategoryOptions

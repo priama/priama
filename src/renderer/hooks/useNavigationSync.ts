@@ -22,7 +22,7 @@ function navigationChanged(
   return false
 }
 
-export async function hydrateNavigationFromMain(): Promise<void> {
+async function hydrateNavigationFromMain(): Promise<void> {
   const nav = await window.electronAPI.navigation.get()
   const current = getNavigationSnapshot()
   const isProjectOpen = useAppStore.getState().isProjectOpen

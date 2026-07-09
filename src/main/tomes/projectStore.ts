@@ -857,7 +857,7 @@ export async function permanentDelete(id: string): Promise<TreeNode[]> {
   return getAllNodes()
 }
 
-export async function purgeExpiredTrash(): Promise<void> {
+async function purgeExpiredTrash(): Promise<void> {
   if (!manifest) return
 
   const cutoff = new Date()

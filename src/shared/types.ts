@@ -3,7 +3,7 @@ import {
   NF_PEOPLE_CATEGORY_ID
 } from './categoryIds'
 
-export type EntityType = 'character' | 'location' | 'lore'
+type EntityType = 'character' | 'location' | 'lore'
 
 export type WikiEntityType = EntityType | 'note'
 
@@ -27,15 +27,6 @@ export type TrashCategory =
   | 'lore'
   | 'notes'
   | 'entries'
-
-export type Genre =
-  | 'Fantasy'
-  | 'Sci-Fi'
-  | 'Romance'
-  | 'Mystery'
-  | 'Horror'
-  | 'Other'
-  | ''
 
 export type ChapterLabelStyle = 'number-and-title' | 'number-only' | 'title-only' | 'none'
 export type ChapterNumberFormat = 'digits' | 'words' | 'roman'
@@ -224,14 +215,14 @@ export {
 
 // ─── Panel block system ───────────────────────────────────────────────────────
 
-export type PanelBlockType =
+type PanelBlockType =
   | 'text'
   | 'textarea'
   | 'status'
   | 'tags'
   | 'relationships'
 
-export interface PanelBlockBase {
+interface PanelBlockBase {
   id: string
   label: string
   type: PanelBlockType
@@ -334,25 +325,9 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   }
 ]
 
-export {
-  BUILTIN_CATEGORIES,
-  CATEGORY_PRESET_CATALOG,
-  FICTION_PRESET_IDS,
-  NON_FICTION_PRESET_IDS,
-  cloneCategoryPreset,
-  countCategoryEntries,
-  defaultFictionCategories,
-  folderScopeForCategory,
-  getAddableCategoryPresets,
-  getCategoryPresetById,
-  nodeKindForCategory,
-  normalizeCategoryDefinition,
-  resolveCategoriesFromPresetIds
-} from './categoryPresets'
-
 export const MAX_ENTITY_GALLERY_IMAGES = 30
 
-export function normalizeSecondaryImagePaths(
+function normalizeSecondaryImagePaths(
   raw: unknown,
   imagePath: string | null
 ): string[] {
@@ -451,12 +426,6 @@ export interface BestiaryMeta {
 
 export type EntityMeta = CharacterMeta | LocationMeta | LoreMeta | NoteMeta | PeopleMeta | BestiaryMeta
 
-export interface EntityMention {
-  entityId: string
-  entityType: EntityType
-  name: string
-}
-
 export type ExportPageSize = 'letter' | 'a4'
 export type ExportMarginPreset = 'narrow' | 'normal' | 'wide'
 export type ExportFontFamily = 'serif' | 'sans'
@@ -541,7 +510,7 @@ export const DEVICE_PRESETS: DevicePreset[] = [
   { id: 'samsung-galaxy-s27', label: 'Samsung Galaxy S27', widthPx: 1440, heightPx: 3120 }
 ]
 
-export function deviceMaxDimension(preset: DevicePreset): number {
+function deviceMaxDimension(preset: DevicePreset): number {
   return Math.max(preset.widthPx, preset.heightPx)
 }
 
@@ -549,22 +518,10 @@ export const LARGEST_DEVICE_PRESET = DEVICE_PRESETS.reduce((largest, preset) =>
   deviceMaxDimension(preset) > deviceMaxDimension(largest) ? preset : largest
 )
 
-export const LARGEST_DEVICE_MAX_DIMENSION = deviceMaxDimension(LARGEST_DEVICE_PRESET)
-
 export interface ManuscriptChapterRef {
   id: string
   title: string
   pathLabel: string
-}
-
-export interface BackupInfo {
-  path: string
-  createdAt: string
-}
-
-export interface ProjectInfo {
-  path: string
-  meta: ProjectMeta
 }
 
 export interface BackupWarning {
@@ -646,7 +603,7 @@ export interface WindowBounds {
   height: number
 }
 
-export interface SecondaryWindowState {
+interface SecondaryWindowState {
   nodeId: string
   bounds: WindowBounds
 }

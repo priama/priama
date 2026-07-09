@@ -3,7 +3,7 @@ import { resolveCategoryForNode } from '@shared/categoryNodeKind'
 import type { CategoryDefinition, TreeNode } from '@shared/types'
 import { isWikiEntityType } from '@/lib/treeUtils'
 
-export const WORD_TOKEN_RE = /[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ']+/g
+const WORD_TOKEN_RE = /[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ']+/g
 
 export interface IndexedEntry {
   id: string

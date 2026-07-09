@@ -362,10 +362,3 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   clearPendingRename: () => set({ pendingRenameNodeId: null, pendingRenameTargets: [] })
 }))
-
-export function getSelectedNode(state: AppState): TreeNode | null {
-  if (!state.selectedNodeId) return null
-  return state.nodes.find((n) => n.id === state.selectedNodeId) ?? null
-}
-
-export { getChapters, getScenes, getNodesByType, getActiveNodes } from '@/lib/treeUtils'

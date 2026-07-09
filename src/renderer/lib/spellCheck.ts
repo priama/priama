@@ -76,10 +76,6 @@ export function isCustomWord(word: string): boolean {
   return customWords.has(word.toLowerCase())
 }
 
-export function getCustomWords(): string[] {
-  return [...customWords].sort()
-}
-
 type NSpellInstance = ReturnType<typeof nspell>
 
 let spellEn: NSpellInstance | null = null
@@ -89,10 +85,6 @@ let initPromise: Promise<void> | null = null
 
 let projectLang: SpellCheckLang = 'en'
 const langListeners = new Set<() => void>()
-
-export function getSpellCheckLang(): SpellCheckLang {
-  return projectLang
-}
 
 export function setSpellCheckLang(lang: SpellCheckLang | undefined): void {
   const next = lang ?? 'en'

@@ -88,4 +88,4 @@ function FontDropdown({ editor }: FontDropdownProps): React.JSX.Element | null {
   )
 }
 
-export { FontDropdown, FONTS, SUPPORTED_FAMILIES, isSupportedFamily, DEFAULT_FONT }
+export { FontDropdown, isSupportedFamily }

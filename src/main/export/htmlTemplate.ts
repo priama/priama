@@ -2,8 +2,6 @@ import type { ExportFormatting, BookSettings, ExportSection } from '@shared/type
 import { paragraphBodyCss } from '@shared/export/frontMatter'
 import { fontCssFamily, marginCss } from './formatting'
 
-export { buildEpubChapterHtml } from '@shared/export/epubHtml'
-
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

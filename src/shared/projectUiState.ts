@@ -272,7 +272,7 @@ function isValidWikiNode(node: TreeNode | undefined, type: WikiEntityType): bool
   return Boolean(node && !node.deletedAt && node.type === type)
 }
 
-export function getFirstChapterNodeId(nodes: TreeNode[]): string | null {
+function getFirstChapterNodeId(nodes: TreeNode[]): string | null {
   const chapters = nodes.filter((n) => !n.deletedAt && n.type === 'chapter').sort((a, b) => a.sortOrder - b.sortOrder)
   if (chapters.length === 0) return null
   const firstChapter = chapters[0]

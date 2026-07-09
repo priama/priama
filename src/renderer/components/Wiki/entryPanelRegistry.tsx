@@ -24,7 +24,7 @@ export interface EntryPanelRenderProps {
   onUpdate: (updates: { title?: string; metadata?: string }) => void
 }
 
-export type EntryPanelComponent = React.FC<EntryPanelRenderProps>
+type EntryPanelComponent = React.FC<EntryPanelRenderProps>
 
 function BestiaryEntryPanel(props: EntryPanelRenderProps): React.JSX.Element {
   const meta = normalizeBestiaryMeta(

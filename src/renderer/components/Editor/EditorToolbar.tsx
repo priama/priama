@@ -20,7 +20,7 @@ import { SIDEBAR_MIN_WIDTH } from '@shared/types'
 import { StyleDropdown } from './StyleDropdown'
 import { FontDropdown } from './FontDropdown'
 import { ColorPickerButton, TEXT_COLORS, HIGHLIGHT_COLORS } from './ColorPicker'
-import { cn, countWords } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import type { BlockStyleType } from './BlockStyle'
 
 interface EditorToolbarProps {
@@ -201,5 +201,3 @@ export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbar
     </TooltipProvider>
   )
 }
-
-export { countWords }

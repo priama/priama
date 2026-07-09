@@ -1,6 +1,6 @@
 import type { CategoryDefinition } from './types'
 
-export type CategoryViewDestination = 'rightPanel' | 'mainEditor'
+type CategoryViewDestination = 'rightPanel' | 'mainEditor'
 
 export function findCategory(
   categories: CategoryDefinition[],
@@ -10,7 +10,7 @@ export function findCategory(
   return categories.find((c) => c.id === id)
 }
 
-export function getCategoryViewDestination(
+function getCategoryViewDestination(
   category: CategoryDefinition | undefined
 ): CategoryViewDestination {
   return category?.mode === 'panel' ? 'rightPanel' : 'mainEditor'

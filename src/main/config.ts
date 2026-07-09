@@ -27,7 +27,7 @@ function defaultConfig(): PriamaConfig {
 
 let cachedConfig: PriamaConfig | null = null
 
-export async function loadConfig(): Promise<PriamaConfig> {
+async function loadConfig(): Promise<PriamaConfig> {
   const configPath = getConfigPath()
   if (!(await fse.pathExists(configPath))) {
     cachedConfig = defaultConfig()
@@ -50,7 +50,7 @@ export async function loadConfig(): Promise<PriamaConfig> {
   }
 }
 
-export async function saveConfig(config: PriamaConfig): Promise<void> {
+async function saveConfig(config: PriamaConfig): Promise<void> {
   const configPath = getConfigPath()
   await fse.ensureDir(app.getPath('userData'))
   await fse.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8')
@@ -62,7 +62,7 @@ export async function getConfig(): Promise<PriamaConfig> {
   return loadConfig()
 }
 
-export function pickCoverColor(): string {
+function pickCoverColor(): string {
   return COVER_COLORS[Math.floor(Math.random() * COVER_COLORS.length)]
 }
 

@@ -16,17 +16,10 @@ export type CategoryNodeKind = 'character' | 'location' | 'lore' | 'note' | 'ent
  * Preset ids are immutable once shipped — projects snapshot categories at create/add time.
  * Catalog changes affect new projects and newly added presets only; patch project copies via updateCategories.
  */
-export const FICTION_PRESET_IDS = [
+const FICTION_PRESET_IDS = [
   BUILTIN_CATEGORY_IDS.characters,
   BUILTIN_CATEGORY_IDS.locations,
   BUILTIN_CATEGORY_IDS.lore,
-  BUILTIN_CATEGORY_IDS.notes
-] as const
-
-export const NON_FICTION_PRESET_IDS = [
-  NF_PEOPLE_CATEGORY_ID,
-  'nf-sources',
-  'nf-concepts',
   BUILTIN_CATEGORY_IDS.notes
 ] as const
 
@@ -212,7 +205,7 @@ const BESTIARY_PRESET: CategoryDefinition = {
   builtIn: false
 }
 
-export const CATEGORY_PRESET_CATALOG: CategoryDefinition[] = [
+const CATEGORY_PRESET_CATALOG: CategoryDefinition[] = [
   CHARACTERS_PRESET,
   LOCATIONS_PRESET,
   LORE_PRESET,
@@ -225,7 +218,7 @@ export const CATEGORY_PRESET_CATALOG: CategoryDefinition[] = [
 
 const PRESET_BY_ID = new Map(CATEGORY_PRESET_CATALOG.map((p) => [p.id, p]))
 
-export function getCategoryPresetById(id: string): CategoryDefinition | undefined {
+function getCategoryPresetById(id: string): CategoryDefinition | undefined {
   return PRESET_BY_ID.get(id)
 }
 
@@ -249,7 +242,7 @@ export function resolveCategoriesFromPresetIds(presetIds: string[]): CategoryDef
     .map((preset, index) => cloneCategoryPreset({ ...preset, sortOrder: index }))
 }
 
-export function inferNodeKindFromCategoryId(id: string): CategoryNodeKind {
+function inferNodeKindFromCategoryId(id: string): CategoryNodeKind {
   switch (id) {
     case BUILTIN_CATEGORY_IDS.characters:
       return 'character'
@@ -289,8 +282,6 @@ export function getAddableCategoryPresets(current: CategoryDefinition[]): Catego
   const currentIds = new Set(current.map((c) => c.id))
   return CATEGORY_PRESET_CATALOG.filter((p) => !currentIds.has(p.id)).map(cloneCategoryPreset)
 }
-
-export const BUILTIN_CATEGORIES = resolveCategoriesFromPresetIds([...FICTION_PRESET_IDS])
 
 export function defaultFictionCategories(): CategoryDefinition[] {
   return resolveCategoriesFromPresetIds([...FICTION_PRESET_IDS]).map(normalizeCategoryDefinition)
