@@ -32,6 +32,7 @@ import {
 } from '@/lib/commands'
 import { openCategoryItem } from '@/lib/categoryNavigation'
 import { shouldAutoFocusPendingRename } from '@/lib/pendingRename'
+import { buildTreeContextMenuActions, type SidebarMenuActions } from '@/lib/treeNodeMenuActions'
 import { TreeContextMenu } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import { cn } from '@/lib/utils'
@@ -109,6 +110,7 @@ interface SidebarTreeProps {
   ancestorContinues?: boolean[]
   disabled?: boolean
   categoryId?: string
+  menuActions: SidebarMenuActions
   onAddScene?: (chapterId: string) => void
   onAddEntity?: () => void
   onOpenNewWindow: (node: TreeNode) => void
@@ -234,7 +236,7 @@ function SortableTreeItem({
   onRename,
   onMoveToTrash,
   onOpenNewWindow,
-  onMoveTo,
+  menuActions,
   onDoubleClick,
   trailingAction,
   className
@@ -252,7 +254,7 @@ function SortableTreeItem({
   onRename: () => void
   onMoveToTrash: () => void
   onOpenNewWindow: () => void
-  onMoveTo?: () => void
+  menuActions: SidebarMenuActions
   onDoubleClick: () => void
   trailingAction?: React.ReactNode
   className?: string
@@ -262,14 +264,16 @@ function SortableTreeItem({
     animateLayoutChanges: defaultAnimateLayoutChanges
   })
 
+  const contextMenuActions = buildTreeContextMenuActions(node, menuActions)
+
   return (
     <TreeContextMenu
       variant={isFolderNode ? 'folder' : isWikiEntityType(node.type) ? 'wikiRow' : 'manuscript'}
       node={node}
       onRename={onRename}
-      onMoveTo={onMoveTo}
       onOpenNewWindow={isFolderNode ? undefined : onOpenNewWindow}
       onMoveToTrash={onMoveToTrash}
+      {...contextMenuActions}
     >
       <div
         ref={setNodeRef}
@@ -309,6 +313,7 @@ export function SidebarTree({
   ancestorContinues,
   disabled = false,
   categoryId,
+  menuActions,
   onAddScene,
   onAddEntity,
   onOpenNewWindow
@@ -533,6 +538,7 @@ export function SidebarTree({
                     })
                   }
                   onOpenNewWindow={() => onOpenNewWindow(node)}
+                  menuActions={menuActions}
                   onDoubleClick={() => startRename(node)}
                   className={isLast && scenes.length === 0 ? 'mb-1' : undefined}
                   trailingAction={
@@ -554,6 +560,7 @@ export function SidebarTree({
                     ancestorContinues={childAncestors}
                     disabled={disabled}
                     categoryId={categoryId}
+                    menuActions={menuActions}
                     onAddScene={onAddScene}
                     onAddEntity={onAddEntity}
                     onOpenNewWindow={onOpenNewWindow}
@@ -574,6 +581,7 @@ export function SidebarTree({
                         depth={depth + 1}
                         ancestorContinues={childAncestors}
                         isLastChapter={isLast}
+                        menuActions={menuActions}
                         renamingId={renamingId}
                         renameValue={renameValue}
                         setRenameValue={setRenameValue}
@@ -628,6 +636,7 @@ function SceneList({
   depth,
   ancestorContinues = [],
   isLastChapter,
+  menuActions,
   renamingId,
   renameValue,
   setRenameValue,
@@ -646,6 +655,7 @@ function SceneList({
   depth: number
   ancestorContinues?: boolean[]
   isLastChapter: boolean
+  menuActions: SidebarMenuActions
   renamingId: string | null
   renameValue: string
   setRenameValue: (v: string) => void
@@ -733,6 +743,7 @@ function SceneList({
               })
             }
             onOpenNewWindow={() => onOpenNewWindow(scene)}
+            menuActions={menuActions}
             onDoubleClick={() => startRename(scene)}
             className={isLastChapter && sceneIndex === scenes.length - 1 ? 'mb-1' : undefined}
             trailingAction={

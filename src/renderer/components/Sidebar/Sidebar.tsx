@@ -43,6 +43,12 @@ import { useHistoryStore } from '@/store/historyStore'
 import { makeCreateChapterCommand, makeCreateNodeCommand } from '@/lib/commands'
 import { createCategoryItem } from '@/lib/categoryNavigation'
 import { requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
+import {
+  buildCategorySidebarMenuActions,
+  buildManuscriptSidebarMenuActions
+} from '@/lib/treeNodeMenuActions'
+import { useTreeNodeMenuHandlers } from '@/hooks/useTreeNodeMenuHandlers'
+import { MoveSceneDialog } from '@/components/Tree/MoveSceneDialog'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import { cn } from '@/lib/utils'
@@ -277,6 +283,52 @@ export function Sidebar(): React.JSX.Element {
     void window.electronAPI.windows.openDocument(node.id, node.title)
   }
 
+  const {
+    moveSceneNode,
+    setMoveSceneNode,
+    handleMoveScene,
+    sceneChapters,
+    onMoveToFolder,
+    onMoveToChapter,
+    onConvertToSimpleChapter,
+    onConvertToSceneChapter,
+    onConvertSimpleToSceneChapter,
+    onMoveTo
+  } = useTreeNodeMenuHandlers()
+
+  const manuscriptMenuActions = useMemo(
+    () =>
+      buildManuscriptSidebarMenuActions(nodes, {
+        onMoveToFolder,
+        onMoveToChapter,
+        onConvertToSimpleChapter,
+        onConvertToSceneChapter,
+        onConvertSimpleToSceneChapter,
+        onMoveTo
+      }),
+    [
+      nodes,
+      onMoveToFolder,
+      onMoveToChapter,
+      onConvertToSimpleChapter,
+      onConvertToSceneChapter,
+      onConvertSimpleToSceneChapter,
+      onMoveTo
+    ]
+  )
+
+  const categoryMenuActionsById = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof buildCategorySidebarMenuActions>>()
+    for (const category of orderedCategories) {
+      const scope = folderScopeForCategory(category)
+      map.set(
+        category.id,
+        buildCategorySidebarMenuActions(nodes, scope, category.name, onMoveToFolder)
+      )
+    }
+    return map
+  }, [orderedCategories, nodes, onMoveToFolder])
+
   const handleSectionDragEnd = async (event: DragEndEvent): Promise<void> => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -368,6 +420,7 @@ export function Sidebar(): React.JSX.Element {
                       scope="manuscript"
                       parentId={null}
                       disabled={showChapterModal}
+                      menuActions={manuscriptMenuActions}
                       onAddScene={handleAddScene}
                       onOpenNewWindow={openInNewWindow}
                     />
@@ -403,6 +456,7 @@ export function Sidebar(): React.JSX.Element {
                               scope={scope}
                               parentId={null}
                               categoryId={category.id}
+                              menuActions={categoryMenuActionsById.get(category.id)!}
                               onAddEntity={() => void createCategoryItem(category.id, null, 'sidebar')}
                               onOpenNewWindow={openInNewWindow}
                             />
@@ -479,6 +533,13 @@ export function Sidebar(): React.JSX.Element {
           </DialogHeader>
         </DialogContent>
       </Dialog>
+
+      <MoveSceneDialog
+        open={moveSceneNode !== null}
+        onOpenChange={(open) => !open && setMoveSceneNode(null)}
+        chapters={sceneChapters}
+        onMove={handleMoveScene}
+      />
     </>
   )
 }
