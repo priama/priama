@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -14,12 +14,15 @@ import { BlockStyle } from './BlockStyle'
 import { EditorToolbar } from './EditorToolbar'
 import { SearchBar } from './SearchBar'
 import SearchAndReplace from './searchAndReplace'
-import { SpellCheckExtension } from '@/extensions/SpellCheckExtension'
+import { SpellCheckExtension, spellCheckPluginKey } from '@/extensions/SpellCheckExtension'
+import { EntityNamePopover } from './EntityNamePopover'
 import { SpellSuggestions } from './SpellSuggestions'
 import { PasteMenu } from './PasteMenu'
-import { addCustomWord, removeCustomWord, isCustomWord } from '@/lib/spellCheck'
+import { addCustomWord, removeCustomWord, isCustomWord, onSpellCheckLangChange } from '@/lib/spellCheck'
 import { useAppStore } from '@/store/appStore'
 import { markContentDirty, registerActiveEditor } from '@/lib/contentPersistence'
+import { openIndexedEntry } from '@/lib/categoryNavigation'
+import { panelEntryFingerprint } from '@/lib/entryTitleIndex'
 import { countWords } from '@/lib/utils'
 import { isSimpleChapter } from '@/lib/treeUtils'
 import { findCategory, categoryOpensInMainEditor } from '@shared/categoryView'
@@ -70,6 +73,40 @@ function buildEntityNames(nodes: TreeNode[]): Map<string, { id: string; type: st
   return map
 }
 
+function entityTypeLabel(
+  type: string,
+  categoryId: string | null,
+  categories: ReturnType<typeof useAppStore.getState>['categories']
+): string {
+  if (type === 'entry' && categoryId) {
+    return findCategory(categories, categoryId)?.name ?? 'Entry'
+  }
+  const labels: Record<string, string> = {
+    character: 'Character',
+    location: 'Location',
+    lore: 'Lore',
+    note: 'Note'
+  }
+  return labels[type] ?? 'Entry'
+}
+
+function readEntityRefFromElement(el: HTMLElement): {
+  id: string
+  type: TreeNode['type']
+  categoryId: string | null
+  title: string
+} | null {
+  const id = el.dataset.entityId
+  const type = el.dataset.entityType as TreeNode['type'] | undefined
+  if (!id || !type) return null
+  return {
+    id,
+    type,
+    categoryId: el.dataset.categoryId || null,
+    title: el.dataset.entityTitle ?? ''
+  }
+}
+
 export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element {
   const { nodes, categories, updateNodeInStore, setSelectedEntity } = useAppStore()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -90,6 +127,20 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     from: number
     to: number
   } | null>(null)
+  const [entityHover, setEntityHover] = useState<{
+    x: number
+    y: number
+    id: string
+    type: TreeNode['type']
+    categoryId: string | null
+    title: string
+  } | null>(null)
+  const entityHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const entryFingerprint = useMemo(
+    () => panelEntryFingerprint(nodes, categories),
+    [nodes, categories]
+  )
+  const prevEntryFingerprintRef = useRef(entryFingerprint)
 
   const entityMap = useMemo(() => buildEntityNames(nodes), [nodes])
   const isEditable =
@@ -149,7 +200,17 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         setPasteMenu({ x: coords.left, y: coords.bottom, html, text })
         return true
       },
-      handleClickOn: (_view, _pos, nodeEl) => {
+      handleDOMEvents: {
+        click: (_view, event) => {
+          const entityEl = (event.target as HTMLElement).closest('.entity-name-ref') as HTMLElement | null
+          if (!entityEl) return false
+          const entry = readEntityRefFromElement(entityEl)
+          if (!entry) return false
+          void openIndexedEntry(entry)
+          return true
+        }
+      },
+      handleClickOn: (view, pos, nodeEl) => {
         if (nodeEl.type.name === 'text') {
           const marks = nodeEl.marks
           const mention = marks.find((m) => m.type.name === 'entityMention')
@@ -161,6 +222,32 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
             return true
           }
         }
+
+        const pluginState = spellCheckPluginKey.getState(view.state)
+        const entityDecos = pluginState
+          ? pluginState.decorations.find(pos, pos, (spec) => spec.class === 'entity-name-ref')
+          : []
+        if (entityDecos.length > 0) {
+          const deco = entityDecos[0]
+          const spec = deco as typeof deco & {
+            'data-entity-id'?: string
+            'data-entity-type'?: TreeNode['type']
+            'data-category-id'?: string
+            'data-entity-title'?: string
+          }
+          const id = spec['data-entity-id']
+          const type = spec['data-entity-type']
+          if (id && type) {
+            void openIndexedEntry({
+              id,
+              type,
+              categoryId: spec['data-category-id'] || null,
+              title: spec['data-entity-title'] ?? ''
+            })
+            return true
+          }
+        }
+
         return false
       }
     },
@@ -194,6 +281,26 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       editor.setEditable(!!isEditable)
     }
   }, [editor, isEditable])
+
+  useEffect(() => {
+    if (!editor) return
+    return onSpellCheckLangChange(() => {
+      editor.commands.refreshSpellCheck()
+    })
+  }, [editor])
+
+  useEffect(() => {
+    if (!editor) return
+    if (prevEntryFingerprintRef.current === entryFingerprint) return
+    prevEntryFingerprintRef.current = entryFingerprint
+    editor.commands.refreshSpellCheck()
+  }, [editor, entryFingerprint])
+
+  useEffect(() => {
+    return () => {
+      if (entityHoverTimerRef.current) clearTimeout(entityHoverTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     setSearchOpen(false)
@@ -272,6 +379,41 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   return (
     <div
       className="no-drag flex flex-1 flex-col overflow-hidden"
+      onMouseOver={(e) => {
+        const target = e.target as HTMLElement
+        const entityEl = target.closest('.entity-name-ref') as HTMLElement | null
+        if (!entityEl) return
+
+        const related = e.relatedTarget as HTMLElement | null
+        if (related && entityEl.contains(related)) return
+
+        if (entityHoverTimerRef.current) clearTimeout(entityHoverTimerRef.current)
+        const entry = readEntityRefFromElement(entityEl)
+        if (!entry) return
+
+        const rect = entityEl.getBoundingClientRect()
+        entityHoverTimerRef.current = setTimeout(() => {
+          setEntityHover({
+            x: rect.left,
+            y: rect.bottom,
+            ...entry
+          })
+        }, 150)
+      }}
+      onMouseOut={(e) => {
+        const target = e.target as HTMLElement
+        const entityEl = target.closest('.entity-name-ref') as HTMLElement | null
+        if (!entityEl) return
+
+        const related = e.relatedTarget as HTMLElement | null
+        if (related && entityEl.contains(related)) return
+
+        if (entityHoverTimerRef.current) {
+          clearTimeout(entityHoverTimerRef.current)
+          entityHoverTimerRef.current = null
+        }
+        setEntityHover(null)
+      }}
       onContextMenu={(e) => {
         const target = e.target as HTMLElement
         const spellEl = target.closest('.spell-error') as HTMLElement | null
@@ -289,14 +431,31 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           const domPos = view.posAtDOM(spellEl, 0)
           if (domPos === null) return
 
+          // posAtDOM resolves to a DOM boundary, which can land a character or two
+          // off from the decoration's real span — read the decoration's own from/to
+          // instead of trusting that offset, so the replacement can't clip the word
+          // or eat the following space.
+          const pluginState = spellCheckPluginKey.getState(view.state)
+          const candidates = pluginState
+            ? pluginState.decorations.find(
+                undefined,
+                undefined,
+                (spec) => spec.class === 'spell-error' && spec['data-word'] === word
+              )
+            : []
+          const deco = candidates.reduce<(typeof candidates)[number] | null>((closest, d) => {
+            if (!closest) return d
+            return Math.abs(d.from - domPos) < Math.abs(closest.from - domPos) ? d : closest
+          }, null)
+
           setSpellMenu({
             x: e.clientX,
             y: e.clientY,
             word,
             suggestions,
             message,
-            from: domPos,
-            to: domPos + word.length
+            from: deco?.from ?? domPos,
+            to: deco?.to ?? domPos + word.length
           })
         } catch {
           return
@@ -335,6 +494,24 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
             setPasteMenu(null)
           }}
           onClose={() => setPasteMenu(null)}
+        />
+      )}
+
+      {entityHover && (
+        <EntityNamePopover
+          x={entityHover.x}
+          y={entityHover.y}
+          title={entityHover.title}
+          typeLabel={entityTypeLabel(entityHover.type, entityHover.categoryId, categories)}
+          onOpen={() => {
+            void openIndexedEntry({
+              id: entityHover.id,
+              type: entityHover.type,
+              categoryId: entityHover.categoryId,
+              title: entityHover.title
+            })
+            setEntityHover(null)
+          }}
         />
       )}
 

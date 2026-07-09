@@ -130,11 +130,14 @@ export function normalizeBookSettings(raw: Partial<BookSettings> & Record<string
   }
 }
 
+export type SpellCheckLang = 'en' | 'es'
+
 export interface ProjectMeta {
   id: string
   title: string
   author: string
   genre?: string
+  spellCheckLang?: SpellCheckLang
   bookSettings: BookSettings
   categories: CategoryDefinition[]
   createdAt: string
@@ -694,6 +697,7 @@ export interface TomesManifest {
   lastSavedAt: string
   version: string
   bookSettings?: BookSettings
+  spellCheckLang?: SpellCheckLang
   categories?: CategoryDefinition[]
   uiState?: ProjectUiState
   index: {

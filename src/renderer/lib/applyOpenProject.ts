@@ -6,6 +6,7 @@ import {
   resolveProjectUiOnOpen
 } from '@/lib/projectUiState'
 import type { ProjectMeta, ProjectUiState, TreeNode } from '@shared/types'
+import { setSpellCheckLang } from '@/lib/spellCheck'
 
 export interface OpenProjectResult {
   path: string
@@ -15,6 +16,7 @@ export interface OpenProjectResult {
 }
 
 export async function applyOpenProjectResult(result: OpenProjectResult): Promise<void> {
+  setSpellCheckLang(result.meta.spellCheckLang ?? 'en')
   beginUiRestore()
   const categories = result.meta.categories ?? []
   useAppStore.getState().setProject(result.path, result.meta, result.nodes)

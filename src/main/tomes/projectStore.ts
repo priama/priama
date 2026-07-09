@@ -10,6 +10,7 @@ import type {
   NodeType,
   ProjectMeta,
   ProjectUiState,
+  SpellCheckLang,
   TomesIndexEntry,
   TomesManifest,
   TreeNode,
@@ -335,6 +336,7 @@ export function getProjectMeta(): ProjectMeta | null {
     title: manifest.title,
     author: manifest.author,
     genre: manifest.genre,
+    spellCheckLang: manifest.spellCheckLang,
     bookSettings: normalizeBookSettings(manifest.bookSettings ?? {}),
     categories: (manifest.categories ?? defaultFictionCategories()).map(normalizeCategoryDefinition),
     createdAt: manifest.createdAt,
@@ -935,12 +937,14 @@ export async function updateProjectMeta(updates: {
   title?: string
   author?: string
   genre?: string
+  spellCheckLang?: SpellCheckLang
 }): Promise<ProjectMeta> {
   if (!manifest) throw new Error('No project open')
 
   if (updates.title) manifest.title = updates.title
   if (updates.author) manifest.author = updates.author
   if (updates.genre !== undefined) manifest.genre = updates.genre
+  if (updates.spellCheckLang !== undefined) manifest.spellCheckLang = updates.spellCheckLang
 
   await writeManifest()
   return getProjectMeta()!

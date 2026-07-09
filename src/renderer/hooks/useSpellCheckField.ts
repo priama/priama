@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { addCustomWord, check, type SpellMatch } from '@/lib/spellCheck'
+import { addCustomWord, check, onSpellCheckLangChange, type SpellMatch } from '@/lib/spellCheck'
 
 const DEBOUNCE_MS = 400
 const BLUR_MENU_DELAY_MS = 150
@@ -121,6 +121,13 @@ export function useSpellCheckField(
     }
     activeMenuRef.current = null
     setMenu(null)
+  }, [])
+
+  useEffect(() => {
+    return onSpellCheckLangChange(() => {
+      lineCacheRef.current = new Map()
+      setDirty(true)
+    })
   }, [])
 
   useEffect(() => {

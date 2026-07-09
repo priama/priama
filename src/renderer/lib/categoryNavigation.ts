@@ -5,6 +5,7 @@ import {
 } from '@shared/categoryView'
 import { resolveCategoryForNode, wikiNodeTypeForCategory } from '@shared/categoryNodeKind'
 import type { TreeNode } from '@shared/types'
+import type { IndexedEntry } from '@/lib/entryTitleIndex'
 import { mergeIncomingNodes } from '@/lib/contentPersistence'
 import { makeCreateNodeCommand } from '@/lib/commands'
 import { requestRenameAfterCreate } from '@/lib/pendingRename'
@@ -160,4 +161,10 @@ export async function createCategoryItem(
 
   await openCategoryItem(createdId, { renameAfterCreate: true, source })
   return createdId
+}
+
+export async function openIndexedEntry(entry: IndexedEntry): Promise<void> {
+  const node = await ensureNodeInStore(entry.id)
+  if (!node) return
+  await openPanelCategoryItem(node, entry.categoryId)
 }

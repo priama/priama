@@ -4,6 +4,7 @@ import { useHistoryStore } from '@/store/historyStore'
 import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty, flushAndSaveProject, resetPersistenceState } from '@/lib/contentPersistence'
 import { applyOpenProjectResult } from '@/lib/applyOpenProject'
+import { setSpellCheckLang } from '@/lib/spellCheck'
 import { runWithNavigationPublishSuppressed } from '@/lib/navigationSync'
 import { flushProjectUiState } from '@/hooks/useProjectUiPersistence'
 import type { CreateProjectInput } from '@shared/types'
@@ -151,6 +152,8 @@ export function useProject(): {
       console.error('Close project failed:', err)
       addToast('Could not finish closing the project.', 'warning')
     }
+
+    setSpellCheckLang('en')
   }, [closeProjectStore, addToast, applySaveResult])
 
   const removeFromRecent = useCallback(async (id: string) => {

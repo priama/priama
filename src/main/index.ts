@@ -388,6 +388,12 @@ function registerIpcHandlers(): void {
     return settings
   })
 
+  ipcMain.handle('tomes:updateProjectMeta', async (_, updates) => {
+    const meta = await updateProjectMeta(updates)
+    broadcastSync()
+    return meta
+  })
+
   ipcMain.handle('tomes:updateCategories', async (_, { categories }: { categories: CategoryDefinition[] }) => {
     const meta = await updateCategories(categories)
     broadcastSync()

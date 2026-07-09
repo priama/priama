@@ -49,6 +49,9 @@ export interface ElectronAPI {
     createChapter: (structure: ChapterStructure, parentId?: string | null) => Promise<TreeNode>
     updateUiState: (uiState: ProjectUiState) => Promise<ProjectUiState>
     updateBookSettings: (updates: Partial<BookSettings>) => Promise<BookSettings>
+    updateProjectMeta: (
+      updates: Partial<Pick<ProjectMeta, 'title' | 'author' | 'genre' | 'spellCheckLang'>>
+    ) => Promise<ProjectMeta>
     updateCategories: (categories: CategoryDefinition[]) => Promise<ProjectMeta>
     importCoverImage: (sourcePath: string) => Promise<{ relativePath: string }>
     getSyncState: () => Promise<SyncState>
@@ -141,6 +144,7 @@ const api: ElectronAPI = {
     createChapter: (structure, parentId) => ipcRenderer.invoke('tomes:createChapter', { structure, parentId }),
     updateUiState: (uiState) => ipcRenderer.invoke('tomes:updateUiState', uiState),
     updateBookSettings: (updates) => ipcRenderer.invoke('tomes:updateBookSettings', updates),
+    updateProjectMeta: (updates) => ipcRenderer.invoke('tomes:updateProjectMeta', updates),
     updateCategories: (categories) => ipcRenderer.invoke('tomes:updateCategories', { categories }),
     importCoverImage: (sourcePath) => ipcRenderer.invoke('tomes:importCoverImage', { sourcePath }),
     getSyncState: () => ipcRenderer.invoke('tomes:getSyncState')

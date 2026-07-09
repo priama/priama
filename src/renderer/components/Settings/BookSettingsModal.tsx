@@ -17,8 +17,10 @@ import {
   type ChapterNumberFormat,
   type ChapterNumberingScope,
   type ParagraphStyle,
+  type SpellCheckLang,
   type TextAlignStyle
 } from '@shared/types'
+import { setSpellCheckLang } from '@/lib/spellCheck'
 import { toAssetUrl } from '@/lib/assetUrl'
 import { cn } from '@/lib/utils'
 
@@ -117,6 +119,15 @@ export function BookSettingsModal({ open, onOpenChange }: BookSettingsModalProps
       }, 300)
     },
     [persist]
+  )
+
+  const persistSpellCheckLang = useCallback(
+    async (lang: SpellCheckLang) => {
+      const meta = await window.electronAPI.tomes.updateProjectMeta({ spellCheckLang: lang })
+      setSpellCheckLang(lang)
+      setProjectMeta(meta)
+    },
+    [setProjectMeta]
   )
 
   const handleCoverClick = async (): Promise<void> => {
@@ -285,6 +296,17 @@ export function BookSettingsModal({ open, onOpenChange }: BookSettingsModalProps
                     { id: 'left' as TextAlignStyle, label: 'Left' }
                   ]}
                   onChange={(id) => void persist({ textAlign: id })}
+                />
+              </FieldRow>
+
+              <FieldRow label="Spell check language">
+                <ToggleGroup
+                  value={projectMeta?.spellCheckLang ?? 'en'}
+                  options={[
+                    { id: 'en' as SpellCheckLang, label: 'English' },
+                    { id: 'es' as SpellCheckLang, label: 'Spanish' }
+                  ]}
+                  onChange={(id) => void persistSpellCheckLang(id)}
                 />
               </FieldRow>
             </div>
