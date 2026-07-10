@@ -570,6 +570,8 @@ export interface ChapterMeta {
   structure: ChapterStructure
 }
 
+export type ContainerViewMode = 'cards' | 'list'
+
 export interface ProjectUiState {
   sectionOrder: string[]
   selectedNodeId: string | null
@@ -582,6 +584,8 @@ export interface ProjectUiState {
   /** @deprecated Merged into expandedSections on load. Present only in legacy project files. */
   expandedFolders?: string[]
   rightPanelOpen: boolean
+  /** Per-container cards/list preference. Missing keys default to cards. */
+  containerViewModes: Record<string, ContainerViewMode>
 }
 
 export interface NavigationSyncState {

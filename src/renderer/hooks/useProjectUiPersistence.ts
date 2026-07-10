@@ -31,7 +31,18 @@ function navigationChanged(
   if (state.sectionOrder.length !== prev.sectionOrder.length) return true
   if (state.sectionOrder.some((v, i) => v !== prev.sectionOrder[i])) return true
   if (setsChanged(state.expandedSections, prev.expandedSections)) return true
+  if (containerViewModesChanged(state.containerViewModes, prev.containerViewModes)) return true
   return false
+}
+
+function containerViewModesChanged(
+  next: Record<string, string>,
+  prev: Record<string, string>
+): boolean {
+  const nextKeys = Object.keys(next)
+  const prevKeys = Object.keys(prev)
+  if (nextKeys.length !== prevKeys.length) return true
+  return nextKeys.some((key) => next[key] !== prev[key])
 }
 
 export function useProjectUiPersistence(enabled: boolean): void {

@@ -237,7 +237,6 @@ function SortableTreeItem({
   onMoveToTrash,
   onOpenNewWindow,
   menuActions,
-  onDoubleClick,
   trailingAction,
   className
 }: {
@@ -255,7 +254,6 @@ function SortableTreeItem({
   onMoveToTrash: () => void
   onOpenNewWindow: () => void
   menuActions: SidebarMenuActions
-  onDoubleClick: () => void
   trailingAction?: React.ReactNode
   className?: string
 }): React.JSX.Element {
@@ -283,10 +281,6 @@ function SortableTreeItem({
         }}
         className={cn(isDragging && 'relative z-0 opacity-35', className)}
         onClick={onSelect}
-        onDoubleClick={(e) => {
-          e.stopPropagation()
-          onDoubleClick()
-        }}
       >
         <TreeItemRow
           node={node}
@@ -539,7 +533,6 @@ export function SidebarTree({
                   }
                   onOpenNewWindow={() => onOpenNewWindow(node)}
                   menuActions={menuActions}
-                  onDoubleClick={() => startRename(node)}
                   className={isLast && scenes.length === 0 ? 'mb-1' : undefined}
                   trailingAction={
                     folderNode ? undefined : scenes.length === 0 && sceneChapter && onAddScene ? (
@@ -744,7 +737,6 @@ function SceneList({
             }
             onOpenNewWindow={() => onOpenNewWindow(scene)}
             menuActions={menuActions}
-            onDoubleClick={() => startRename(scene)}
             className={isLastChapter && sceneIndex === scenes.length - 1 ? 'mb-1' : undefined}
             trailingAction={
               sceneIndex === scenes.length - 1 && onAddScene ? (

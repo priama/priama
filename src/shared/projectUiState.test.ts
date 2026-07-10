@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isValidContainerId, pruneContainerNavigation } from './projectUiState'
-import { sanitizeProjectUiState } from './projectUiState'
+import {
+  isValidContainerId,
+  normalizeContainerViewModes,
+  normalizeProjectUiState,
+  pruneContainerNavigation,
+  sanitizeProjectUiState
+} from './projectUiState'
 import type { CategoryDefinition, ProjectUiState, TreeNode } from './types'
 
 const categories: CategoryDefinition[] = []
@@ -52,8 +57,92 @@ const baseUi: ProjectUiState = {
   selectedEntryId: null,
   selectedEntryCategoryId: null,
   expandedSections: ['manuscript'],
-  rightPanelOpen: false
+  rightPanelOpen: false,
+  containerViewModes: {}
 }
+
+describe('normalizeContainerViewModes', () => {
+  it('returns empty object for missing or non-object values', () => {
+    expect(normalizeContainerViewModes(undefined)).toEqual({})
+    expect(normalizeContainerViewModes(null)).toEqual({})
+    expect(normalizeContainerViewModes('cards')).toEqual({})
+    expect(normalizeContainerViewModes(['list'])).toEqual({})
+  })
+
+  it('keeps only cards/list string values', () => {
+    expect(
+      normalizeContainerViewModes({
+        manuscript: 'list',
+        'folder:a': 'cards',
+        bad: 'grid',
+        empty: '',
+        num: 1
+      })
+    ).toEqual({
+      manuscript: 'list',
+      'folder:a': 'cards'
+    })
+  })
+})
+
+describe('normalizeProjectUiState containerViewModes', () => {
+  it('defaults missing containerViewModes to empty object', () => {
+    const withoutModes = { ...baseUi } as Partial<ProjectUiState>
+    delete withoutModes.containerViewModes
+    const result = normalizeProjectUiState(withoutModes, categories)
+    expect(result.containerViewModes).toEqual({})
+  })
+
+  it('filters malformed containerViewModes on normalize', () => {
+    const result = normalizeProjectUiState(
+      {
+        ...baseUi,
+        containerViewModes: {
+          manuscript: 'list',
+          trash: 'nope'
+        } as unknown as ProjectUiState['containerViewModes']
+      },
+      categories
+    )
+    expect(result.containerViewModes).toEqual({ manuscript: 'list' })
+  })
+})
+
+describe('sanitizeProjectUiState containerViewModes', () => {
+  it('keeps valid container and chapter keys', () => {
+    const chapter = sceneChapter('chapter-1')
+    const f = folder('folder-1')
+    const ui = {
+      ...baseUi,
+      containerViewModes: {
+        manuscript: 'list' as const,
+        'folder:folder-1': 'list' as const,
+        'chapter:chapter-1': 'cards' as const,
+        'folder:missing': 'list' as const,
+        'chapter:gone': 'list' as const
+      }
+    }
+    const result = sanitizeProjectUiState(ui, [chapter, f], categories)
+    expect(result.containerViewModes).toEqual({
+      manuscript: 'list',
+      'folder:folder-1': 'list',
+      'chapter:chapter-1': 'cards'
+    })
+  })
+
+  it('drops chapter keys for simple chapters', () => {
+    const chapter: TreeNode = {
+      ...sceneChapter('chapter-simple'),
+      metadata: JSON.stringify({ structure: 'simple' })
+    }
+    const ui = {
+      ...baseUi,
+      containerViewModes: { 'chapter:chapter-simple': 'list' as const }
+    }
+    const result = sanitizeProjectUiState(ui, [chapter], categories)
+    expect(result.containerViewModes).toEqual({})
+  })
+})
 
 describe('sanitizeProjectUiState expandedSections', () => {
   it('keeps expanded scene chapter ids', () => {
