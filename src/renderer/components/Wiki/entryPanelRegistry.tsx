@@ -24,7 +24,7 @@ export interface EntryPanelRenderProps {
   onUpdate: (updates: { title?: string; metadata?: string }) => void
 }
 
-export type EntryPanelComponent = React.FC<EntryPanelRenderProps>
+type EntryPanelComponent = React.FC<EntryPanelRenderProps>
 
 function BestiaryEntryPanel(props: EntryPanelRenderProps): React.JSX.Element {
   const meta = normalizeBestiaryMeta(
@@ -36,6 +36,7 @@ function BestiaryEntryPanel(props: EntryPanelRenderProps): React.JSX.Element {
       nodeId={props.nodeId}
       title={props.title}
       metadata={meta}
+      metadataSource={props.rawMetadata}
       onUpdate={(m, title) =>
         props.onUpdate({
           metadata: serializeMetadata(m),
@@ -56,6 +57,7 @@ function PeopleEntryPanel(props: EntryPanelRenderProps): React.JSX.Element {
       nodeId={props.nodeId}
       title={props.title}
       metadata={meta}
+      metadataSource={props.rawMetadata}
       onUpdate={(m, title) =>
         props.onUpdate({
           metadata: serializeMetadata(m),

@@ -4,6 +4,12 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import type { Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { check } from '@/lib/spellCheck'
+import {
+  buildEntryTitleIndex,
+  findEntityMatches,
+  type EntryTitleIndex
+} from '@/lib/entryTitleIndex'
+import { useAppStore } from '@/store/appStore'
 
 const DEBOUNCE_MS = 400
 const LEAF_TEXT = '​'
@@ -37,7 +43,7 @@ function hashBlock(node: PMNode): string {
 function getBlockPositions(doc: PMNode): Map<number, PMNode> {
   const blocks = new Map<number, PMNode>()
   doc.forEach((child, offset) => {
-    blocks.set(offset + 1, child)
+    blocks.set(offset, child)
   })
   return blocks
 }
@@ -88,16 +94,41 @@ async function checkBlock(
   doc: PMNode,
   blockPos: number,
   blockNode: PMNode,
+  entryIndex: EntryTitleIndex,
   signal: AbortSignal
 ): Promise<Decoration[]> {
   const { text, posMap } = buildBlockText(blockNode)
   if (!text.trim()) return []
 
-  const matches = await check(text, { signal })
+  const entityMatches = findEntityMatches(entryIndex, text)
+  const excludeRanges = entityMatches.map((m) => ({ from: m.from, to: m.to }))
+
+  const spellMatches = await check(text, { signal, excludeRanges })
   if (signal.aborted) return []
 
   const decorations: Decoration[] = []
-  for (const match of matches) {
+
+  for (const match of entityMatches) {
+    const localFrom = posMap[match.from]
+    const localTo = posMap[match.to - 1]
+    if (localFrom === undefined || localTo === undefined) continue
+
+    const absFrom = blockPos + 1 + localFrom
+    const absTo = blockPos + 1 + localTo + 1
+    if (absFrom < 0 || absTo > doc.content.size) continue
+
+    decorations.push(
+      Decoration.inline(absFrom, absTo, {
+        class: 'entity-name-ref',
+        'data-entity-id': match.entry.id,
+        'data-entity-type': match.entry.type,
+        'data-category-id': match.entry.categoryId ?? '',
+        'data-entity-title': match.entry.title
+      })
+    )
+  }
+
+  for (const match of spellMatches) {
     const localFrom = posMap[match.from]
     const localTo = posMap[match.to - 1]
     if (localFrom === undefined || localTo === undefined) continue
@@ -217,6 +248,9 @@ export const SpellCheckExtension = Extension.create({
               const isFullRecheck = pendingFullRecheck
               pendingFullRecheck = false
 
+              const { nodes, categories } = useAppStore.getState()
+              const entryIndex = buildEntryTitleIndex(nodes, categories)
+
               let positionsToCheck: Set<number>
 
               if (isFullRecheck || pluginState.cache.size === 0) {
@@ -243,7 +277,7 @@ export const SpellCheckExtension = Extension.create({
                   }
                 }
 
-                const decorations = await checkBlock(doc, pos, blockNode, signal)
+                const decorations = await checkBlock(doc, pos, blockNode, entryIndex, signal)
                 if (signal.aborted || editorView.isDestroyed) return
 
                 if (editorView.state.doc !== doc) return

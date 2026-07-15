@@ -1,5 +1,4 @@
 import { join, extname, relative, resolve, dirname } from 'path'
-import { hostname } from 'os'
 import fse from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import type {
@@ -11,12 +10,12 @@ import type {
   NodeType,
   ProjectMeta,
   ProjectUiState,
+  SpellCheckLang,
   TomesIndexEntry,
   TomesManifest,
   TreeNode,
   TxDFile,
-  ChapterStructure,
-  TomesLockInfo
+  ChapterStructure
 } from '@shared/types'
 import {
   defaultFictionCategories,
@@ -255,47 +254,6 @@ async function writeFileAtomic(filePath: string, content: string): Promise<void>
   await fse.rename(tempPath, filePath)
 }
 
-const LOCK_FILENAME = '.tomes-lock'
-
-function lockFilePath(projectRoot: string): string {
-  return join(projectRoot, LOCK_FILENAME)
-}
-
-async function readExistingLock(projectRoot: string): Promise<TomesLockInfo | undefined> {
-  const path = lockFilePath(projectRoot)
-  if (!(await fse.pathExists(path))) return undefined
-  try {
-    const raw = await fse.readFile(path, 'utf-8')
-    return JSON.parse(raw) as TomesLockInfo
-  } catch {
-    return { hostname: 'unknown', pid: -1, openedAt: new Date(0).toISOString() }
-  }
-}
-
-async function acquireLock(projectRoot: string): Promise<void> {
-  const lock: TomesLockInfo = {
-    hostname: hostname(),
-    pid: process.pid,
-    openedAt: new Date().toISOString()
-  }
-  await writeFileAtomic(lockFilePath(projectRoot), JSON.stringify(lock, null, 2))
-}
-
-function releaseLock(projectRoot: string): void {
-  void fse.remove(lockFilePath(projectRoot)).catch(() => {})
-}
-
-export async function peekProjectLock(
-  tomesFilePath: string
-): Promise<{ existingLock?: TomesLockInfo }> {
-  const validation = await validateTomesFile(tomesFilePath)
-  if (!validation.valid || !validation.projectRoot) {
-    throw new Error(validation.error ?? 'Invalid project')
-  }
-  const existingLock = await readExistingLock(validation.projectRoot)
-  return existingLock ? { existingLock } : {}
-}
-
 async function writeManifest(): Promise<void> {
   if (!manifest || !tomesPath) throw new Error('No project open')
   manifest.lastSavedAt = now()
@@ -378,6 +336,7 @@ export function getProjectMeta(): ProjectMeta | null {
     title: manifest.title,
     author: manifest.author,
     genre: manifest.genre,
+    spellCheckLang: manifest.spellCheckLang,
     bookSettings: normalizeBookSettings(manifest.bookSettings ?? {}),
     categories: (manifest.categories ?? defaultFictionCategories()).map(normalizeCategoryDefinition),
     createdAt: manifest.createdAt,
@@ -496,8 +455,6 @@ export async function openProject(tomesFilePath: string): Promise<{
   const categories = manifest.categories ?? defaultFictionCategories()
   const uiState = sanitizeProjectUiState(getUiState(), nodes, categories)
 
-  await acquireLock(projectRoot)
-
   return {
     path: tomesPath,
     meta: getProjectMeta()!,
@@ -507,12 +464,10 @@ export async function openProject(tomesFilePath: string): Promise<{
 }
 
 export function closeProject(): void {
-  const root = projectRoot
   projectRoot = null
   tomesPath = null
   manifest = null
   nodeCache.clear()
-  if (root) releaseLock(root)
 }
 
 export async function deleteProject(primaryPath: string): Promise<{ wasOpen: boolean }> {
@@ -902,7 +857,7 @@ export async function permanentDelete(id: string): Promise<TreeNode[]> {
   return getAllNodes()
 }
 
-export async function purgeExpiredTrash(): Promise<void> {
+async function purgeExpiredTrash(): Promise<void> {
   if (!manifest) return
 
   const cutoff = new Date()
@@ -982,12 +937,14 @@ export async function updateProjectMeta(updates: {
   title?: string
   author?: string
   genre?: string
+  spellCheckLang?: SpellCheckLang
 }): Promise<ProjectMeta> {
   if (!manifest) throw new Error('No project open')
 
   if (updates.title) manifest.title = updates.title
   if (updates.author) manifest.author = updates.author
   if (updates.genre !== undefined) manifest.genre = updates.genre
+  if (updates.spellCheckLang !== undefined) manifest.spellCheckLang = updates.spellCheckLang
 
   await writeManifest()
   return getProjectMeta()!

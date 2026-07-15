@@ -5,6 +5,7 @@ import {
 } from '@shared/categoryView'
 import { resolveCategoryForNode, wikiNodeTypeForCategory } from '@shared/categoryNodeKind'
 import type { TreeNode } from '@shared/types'
+import type { IndexedEntry } from '@/lib/entryTitleIndex'
 import { mergeIncomingNodes } from '@/lib/contentPersistence'
 import { makeCreateNodeCommand } from '@/lib/commands'
 import { requestRenameAfterCreate } from '@/lib/pendingRename'
@@ -65,11 +66,7 @@ function applyRenameAfterCreate(node: TreeNode, opts?: OpenCategoryOptions): voi
   requestRenameAfterCreate(node.id, ...targets)
 }
 
-export function selectCategoryHeader(categoryId: string): void {
-  useAppStore.getState().selectContainer(categoryId)
-}
-
-export async function openPanelCategoryItem(
+async function openPanelCategoryItem(
   node: TreeNode,
   categoryId: string | null,
   opts?: OpenCategoryOptions
@@ -93,7 +90,7 @@ export async function openPanelCategoryItem(
   }
 }
 
-export async function openEditorCategoryItem(
+async function openEditorCategoryItem(
   node: TreeNode,
   _categoryId: string | null,
   opts?: OpenCategoryOptions
@@ -160,4 +157,10 @@ export async function createCategoryItem(
 
   await openCategoryItem(createdId, { renameAfterCreate: true, source })
   return createdId
+}
+
+export async function openIndexedEntry(entry: IndexedEntry): Promise<void> {
+  const node = await ensureNodeInStore(entry.id)
+  if (!node) return
+  await openPanelCategoryItem(node, entry.categoryId)
 }

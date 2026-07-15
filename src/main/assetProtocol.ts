@@ -42,11 +42,3 @@ export function registerAssetProtocol(): void {
     return net.fetch(pathToFileURL(filePath).toString())
   })
 }
-
-export function toAssetUrl(relativePath: string): string {
-  const encoded = relativePath
-    .split('/')
-    .map((segment) => encodeURIComponent(segment))
-    .join('/')
-  return `${SCHEME}://local/${encoded}`
-}

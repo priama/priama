@@ -1,7 +1,7 @@
 import { BUILTIN_CATEGORY_IDS } from './types'
 import type { TreeNode, WikiEntityType } from './types'
 
-export const WIKI_NODE_TYPE_TO_CATEGORY_ID: Record<WikiEntityType, string> = {
+const WIKI_NODE_TYPE_TO_CATEGORY_ID: Record<WikiEntityType, string> = {
   character: BUILTIN_CATEGORY_IDS.characters,
   location: BUILTIN_CATEGORY_IDS.locations,
   lore: BUILTIN_CATEGORY_IDS.lore,

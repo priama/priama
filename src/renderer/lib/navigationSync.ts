@@ -4,10 +4,6 @@ import type { NavigationSyncState } from '@shared/types'
 
 let suppressNavigationPublish = false
 
-export function isNavigationPublishSuppressed(): boolean {
-  return suppressNavigationPublish
-}
-
 export function runWithNavigationPublishSuppressed(fn: () => void): void {
   suppressNavigationPublish = true
   try {

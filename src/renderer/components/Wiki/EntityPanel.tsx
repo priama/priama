@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import { X } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
@@ -11,6 +11,7 @@ import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
 import { ensureNodeInStore } from '@/lib/categoryNavigation'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
+import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { cn } from '@/lib/utils'
@@ -49,23 +50,25 @@ function LocationPanel({
   nodeId,
   title,
   metadata,
+  metadataSource,
   onUpdate
 }: {
   nodeId: string
   title: string
   metadata: LocationMeta
+  metadataSource: string
   onUpdate: (meta: LocationMeta, title?: string) => void
 }): React.JSX.Element {
-  const [meta, setMeta] = useState(metadata)
-  const [name, setName] = useState(title)
   const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
     usePendingPanelRename(nodeId)
+  const { meta, setMeta, name, setName } = usePanelNodeState({
+    nodeId,
+    title,
+    metadata,
+    metadataSource,
+    nameInputRef: nameRef
+  })
   const typeSuggestions = useFieldSuggestions('location', 'type', nodeId)
-
-  useEffect(() => {
-    setMeta(metadata)
-    setName(title)
-  }, [nodeId, metadata, title])
 
   const save = useCallback(() => {
     onUpdate(meta, name !== title ? name : undefined)
@@ -131,23 +134,25 @@ function LorePanel({
   nodeId,
   title,
   metadata,
+  metadataSource,
   onUpdate
 }: {
   nodeId: string
   title: string
   metadata: LoreMeta
+  metadataSource: string
   onUpdate: (meta: LoreMeta, title?: string) => void
 }): React.JSX.Element {
-  const [meta, setMeta] = useState(metadata)
-  const [name, setName] = useState(title)
   const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
     usePendingPanelRename(nodeId)
+  const { meta, setMeta, name, setName } = usePanelNodeState({
+    nodeId,
+    title,
+    metadata,
+    metadataSource,
+    nameInputRef: nameRef
+  })
   const categorySuggestions = useFieldSuggestions('lore', 'category', nodeId)
-
-  useEffect(() => {
-    setMeta(metadata)
-    setName(title)
-  }, [nodeId, metadata, title])
 
   const save = useCallback(() => {
     onUpdate(meta, name !== title ? name : undefined)
@@ -231,6 +236,37 @@ export function EntityPanel(): React.JSX.Element | null {
   const entryCategory = selectedEntryId
     ? (categories.find((c) => c.id === selectedEntryCategoryId) ?? null)
     : null
+
+  const characterMeta = useMemo(
+    () =>
+      node
+        ? normalizeCharacterMeta(
+            parseMetadata<CharacterMeta>(node.metadata, DEFAULT_CHARACTER_META)
+          )
+        : DEFAULT_CHARACTER_META,
+    [node?.id, node?.metadata]
+  )
+  const locationMeta = useMemo(
+    () =>
+      node
+        ? normalizeLocationMeta(parseMetadata<LocationMeta>(node.metadata, DEFAULT_LOCATION_META))
+        : DEFAULT_LOCATION_META,
+    [node?.id, node?.metadata]
+  )
+  const loreMeta = useMemo(
+    () =>
+      node
+        ? normalizeLoreMeta(parseMetadata<LoreMeta>(node.metadata, DEFAULT_LORE_META))
+        : DEFAULT_LORE_META,
+    [node?.id, node?.metadata]
+  )
+  const noteMeta = useMemo(
+    () =>
+      node
+        ? normalizeNoteMeta(parseMetadata<NoteMeta>(node.metadata, DEFAULT_NOTE_META))
+        : DEFAULT_NOTE_META,
+    [node?.id, node?.metadata]
+  )
 
   const [resolvingNode, setResolvingNode] = useState(false)
 
@@ -376,9 +412,8 @@ export function EntityPanel(): React.JSX.Element | null {
             <CharacterPanel
               nodeId={node.id}
               title={node.title}
-              metadata={normalizeCharacterMeta(
-                parseMetadata<CharacterMeta>(node.metadata, DEFAULT_CHARACTER_META)
-              )}
+              metadata={characterMeta}
+              metadataSource={node.metadata}
               onUpdate={handleUpdate}
             />
           )}
@@ -386,9 +421,8 @@ export function EntityPanel(): React.JSX.Element | null {
             <LocationPanel
               nodeId={node.id}
               title={node.title}
-              metadata={normalizeLocationMeta(
-                parseMetadata<LocationMeta>(node.metadata, DEFAULT_LOCATION_META)
-              )}
+              metadata={locationMeta}
+              metadataSource={node.metadata}
               onUpdate={handleUpdate}
             />
           )}
@@ -396,9 +430,8 @@ export function EntityPanel(): React.JSX.Element | null {
             <LorePanel
               nodeId={node.id}
               title={node.title}
-              metadata={normalizeLoreMeta(
-                parseMetadata<LoreMeta>(node.metadata, DEFAULT_LORE_META)
-              )}
+              metadata={loreMeta}
+              metadataSource={node.metadata}
               onUpdate={handleUpdate}
             />
           )}
@@ -407,9 +440,8 @@ export function EntityPanel(): React.JSX.Element | null {
               nodeId={node.id}
               title={node.title}
               content={node.content}
-              metadata={normalizeNoteMeta(
-                parseMetadata<NoteMeta>(node.metadata, DEFAULT_NOTE_META)
-              )}
+              metadata={noteMeta}
+              metadataSource={node.metadata}
               onUpdate={handleNoteUpdate}
             />
           )}

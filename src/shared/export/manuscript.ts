@@ -62,12 +62,12 @@ const NUMBER_WORDS = [
   'Fifty'
 ]
 
-export function numberToWords(n: number): string {
+function numberToWords(n: number): string {
   if (n >= 0 && n < NUMBER_WORDS.length) return NUMBER_WORDS[n]
   return String(n)
 }
 
-export function numberToRoman(n: number): string {
+function numberToRoman(n: number): string {
   if (n <= 0 || n > 3999) return String(n)
 
   const values = [1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1]

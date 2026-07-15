@@ -2,7 +2,7 @@ import * as ContextMenu from '@radix-ui/react-context-menu'
 import { ArrowRightLeft, ExternalLink, FolderInput, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import type { TreeNode } from '@shared/types'
 
-export type TreeMenuVariant = 'manuscript' | 'wiki' | 'folder' | 'trash' | 'wikiRow'
+type TreeMenuVariant = 'manuscript' | 'wiki' | 'folder' | 'trash' | 'wikiRow'
 
 export interface MoveToFolder {
   id: string

@@ -3,7 +3,8 @@ import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty, flushAndSaveProject, resetPersistenceState } from '@/lib/contentPersistence'
-import { openProjectAtPath as openProjectAtPathFlow } from '@/lib/applyOpenProject'
+import { applyOpenProjectResult } from '@/lib/applyOpenProject'
+import { setSpellCheckLang } from '@/lib/spellCheck'
 import { runWithNavigationPublishSuppressed } from '@/lib/navigationSync'
 import { flushProjectUiState } from '@/hooks/useProjectUiPersistence'
 import type { CreateProjectInput } from '@shared/types'
@@ -75,7 +76,10 @@ export function useProject(): {
   const openProjectAtPath = useCallback(
     async (path: string) => {
       try {
-        await openProjectAtPathFlow(path)
+        await flushAllDirty()
+        useHistoryStore.getState().clear()
+        const result = await window.electronAPI.tomes.openProject(path)
+        await applyOpenProjectResult(result)
         setBackupWarningCount(0)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Could not open project'
@@ -95,7 +99,8 @@ export function useProject(): {
         templateId: input.templateId ?? 'fiction',
         categories: input.categories ?? defaultFictionCategories()
       })
-      await openProjectAtPathFlow(result.path, { skipLockPeek: true })
+      const openResult = await window.electronAPI.tomes.openProject(result.path)
+      await applyOpenProjectResult(openResult)
     },
     []
   )
@@ -147,6 +152,8 @@ export function useProject(): {
       console.error('Close project failed:', err)
       addToast('Could not finish closing the project.', 'warning')
     }
+
+    setSpellCheckLang('en')
   }, [closeProjectStore, addToast, applySaveResult])
 
   const removeFromRecent = useCallback(async (id: string) => {

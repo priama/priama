@@ -591,6 +591,18 @@ describe('updateProjectMeta', () => {
     const opened = await openProject(path)
     expect(opened.meta.title).toBe('Persisted Title')
   })
+
+  it('updates and persists spellCheckLang', async () => {
+    const meta = await updateProjectMeta({ spellCheckLang: 'es' })
+    expect(meta.spellCheckLang).toBe('es')
+    expect(getProjectMeta()!.spellCheckLang).toBe('es')
+
+    const path = getProjectPath()!
+    closeProject()
+
+    const opened = await openProject(path)
+    expect(opened.meta.spellCheckLang).toBe('es')
+  })
 })
 
 describe('updateBookSettings', () => {

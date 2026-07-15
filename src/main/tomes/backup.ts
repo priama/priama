@@ -71,7 +71,7 @@ export async function restoreProjectTomesFromLatestBackup(projectRoot: string): 
   return false
 }
 
-export async function checkPathReachable(targetPath: string): Promise<BackupLocationStatus> {
+async function checkPathReachable(targetPath: string): Promise<BackupLocationStatus> {
   const label = detectPathLabel(targetPath)
   try {
     if (!(await fse.pathExists(targetPath))) {

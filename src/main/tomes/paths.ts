@@ -87,17 +87,6 @@ export function detectPathLabel(path: string): string {
   return 'Local Folder'
 }
 
-export function truncatePath(path: string, maxLen = 40): string {
-  const home = process.env.HOME || process.env.USERPROFILE || ''
-  let display = path
-  if (home && path.startsWith(home)) {
-    display = '~' + path.slice(home.length)
-  }
-  if (display.length <= maxLen) return display
-  const start = display.slice(0, Math.floor(maxLen / 2) - 1)
-  const end = display.slice(-(Math.floor(maxLen / 2) - 2))
-  return `${start}…${end}`
-}
 
 export function getProjectFolderName(projectRoot: string): string {
   return basename(projectRoot)

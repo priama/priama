@@ -17,7 +17,6 @@ import type {
   ProjectUiState,
   RecentProjectWithStatus,
   SaveResult,
-  TomesLockInfo,
   TreeNode,
   WindowLayoutState
 } from '@shared/types'
@@ -33,7 +32,6 @@ export interface ElectronAPI {
   tomes: {
     createProject: (input: CreateProjectInput) => Promise<{ path: string; meta: ProjectMeta; projectRoot: string }>
     openProject: (path: string) => Promise<{ path: string; meta: ProjectMeta; nodes: TreeNode[]; uiState: ProjectUiState }>
-    peekProjectLock: (path: string) => Promise<{ existingLock?: TomesLockInfo }>
     saveProject: () => Promise<SaveResult>
     closeProject: () => Promise<{ success: boolean }>
     getProjectInfo: () => Promise<{ path: string; meta: ProjectMeta } | null>
@@ -51,6 +49,9 @@ export interface ElectronAPI {
     createChapter: (structure: ChapterStructure, parentId?: string | null) => Promise<TreeNode>
     updateUiState: (uiState: ProjectUiState) => Promise<ProjectUiState>
     updateBookSettings: (updates: Partial<BookSettings>) => Promise<BookSettings>
+    updateProjectMeta: (
+      updates: Partial<Pick<ProjectMeta, 'title' | 'author' | 'genre' | 'spellCheckLang'>>
+    ) => Promise<ProjectMeta>
     updateCategories: (categories: CategoryDefinition[]) => Promise<ProjectMeta>
     importCoverImage: (sourcePath: string) => Promise<{ relativePath: string }>
     getSyncState: () => Promise<SyncState>
@@ -122,7 +123,6 @@ const api: ElectronAPI = {
   tomes: {
     createProject: (input) => ipcRenderer.invoke('tomes:createProject', input),
     openProject: (path) => ipcRenderer.invoke('tomes:openProject', { path }),
-    peekProjectLock: (path) => ipcRenderer.invoke('tomes:peekProjectLock', { path }),
     saveProject: () => ipcRenderer.invoke('tomes:saveProject'),
     closeProject: () => ipcRenderer.invoke('tomes:closeProject'),
     getProjectInfo: () => ipcRenderer.invoke('tomes:getProjectInfo'),
@@ -144,6 +144,7 @@ const api: ElectronAPI = {
     createChapter: (structure, parentId) => ipcRenderer.invoke('tomes:createChapter', { structure, parentId }),
     updateUiState: (uiState) => ipcRenderer.invoke('tomes:updateUiState', uiState),
     updateBookSettings: (updates) => ipcRenderer.invoke('tomes:updateBookSettings', updates),
+    updateProjectMeta: (updates) => ipcRenderer.invoke('tomes:updateProjectMeta', updates),
     updateCategories: (categories) => ipcRenderer.invoke('tomes:updateCategories', { categories }),
     importCoverImage: (sourcePath) => ipcRenderer.invoke('tomes:importCoverImage', { sourcePath }),
     getSyncState: () => ipcRenderer.invoke('tomes:getSyncState')

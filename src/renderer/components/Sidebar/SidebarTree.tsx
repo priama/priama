@@ -32,6 +32,7 @@ import {
 } from '@/lib/commands'
 import { openCategoryItem } from '@/lib/categoryNavigation'
 import { shouldAutoFocusPendingRename } from '@/lib/pendingRename'
+import { buildTreeContextMenuActions, type SidebarMenuActions } from '@/lib/treeNodeMenuActions'
 import { TreeContextMenu } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import { cn } from '@/lib/utils'
@@ -109,6 +110,7 @@ interface SidebarTreeProps {
   ancestorContinues?: boolean[]
   disabled?: boolean
   categoryId?: string
+  menuActions: SidebarMenuActions
   onAddScene?: (chapterId: string) => void
   onAddEntity?: () => void
   onOpenNewWindow: (node: TreeNode) => void
@@ -234,8 +236,7 @@ function SortableTreeItem({
   onRename,
   onMoveToTrash,
   onOpenNewWindow,
-  onMoveTo,
-  onDoubleClick,
+  menuActions,
   trailingAction,
   className
 }: {
@@ -252,8 +253,7 @@ function SortableTreeItem({
   onRename: () => void
   onMoveToTrash: () => void
   onOpenNewWindow: () => void
-  onMoveTo?: () => void
-  onDoubleClick: () => void
+  menuActions: SidebarMenuActions
   trailingAction?: React.ReactNode
   className?: string
 }): React.JSX.Element {
@@ -262,14 +262,16 @@ function SortableTreeItem({
     animateLayoutChanges: defaultAnimateLayoutChanges
   })
 
+  const contextMenuActions = buildTreeContextMenuActions(node, menuActions)
+
   return (
     <TreeContextMenu
       variant={isFolderNode ? 'folder' : isWikiEntityType(node.type) ? 'wikiRow' : 'manuscript'}
       node={node}
       onRename={onRename}
-      onMoveTo={onMoveTo}
       onOpenNewWindow={isFolderNode ? undefined : onOpenNewWindow}
       onMoveToTrash={onMoveToTrash}
+      {...contextMenuActions}
     >
       <div
         ref={setNodeRef}
@@ -279,10 +281,6 @@ function SortableTreeItem({
         }}
         className={cn(isDragging && 'relative z-0 opacity-35', className)}
         onClick={onSelect}
-        onDoubleClick={(e) => {
-          e.stopPropagation()
-          onDoubleClick()
-        }}
       >
         <TreeItemRow
           node={node}
@@ -309,6 +307,7 @@ export function SidebarTree({
   ancestorContinues,
   disabled = false,
   categoryId,
+  menuActions,
   onAddScene,
   onAddEntity,
   onOpenNewWindow
@@ -533,7 +532,7 @@ export function SidebarTree({
                     })
                   }
                   onOpenNewWindow={() => onOpenNewWindow(node)}
-                  onDoubleClick={() => startRename(node)}
+                  menuActions={menuActions}
                   className={isLast && scenes.length === 0 ? 'mb-1' : undefined}
                   trailingAction={
                     folderNode ? undefined : scenes.length === 0 && sceneChapter && onAddScene ? (
@@ -554,6 +553,7 @@ export function SidebarTree({
                     ancestorContinues={childAncestors}
                     disabled={disabled}
                     categoryId={categoryId}
+                    menuActions={menuActions}
                     onAddScene={onAddScene}
                     onAddEntity={onAddEntity}
                     onOpenNewWindow={onOpenNewWindow}
@@ -574,6 +574,7 @@ export function SidebarTree({
                         depth={depth + 1}
                         ancestorContinues={childAncestors}
                         isLastChapter={isLast}
+                        menuActions={menuActions}
                         renamingId={renamingId}
                         renameValue={renameValue}
                         setRenameValue={setRenameValue}
@@ -628,6 +629,7 @@ function SceneList({
   depth,
   ancestorContinues = [],
   isLastChapter,
+  menuActions,
   renamingId,
   renameValue,
   setRenameValue,
@@ -646,6 +648,7 @@ function SceneList({
   depth: number
   ancestorContinues?: boolean[]
   isLastChapter: boolean
+  menuActions: SidebarMenuActions
   renamingId: string | null
   renameValue: string
   setRenameValue: (v: string) => void
@@ -733,7 +736,7 @@ function SceneList({
               })
             }
             onOpenNewWindow={() => onOpenNewWindow(scene)}
-            onDoubleClick={() => startRename(scene)}
+            menuActions={menuActions}
             className={isLastChapter && sceneIndex === scenes.length - 1 ? 'mb-1' : undefined}
             trailingAction={
               sceneIndex === scenes.length - 1 && onAddScene ? (

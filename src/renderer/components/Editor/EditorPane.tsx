@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAppStore } from '@/store/appStore'
+import { useAppStore, getContainerViewMode } from '@/store/appStore'
 import { isValidContainerId } from '@shared/projectUiState'
 import { useHistoryStore } from '@/store/historyStore'
 import {
@@ -7,13 +7,18 @@ import {
   makeCreateFolderCommand,
   makeCreateNodeCommand,
   makeMoveToTrashCommand,
-  makeReorderCommand,
-  makeReparentCommand
+  makeReorderCommand
 } from '@/lib/commands'
 import { createCategoryItem, openCategoryItem } from '@/lib/categoryNavigation'
 import { requestRenameAfterCreate } from '@/lib/pendingRename'
+import {
+  listFoldersForScope,
+  listFoldersWithRoot,
+  listSceneChapters
+} from '@/lib/treeNodeMenuActions'
+import { useTreeNodeMenuHandlers } from '@/hooks/useTreeNodeMenuHandlers'
 import { RichTextEditor } from '@/components/Editor/RichTextEditor'
-import { ContainerView } from '@/components/Editor/ContainerView'
+import { ContainerView, type ListVariant } from '@/components/Editor/ContainerView'
 import { MoveSceneDialog } from '@/components/Tree/MoveSceneDialog'
 import {
   folderContainerId,
@@ -44,6 +49,21 @@ function resolveContainerCategory(
   return categories.find((c) => c.id === containerId) ?? null
 }
 
+function listVariantForScope(scope: FolderScope | null | undefined): ListVariant {
+  switch (scope) {
+    case 'manuscript':
+      return 'manuscript'
+    case 'characters':
+      return 'characters'
+    case 'locations':
+      return 'locations'
+    case 'lore':
+      return 'lore'
+    default:
+      return 'default'
+  }
+}
+
 function containerSelectionId(
   selectedNodeId: string | null,
   selectedEntityId: string | null,
@@ -68,8 +88,11 @@ export function EditorPane(): React.JSX.Element {
     containerHistory,
     containerHistoryIndex,
     containerGoBack,
-    containerGoForward
+    containerGoForward,
+    setContainerViewMode
   } = useAppStore()
+
+  const containerViewModes = useAppStore((s) => s.containerViewModes)
 
   const canGoBack = containerHistory
     .slice(0, containerHistoryIndex)
@@ -77,6 +100,11 @@ export function EditorPane(): React.JSX.Element {
   const canGoForward = containerHistory
     .slice(containerHistoryIndex + 1)
     .some((id) => isValidContainerId(id, nodes, categories))
+
+  const viewModeFor = (containerKey: string) =>
+    getContainerViewMode({ containerViewModes }, containerKey)
+  const onViewModeChangeFor = (containerKey: string) => (mode: 'cards' | 'list') =>
+    setContainerViewMode(containerKey, mode)
 
   const buildBreadcrumb = (folderId: string): string => {
     const parts: string[] = []
@@ -91,8 +119,20 @@ export function EditorPane(): React.JSX.Element {
     return parts.join(' / ')
   }
 
-  const [moveSceneNode, setMoveSceneNode] = useState<TreeNode | null>(null)
   const [recoverSceneNode, setRecoverSceneNode] = useState<TreeNode | null>(null)
+
+  const {
+    moveSceneNode,
+    setMoveSceneNode,
+    handleMoveScene,
+    sceneChapters,
+    onMoveToFolder: moveToFolderHandler,
+    onMoveToChapter: moveToChapterHandler,
+    onConvertToSimpleChapter: convertToSimpleChapterHandler,
+    onConvertToSceneChapter: convertToSceneChapterHandler,
+    onConvertSimpleToSceneChapter: convertSimpleToSceneChapterHandler,
+    onMoveTo: openMoveSceneDialog
+  } = useTreeNodeMenuHandlers()
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId && !n.deletedAt) ?? null
 
@@ -183,18 +223,6 @@ export function EditorPane(): React.JSX.Element {
     }
   }
 
-  const handleMoveScene = async (chapterId: string): Promise<void> => {
-    if (!moveSceneNode) return
-    await useHistoryStore.getState().push(
-      makeReparentCommand({
-        nodeId: moveSceneNode.id,
-        oldParentId: moveSceneNode.parentId ?? null,
-        newParentId: chapterId
-      })
-    )
-    setMoveSceneNode(null)
-  }
-
   const handleRecoverScene = async (chapterId: string): Promise<void> => {
     if (!recoverSceneNode) return
     const updated = await window.electronAPI.tree.restore(recoverSceneNode.id, chapterId)
@@ -236,97 +264,12 @@ export function EditorPane(): React.JSX.Element {
     ]
   }
 
-  const MOVE_TO_ROOT = '__root__'
-
-  const getFoldersForScope = (scope: FolderScope): { id: string; title: string }[] =>
-    nodes.filter((n) => !n.deletedAt && n.type === 'folder' && getFolderScope(n) === scope)
-      .map((n) => ({ id: n.id, title: n.title }))
-
-  const getFoldersWithRoot = (scope: FolderScope, rootLabel: string): { id: string; title: string }[] => [
-    { id: MOVE_TO_ROOT, title: rootLabel },
-    ...getFoldersForScope(scope)
-  ]
-
-  const getSceneChaptersList = (): { id: string; title: string }[] =>
-    getSceneChapters(nodes).map((n) => ({ id: n.id, title: n.title }))
-
-  const handleMoveToChapter = async (scene: TreeNode, chapterId: string): Promise<void> => {
-    await useHistoryStore.getState().push(
-      makeReparentCommand({
-        nodeId: scene.id,
-        oldParentId: scene.parentId ?? null,
-        newParentId: chapterId
-      })
-    )
-  }
-
-  const handleConvertSceneToSimpleChapter = async (scene: TreeNode): Promise<void> => {
-    const chapterParent = scene.parentId
-      ? nodes.find((n) => n.id === scene.parentId)
-      : null
-    const newChapter = await window.electronAPI.tree.create(
-      chapterParent?.parentId ?? null,
-      'chapter',
-      scene.title,
-      { metadata: JSON.stringify({ structure: 'simple' }) }
-    )
-    await window.electronAPI.tree.update(newChapter.id, { content: scene.content })
-    await window.electronAPI.tree.moveToTrash(scene.id)
-    const all = await window.electronAPI.tree.getAll()
-    setNodes(all)
-    setSelectedNodeId(newChapter.id)
-  }
-
-  const handleConvertSceneToSceneChapter = async (scene: TreeNode): Promise<void> => {
-    const chapterParent = scene.parentId
-      ? nodes.find((n) => n.id === scene.parentId)
-      : null
-    const newChapter = await window.electronAPI.tomes.createChapter('scenes', chapterParent?.parentId ?? null)
-    await window.electronAPI.tree.update(newChapter.id, { title: scene.title })
-    const newScenes = (await window.electronAPI.tree.getAll()).filter(
-      (n) => !n.deletedAt && n.type === 'scene' && n.parentId === newChapter.id
-    )
-    if (newScenes.length > 0) {
-      await window.electronAPI.tree.update(newScenes[0].id, { content: scene.content, title: scene.title })
-    }
-    await window.electronAPI.tree.moveToTrash(scene.id)
-    const all = await window.electronAPI.tree.getAll()
-    setNodes(all)
-    setSelectedNodeId(newChapter.id)
-  }
-
-  const handleConvertSimpleToSceneChapter = async (chapter: TreeNode): Promise<void> => {
-    await window.electronAPI.tree.update(chapter.id, {
-      metadata: JSON.stringify({ structure: 'scenes' })
-    })
-    const firstScene = await window.electronAPI.tree.create(
-      chapter.id,
-      'scene',
-      chapter.title
-    )
-    await window.electronAPI.tree.update(firstScene.id, { content: chapter.content })
-    await window.electronAPI.tree.update(chapter.id, { content: '' })
-    const all = await window.electronAPI.tree.getAll()
-    setNodes(all)
-    setSelectedNodeId(chapter.id)
-  }
-
-  const handleMoveToFolder = async (node: TreeNode, folderId: string): Promise<void> => {
-    await useHistoryStore.getState().push(
-      makeReparentCommand({
-        nodeId: node.id,
-        oldParentId: node.parentId ?? null,
-        newParentId: folderId === MOVE_TO_ROOT ? null : folderId
-      })
-    )
-  }
-
   const dialogs = (
     <>
       <MoveSceneDialog
         open={moveSceneNode !== null}
         onOpenChange={(open) => !open && setMoveSceneNode(null)}
-        chapters={getSceneChapters(nodes)}
+        chapters={sceneChapters}
         onMove={handleMoveScene}
       />
       <MoveSceneDialog
@@ -345,6 +288,13 @@ export function EditorPane(): React.JSX.Element {
       <>
         <ContainerView
           title={`Trash — ${TRASH_CATEGORY_LABELS[category]}`}
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          onGoBack={containerGoBack}
+          onGoForward={containerGoForward}
+          viewMode={viewModeFor(selectedContainerId)}
+          onViewModeChange={onViewModeChangeFor(selectedContainerId)}
+          listVariant="default"
           items={items}
           emptyMessage="Nothing in this category."
           selectedNodeId={selectedNodeId ?? selectedEntityId}
@@ -372,20 +322,23 @@ export function EditorPane(): React.JSX.Element {
           canGoForward={canGoForward}
           onGoBack={containerGoBack}
           onGoForward={containerGoForward}
+          viewMode={viewModeFor('manuscript')}
+          onViewModeChange={onViewModeChangeFor('manuscript')}
+          listVariant="manuscript"
           items={items}
           emptyMessage="No items yet. Right-click to add a folder or chapter."
           selectedNodeId={selectedNodeId}
           onSelect={(node) => handleSelectContainerItem(node, 'manuscript')}
           onReorder={(reordered) => void persistReorder(reordered, null)}
           menuVariant="manuscript"
-          onMoveTo={(node) => setMoveSceneNode(node)}
-          moveToFolders={getFoldersForScope('manuscript')}
-          onMoveToFolder={(node, folderId) => void handleMoveToFolder(node, folderId)}
-          moveToChapters={getSceneChaptersList()}
-          onMoveToChapter={(node, chapterId) => void handleMoveToChapter(node, chapterId)}
-          onConvertToSimpleChapter={(node) => void handleConvertSceneToSimpleChapter(node)}
-          onConvertToSceneChapter={(node) => void handleConvertSceneToSceneChapter(node)}
-          onConvertSimpleToSceneChapter={(node) => void handleConvertSimpleToSceneChapter(node)}
+          onMoveTo={openMoveSceneDialog}
+          moveToFolders={listFoldersForScope(nodes, 'manuscript')}
+          onMoveToFolder={moveToFolderHandler}
+          moveToChapters={listSceneChapters(nodes)}
+          onMoveToChapter={moveToChapterHandler}
+          onConvertToSimpleChapter={convertToSimpleChapterHandler}
+          onConvertToSceneChapter={convertToSceneChapterHandler}
+          onConvertSimpleToSceneChapter={convertSimpleToSceneChapterHandler}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
           emptyMenuItems={buildManuscriptMenu(null)}
@@ -412,15 +365,18 @@ export function EditorPane(): React.JSX.Element {
           canGoForward={canGoForward}
           onGoBack={containerGoBack}
           onGoForward={containerGoForward}
+          viewMode={viewModeFor(containerCategory.id)}
+          onViewModeChange={onViewModeChangeFor(containerCategory.id)}
+          listVariant={listVariantForScope(scope)}
           items={items}
           emptyMessage={`No ${emptyLabel} entries yet. Right-click to add a folder or entry.`}
           selectedNodeId={containerSelectionId(selectedNodeId, selectedEntityId, selectedEntryId)}
           onSelect={(node) => handleSelectContainerItem(node, scope, containerCategory.id)}
           onReorder={(reordered) => void persistReorder(reordered, null)}
           menuVariant="wiki"
-          onMoveTo={(node) => setMoveSceneNode(node)}
-          moveToFolders={getFoldersForScope(scope)}
-          onMoveToFolder={(node, folderId) => void handleMoveToFolder(node, folderId)}
+          onMoveTo={openMoveSceneDialog}
+          moveToFolders={listFoldersForScope(nodes, scope)}
+          onMoveToFolder={moveToFolderHandler}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
           emptyMenuItems={buildCategoryMenu(containerCategory, null)}
@@ -460,6 +416,9 @@ export function EditorPane(): React.JSX.Element {
             canGoForward={canGoForward}
             onGoBack={containerGoBack}
             onGoForward={containerGoForward}
+            viewMode={viewModeFor(selectedContainerId!)}
+            onViewModeChange={onViewModeChangeFor(selectedContainerId!)}
+            listVariant={listVariantForScope(folderScope)}
             items={items}
             emptyMessage="This folder is empty. Right-click to add items."
             selectedNodeId={
@@ -470,14 +429,20 @@ export function EditorPane(): React.JSX.Element {
             onSelect={(node) => handleSelectContainerItem(node, folderScope, folderCategoryId)}
             onReorder={(reordered) => void persistReorder(reordered, folderId)}
             menuVariant={isManuscriptFolder ? 'manuscript' : 'wiki'}
-            onMoveTo={(node) => setMoveSceneNode(node)}
-            moveToFolders={getFoldersWithRoot(folderScope, isManuscriptFolder ? 'Manuscript' : folderCategory?.name ?? 'Root')}
-            onMoveToFolder={(node, folderId) => void handleMoveToFolder(node, folderId)}
-            moveToChapters={isManuscriptFolder ? getSceneChaptersList() : undefined}
-            onMoveToChapter={isManuscriptFolder ? (node, chapterId) => void handleMoveToChapter(node, chapterId) : undefined}
-            onConvertToSimpleChapter={isManuscriptFolder ? (node) => void handleConvertSceneToSimpleChapter(node) : undefined}
-            onConvertToSceneChapter={isManuscriptFolder ? (node) => void handleConvertSceneToSceneChapter(node) : undefined}
-            onConvertSimpleToSceneChapter={isManuscriptFolder ? (node) => void handleConvertSimpleToSceneChapter(node) : undefined}
+            onMoveTo={openMoveSceneDialog}
+            moveToFolders={listFoldersWithRoot(
+              nodes,
+              folderScope,
+              isManuscriptFolder ? 'Manuscript' : folderCategory?.name ?? 'Root'
+            )}
+            onMoveToFolder={moveToFolderHandler}
+            moveToChapters={isManuscriptFolder ? listSceneChapters(nodes) : undefined}
+            onMoveToChapter={isManuscriptFolder ? moveToChapterHandler : undefined}
+            onConvertToSimpleChapter={isManuscriptFolder ? convertToSimpleChapterHandler : undefined}
+            onConvertToSceneChapter={isManuscriptFolder ? convertToSceneChapterHandler : undefined}
+            onConvertSimpleToSceneChapter={
+              isManuscriptFolder ? convertSimpleToSceneChapterHandler : undefined
+            }
             onOpenNewWindow={openInNewWindow}
             onMoveToTrash={(node) => void handleMoveToTrash(node)}
             emptyMenuItems={
@@ -496,6 +461,7 @@ export function EditorPane(): React.JSX.Element {
 
   if (selectedNode && isChapterFolder(selectedNode)) {
     const scenes = getScenes(nodes, selectedNode.id)
+    const chapterKey = `chapter:${selectedNode.id}`
     return (
       <>
         <ContainerView
@@ -505,17 +471,20 @@ export function EditorPane(): React.JSX.Element {
           canGoForward={canGoForward}
           onGoBack={containerGoBack}
           onGoForward={containerGoForward}
+          viewMode={viewModeFor(chapterKey)}
+          onViewModeChange={onViewModeChangeFor(chapterKey)}
+          listVariant="chapterScenes"
           items={scenes}
           emptyMessage="No scenes yet. Right-click to add a scene."
           selectedNodeId={selectedNodeId}
           onSelect={(node) => setSelectedNodeId(node.id)}
           onReorder={(reordered) => void persistReorder(reordered, selectedNode.id)}
           menuVariant="manuscript"
-          onMoveTo={(node) => setMoveSceneNode(node)}
-          moveToChapters={getSceneChaptersList()}
-          onMoveToChapter={(node, chapterId) => void handleMoveToChapter(node, chapterId)}
-          onConvertToSimpleChapter={(node) => void handleConvertSceneToSimpleChapter(node)}
-          onConvertToSceneChapter={(node) => void handleConvertSceneToSceneChapter(node)}
+          onMoveTo={openMoveSceneDialog}
+          moveToChapters={listSceneChapters(nodes)}
+          onMoveToChapter={moveToChapterHandler}
+          onConvertToSimpleChapter={convertToSimpleChapterHandler}
+          onConvertToSceneChapter={convertToSceneChapterHandler}
           onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
           emptyMenuItems={[{ label: 'New Scene', onSelect: () => void createScene(selectedNode.id) }]}

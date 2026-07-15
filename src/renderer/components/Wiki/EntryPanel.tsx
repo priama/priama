@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { X } from 'lucide-react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
+import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import type {
   CategoryDefinition,
@@ -267,15 +268,15 @@ export function EntryPanel({
   category,
   onUpdate
 }: EntryPanelProps): React.JSX.Element {
-  const [name, setName] = useState(title)
-  const [meta, setMeta] = useState<MetaRecord>(() => parseEntryMeta(metadata))
   const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
     usePendingPanelRename(nodeId)
-
-  useEffect(() => {
-    setName(title)
-    setMeta(parseEntryMeta(metadata))
-  }, [nodeId, title, metadata])
+  const { meta, setMeta, name, setName } = usePanelNodeState({
+    nodeId,
+    title,
+    metadata: parseEntryMeta(metadata),
+    metadataSource: metadata,
+    nameInputRef: nameRef
+  })
 
   const save = useCallback(
     (nextMeta?: MetaRecord, nextName?: string) => {

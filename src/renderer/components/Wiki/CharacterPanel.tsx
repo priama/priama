@@ -9,6 +9,7 @@ import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
+import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import { useArrayFieldSuggestions } from '@/hooks/useArrayFieldSuggestions'
 import { cn } from '@/lib/utils'
@@ -117,18 +118,25 @@ export function CharacterPanel({
   nodeId,
   title,
   metadata,
+  metadataSource,
   onUpdate
 }: {
   nodeId: string
   title: string
   metadata: CharacterMeta
+  metadataSource: string
   onUpdate: (meta: CharacterMeta, title?: string) => void
 }): React.JSX.Element {
   const nodes = useAppStore((s) => s.nodes)
-  const [meta, setMeta] = useState(metadata)
-  const [name, setName] = useState(title)
   const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
     usePendingPanelRename(nodeId)
+  const { meta, setMeta, name, setName } = usePanelNodeState({
+    nodeId,
+    title,
+    metadata,
+    metadataSource,
+    nameInputRef: nameRef
+  })
 
   const otherCharacters = useMemo(
     () => nodes.filter((n) => n.type === 'character' && !n.deletedAt && n.id !== nodeId),
@@ -137,11 +145,6 @@ export function CharacterPanel({
   const raceSuggestions = useFieldSuggestions('character', 'race', nodeId)
   const genderSuggestions = useFieldSuggestions('character', 'gender', nodeId)
   const professionSuggestions = useArrayFieldSuggestions('character', 'professions', nodeId)
-
-  useEffect(() => {
-    setMeta(metadata)
-    setName(title)
-  }, [nodeId, metadata, title])
 
   const save = useCallback(() => {
     onUpdate(meta, name !== title ? name : undefined)

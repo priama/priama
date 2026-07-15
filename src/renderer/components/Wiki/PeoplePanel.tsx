@@ -7,6 +7,7 @@ import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
 import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
+import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
 import { cn } from '@/lib/utils'
 import {
@@ -117,18 +118,25 @@ export function PeoplePanel({
   nodeId,
   title,
   metadata,
+  metadataSource,
   onUpdate
 }: {
   nodeId: string
   title: string
   metadata: PeopleMeta
+  metadataSource: string
   onUpdate: (meta: PeopleMeta, title?: string) => void
 }): React.JSX.Element {
   const nodes = useAppStore((s) => s.nodes)
-  const [meta, setMeta] = useState(metadata)
-  const [name, setName] = useState(title)
   const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
     usePendingPanelRename(nodeId)
+  const { meta, setMeta, name, setName } = usePanelNodeState({
+    nodeId,
+    title,
+    metadata,
+    metadataSource,
+    nameInputRef: nameRef
+  })
 
   const otherPeople = useMemo(
     () =>
@@ -153,11 +161,6 @@ export function PeoplePanel({
     nodeId,
     DEFAULT_PEOPLE_META
   )
-
-  useEffect(() => {
-    setMeta(metadata)
-    setName(title)
-  }, [nodeId, metadata, title])
 
   const save = useCallback(() => {
     onUpdate(meta, name !== title ? name : undefined)

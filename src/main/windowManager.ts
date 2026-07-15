@@ -2,7 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import type { DevicePreviewRequestOptions, WindowBounds, WindowLayoutState } from '@shared/types'
 
-export type ChildWindowKind = 'workspace' | 'imageViewer' | 'devicePreview'
+type ChildWindowKind = 'workspace' | 'imageViewer' | 'devicePreview'
 
 interface ChildWindowRecord {
   window: BrowserWindow
@@ -23,7 +23,7 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindowRef
 }
 
-export function themeBackground(theme: 'light' | 'dark'): string {
+function themeBackground(theme: 'light' | 'dark'): string {
   return theme === 'dark' ? '#1a1a1a' : '#fafafa'
 }
 

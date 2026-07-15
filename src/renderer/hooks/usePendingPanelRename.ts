@@ -31,16 +31,21 @@ export function usePendingPanelRename(nodeId: string): PendingPanelRename {
     if (focusAndSelect()) return
 
     let raf2 = 0
+    let timeoutId = 0
     const raf1 = requestAnimationFrame(() => {
       if (focusAndSelect()) return
       raf2 = requestAnimationFrame(() => {
-        focusAndSelect()
+        if (focusAndSelect()) return
+        timeoutId = window.setTimeout(() => {
+          focusAndSelect()
+        }, 0)
       })
     })
 
     return () => {
       cancelAnimationFrame(raf1)
       if (raf2) cancelAnimationFrame(raf2)
+      if (timeoutId) clearTimeout(timeoutId)
     }
   }, [shouldRename, nodeId, focusAndSelect])
 

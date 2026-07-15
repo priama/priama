@@ -20,10 +20,6 @@ export function isChapterFolder(node: TreeNode): boolean {
   return meta.structure === 'scenes'
 }
 
-export function isContainerNode(node: TreeNode): boolean {
-  return isChapterFolder(node) || isFolder(node)
-}
-
 export function isFolder(node: TreeNode): boolean {
   return node.type === 'folder'
 }
@@ -76,14 +72,6 @@ export function resolveEntryCategoryIdForFolder(
   return categoryIds.find((id) => isNodeInCategoryTree(nodes, folderId, id))
 }
 
-export function isActiveNode(node: TreeNode): boolean {
-  return !node.deletedAt
-}
-
-export function getActiveNodes(nodes: TreeNode[]): TreeNode[] {
-  return nodes.filter(isActiveNode)
-}
-
 export function getTrashNodes(nodes: TreeNode[], category: TrashCategory): TreeNode[] {
   const typeMap: Record<TrashCategory, NodeType> = {
     chapters: 'chapter',
@@ -125,7 +113,7 @@ export function parseTrashContainerId(id: string): TrashCategory | null {
   return id.slice('trash:'.length) as TrashCategory
 }
 
-export function isFolderContainerId(id: string): boolean {
+function isFolderContainerId(id: string): boolean {
   return id.startsWith('folder:')
 }
 
@@ -143,13 +131,6 @@ export function trashContainerId(category: TrashCategory): string {
 }
 
 const MANUSCRIPT_CHILD_TYPES: NodeType[] = ['folder', 'chapter']
-const WIKI_CHILD_TYPES: NodeType[] = ['folder', 'character', 'location', 'lore', 'note']
-
-export function getChildTypesForScope(scope: FolderScope): NodeType[] {
-  if (scope === 'manuscript') return MANUSCRIPT_CHILD_TYPES
-  if (scope === 'entry') return ['folder', 'entry']
-  return [scope.slice(0, -1) as NodeType, 'folder'].filter(Boolean) as NodeType[]
-}
 
 export function getChildren(
   nodes: TreeNode[],
@@ -203,47 +184,13 @@ export function getScenes(nodes: TreeNode[], chapterId: string): TreeNode[] {
     .sort((a, b) => a.sortOrder - b.sortOrder)
 }
 
-export function getChapters(nodes: TreeNode[], parentId: string | null = null): TreeNode[] {
-  return getChildren(nodes, parentId, 'manuscript')
-}
-
-export function getNodesByType(nodes: TreeNode[], type: NodeType, parentId: string | null = null): TreeNode[] {
-  if (type === 'chapter') {
-    return getChapters(nodes, parentId)
-  }
-  const scope = entityTypeToScope(type)
-  if (scope) {
-    return getChildren(nodes, parentId, scope)
-  }
-  return nodes
-    .filter((n) => !n.deletedAt && n.type === type && (n.parentId ?? null) === parentId)
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-}
-
-function entityTypeToScope(type: NodeType): FolderScope | null {
-  switch (type) {
-    case 'character':
-      return 'characters'
-    case 'location':
-      return 'locations'
-    case 'lore':
-      return 'lore'
-    case 'note':
-      return 'notes'
-    case 'entry':
-      return 'entry'
-    default:
-      return null
-  }
-}
-
-export function stripHtmlPreview(html: string, maxLen = 100): string {
+function stripHtmlPreview(html: string, maxLen = 100): string {
   const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
   if (!text) return 'Empty'
   return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text
 }
 
-export function stripPlainTextPreview(text: string, maxLen = 100): string {
+function stripPlainTextPreview(text: string, maxLen = 100): string {
   const normalized = text.replace(/\s+/g, ' ').trim()
   if (!normalized) return 'Empty'
   return normalized.length > maxLen ? `${normalized.slice(0, maxLen)}…` : normalized
