@@ -64,30 +64,32 @@ import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, TRASH_CATEGORY_LABELS } from '@sh
 const SIDEBAR_TITLEBAR_INSET = 78
 const SIDEBAR_ICON_ONLY_THRESHOLD = SIDEBAR_MIN_WIDTH + 16
 
+type DragHandleProps = {
+  attributes: ReturnType<typeof useSortable>['attributes']
+  listeners: ReturnType<typeof useSortable>['listeners']
+}
+
 function SortableSection({
   id,
   children,
   iconOnly
 }: {
   id: string
-  children: React.ReactNode
+  children: (dragHandleProps: DragHandleProps) => React.ReactNode
   iconOnly: boolean
 }): React.JSX.Element {
-  if (iconOnly) return <div>{children}</div>
-
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const dragHandleProps = { attributes, listeners }
+
+  if (iconOnly) return <div>{children(dragHandleProps)}</div>
+
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(isDragging && 'opacity-35')}
     >
-      <div className="group/section flex items-start">
-        <button className="mt-1.5 shrink-0 p-0.5 opacity-0 group-hover/section:opacity-100 cursor-grab touch-none" {...attributes} {...listeners}>
-          <GripVertical className="h-3 w-3 text-muted-foreground" />
-        </button>
-        <div className="min-w-0 flex-1">{children}</div>
-      </div>
+      {children(dragHandleProps)}
     </div>
   )
 }
@@ -127,7 +129,8 @@ function SectionHeader({
   onToggle,
   onSelectContainer,
   onAdd,
-  addOnHover = false
+  addOnHover = false,
+  dragHandleProps
 }: {
   label: string
   icon: React.ComponentType<{ className?: string }>
@@ -138,6 +141,7 @@ function SectionHeader({
   onSelectContainer?: () => void
   onAdd?: () => void
   addOnHover?: boolean
+  dragHandleProps?: DragHandleProps
 }): React.JSX.Element {
   if (iconOnly) {
     return (
@@ -161,7 +165,7 @@ function SectionHeader({
   }
 
   return (
-    <div className={cn('mx-1 flex min-w-0 items-center gap-1 rounded-md px-2 py-1.5', isContainerSelected && 'bg-accent text-accent-foreground')}>
+    <div className={cn('group/section mx-1 flex min-w-0 items-center gap-1 rounded-md px-2 py-1.5', isContainerSelected && 'bg-accent text-accent-foreground')}>
       <button type="button" onClick={(e) => { e.stopPropagation(); onToggle() }} className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground">
         <ChevronRight className={cn('h-3 w-3 transition-transform duration-200 ease-in-out', isExpanded && 'rotate-90')} />
       </button>
@@ -169,13 +173,24 @@ function SectionHeader({
         type="button"
         onClick={onSelectContainer}
         className={cn(
-          'flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-semibold',
+          'flex min-w-0 flex-1 items-center gap-1.5 text-left text-base font-semibold',
           isContainerSelected ? 'text-accent-foreground' : 'text-foreground hover:text-foreground'
         )}
       >
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{label}</span>
       </button>
+      {dragHandleProps && (
+        <button
+          type="button"
+          className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity cursor-grab touch-none group-hover/section:opacity-100"
+          {...dragHandleProps.attributes}
+          {...dragHandleProps.listeners}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      )}
       {onAdd && (
         <button
           type="button"
@@ -436,31 +451,36 @@ export function Sidebar(): React.JSX.Element {
 
                     return (
                       <SortableSection key={category.id} id={category.id} iconOnly={iconOnly}>
-                        <SectionHeader
-                          label={category.name}
-                          icon={Icon}
-                          isExpanded={isCategoryExpanded(category.id)}
-                          iconOnly={iconOnly}
-                          isContainerSelected={selectedContainerId === category.id}
-                          onToggle={() => toggleSection(category.id)}
-                          onSelectContainer={() => {
-                            if (!isCategoryExpanded(category.id)) toggleSection(category.id)
-                            selectContainer(category.id)
-                          }}
-                          onAdd={() => void createCategoryItem(category.id, null, 'sidebar')}
-                          addOnHover
-                        />
-                        {!iconOnly && (
-                          <SidebarSectionBody open={isCategoryExpanded(category.id)}>
-                            <SidebarTree
-                              scope={scope}
-                              parentId={null}
-                              categoryId={category.id}
-                              menuActions={categoryMenuActionsById.get(category.id)!}
-                              onAddEntity={() => void createCategoryItem(category.id, null, 'sidebar')}
-                              onOpenNewWindow={openInNewWindow}
+                        {(dragHandleProps) => (
+                          <>
+                            <SectionHeader
+                              label={category.name}
+                              icon={Icon}
+                              isExpanded={isCategoryExpanded(category.id)}
+                              iconOnly={iconOnly}
+                              isContainerSelected={selectedContainerId === category.id}
+                              onToggle={() => toggleSection(category.id)}
+                              onSelectContainer={() => {
+                                if (!isCategoryExpanded(category.id)) toggleSection(category.id)
+                                selectContainer(category.id)
+                              }}
+                              onAdd={() => void createCategoryItem(category.id, null, 'sidebar')}
+                              addOnHover
+                              dragHandleProps={dragHandleProps}
                             />
-                          </SidebarSectionBody>
+                            {!iconOnly && (
+                              <SidebarSectionBody open={isCategoryExpanded(category.id)}>
+                                <SidebarTree
+                                  scope={scope}
+                                  parentId={null}
+                                  categoryId={category.id}
+                                  menuActions={categoryMenuActionsById.get(category.id)!}
+                                  onAddEntity={() => void createCategoryItem(category.id, null, 'sidebar')}
+                                  onOpenNewWindow={openInNewWindow}
+                                />
+                              </SidebarSectionBody>
+                            )}
+                          </>
                         )}
                       </SortableSection>
                     )

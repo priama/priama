@@ -47,7 +47,10 @@ import {
 import type { FolderScope, TreeNode } from '@shared/types'
 
 const TREE_INDENT = 12
-const TREE_BASE_PADDING = 8
+// Matches the section header's own left inset (mx-1 + px-2 + chevron button
+// padding = 14px) plus a bit, so a top-level tree row's arrow sits clearly
+// to the right of its parent section's arrow instead of underneath/left of it.
+const TREE_BASE_PADDING = 24
 const TREE_MAX_VISUAL_DEPTH = 7
 
 function visualTreeDepth(depth: number): number {
@@ -173,13 +176,23 @@ function TreeItemRow({
   return (
     <div
       className={cn(
-        'group relative flex min-w-0 items-center gap-0.5 rounded-md py-1 pr-2 text-xs select-none',
+        'group relative isolate flex min-w-0 items-center gap-0.5 rounded-md py-1 pr-2 select-none',
+        isFolderNode ? 'text-sm' : 'text-xs',
         !overlay && 'cursor-pointer',
-        isSelected ? 'bg-accent text-accent-foreground' : !overlay && 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+        isSelected ? 'text-accent-foreground' : !overlay && 'text-foreground',
         overlay && 'cursor-grabbing bg-sidebar text-foreground shadow-md ring-1 ring-border'
       )}
       style={{ paddingLeft: `${treeRowPadding(depth)}px` }}
     >
+      {!overlay && (
+        <span
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute inset-x-0 top-0.5 bottom-0.5 -z-10 rounded-md',
+            isSelected ? 'bg-accent' : 'bg-transparent group-hover:bg-accent/50'
+          )}
+        />
+      )}
       {!overlay && (
         <TreeIndentGuides
           depth={depth}
@@ -201,6 +214,10 @@ function TreeItemRow({
       ) : (
         <span className="w-4 shrink-0" />
       )}
+      {isFolderNode && <Folder className="h-3 w-3 shrink-0 opacity-70" />}
+      <span className="min-w-0 flex-1 truncate" title={node.title}>
+        {node.title}
+      </span>
       <button
         type="button"
         className={cn(
@@ -213,10 +230,6 @@ function TreeItemRow({
       >
         <GripVertical className="h-3 w-3 text-muted-foreground" />
       </button>
-      {isFolderNode && <Folder className="h-3 w-3 shrink-0 opacity-70" />}
-      <span className="min-w-0 flex-1 truncate" title={node.title}>
-        {node.title}
-      </span>
       {trailingAction}
     </div>
   )
@@ -464,24 +477,30 @@ export function SidebarTree({
     await useHistoryStore.getState().push(makeReorderCommand({ previousNodes: nodesBefore, newItems: items }))
   }
 
-  const renderRenameInput = (id: string, autoFocus = true): React.JSX.Element => (
-    <input
-      autoFocus={autoFocus}
-      value={renameValue}
-      onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => setRenameValue(e.target.value)}
-      onBlur={() => void handleRename(id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') void handleRename(id)
-        if (e.key === 'Escape') {
-          setRenamingId(null)
-          useAppStore.getState().clearPendingRename()
-        }
-      }}
-      className="mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1 text-xs"
-      style={{ marginLeft: `${treeRowPadding(depth)}px` }}
-    />
-  )
+  const renderRenameInput = (id: string, autoFocus = true): React.JSX.Element => {
+    const isFolderRename = nodes.find((n) => n.id === id)?.type === 'folder'
+    return (
+      <input
+        autoFocus={autoFocus}
+        value={renameValue}
+        onFocus={(e) => e.currentTarget.select()}
+        onChange={(e) => setRenameValue(e.target.value)}
+        onBlur={() => void handleRename(id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void handleRename(id)
+          if (e.key === 'Escape') {
+            setRenamingId(null)
+            useAppStore.getState().clearPendingRename()
+          }
+        }}
+        className={cn(
+          'mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1',
+          isFolderRename ? 'text-sm' : 'text-xs'
+        )}
+        style={{ marginLeft: `${treeRowPadding(depth)}px` }}
+      />
+    )
+  }
 
   return (
     <>
