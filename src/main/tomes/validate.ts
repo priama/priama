@@ -11,6 +11,7 @@ export interface ValidationResult {
   error?: string
   manifest?: TomesManifest
   projectRoot?: string
+  restoredFromBackup?: boolean
 }
 
 export async function validateTomesFile(tomesPath: string): Promise<ValidationResult> {
@@ -23,6 +24,7 @@ export async function validateTomesFile(tomesPath: string): Promise<ValidationRe
   }
 
   let manifest: TomesManifest
+  let restoredFromBackup = false
   const projectRoot = getProjectRoot(tomesPath)
   try {
     const raw = await readFile(tomesPath, 'utf-8')
@@ -33,6 +35,7 @@ export async function validateTomesFile(tomesPath: string): Promise<ValidationRe
     if (!restored) {
       return { valid: false, error: 'Project file is corrupted or invalid JSON' }
     }
+    restoredFromBackup = true
     try {
       const raw = await readFile(tomesPath, 'utf-8')
       manifest = JSON.parse(raw) as TomesManifest
@@ -60,5 +63,5 @@ export async function validateTomesFile(tomesPath: string): Promise<ValidationRe
     }
   }
 
-  return { valid: true, manifest, projectRoot }
+  return { valid: true, manifest, projectRoot, restoredFromBackup }
 }

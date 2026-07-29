@@ -8,6 +8,7 @@ import type {
   FolderMeta,
   FolderScope,
   NodeType,
+  OpenProjectResult,
   ProjectMeta,
   ProjectUiState,
   SpellCheckLang,
@@ -190,6 +191,15 @@ function generateFilename(type: NodeType, index: number, parentIndex?: number): 
   }
 }
 
+function nextFilenameIndex(entries: TomesIndexEntry[], pattern: RegExp): number {
+  let max = 0
+  for (const entry of entries) {
+    const match = entry.filename.match(pattern)
+    if (match) max = Math.max(max, parseInt(match[1], 10))
+  }
+  return max + 1
+}
+
 function getFolderScopeFromNode(node: TreeNode): FolderScope {
   return parseMetadata<FolderMeta>(node.metadata, DEFAULT_FOLDER_META).scope
 }
@@ -260,10 +270,34 @@ async function writeManifest(): Promise<void> {
   await writeFileAtomic(tomesPath, JSON.stringify(manifest, null, 2))
 }
 
-async function loadAllNodes(): Promise<TreeNode[]> {
-  if (!manifest || !projectRoot) return []
+interface ScanDir {
+  dir: string
+  folderScope?: FolderScope
+}
+
+function getScanDirectories(root: string): ScanDir[] {
+  return [
+    { dir: getManuscriptDir(root) }, // chapters + scenes share this dir
+    { dir: join(getManuscriptDir(root), 'folders'), folderScope: 'manuscript' },
+    { dir: join(getWikiDir(root), 'characters') },
+    { dir: join(getWikiDir(root), 'characters', 'folders'), folderScope: 'characters' },
+    { dir: join(getWikiDir(root), 'locations') },
+    { dir: join(getWikiDir(root), 'locations', 'folders'), folderScope: 'locations' },
+    { dir: join(getWikiDir(root), 'lore') },
+    { dir: join(getWikiDir(root), 'lore', 'folders'), folderScope: 'lore' },
+    { dir: join(getWikiDir(root), 'notes') },
+    { dir: join(getWikiDir(root), 'notes', 'folders'), folderScope: 'notes' },
+    { dir: join(getWikiDir(root), 'entries') },
+    { dir: join(getWikiDir(root), 'entry', 'folders'), folderScope: 'entry' }
+  ]
+}
+
+async function loadAllNodes(): Promise<{ nodes: TreeNode[]; recovered: number; broken: number }> {
+  if (!manifest || !projectRoot) return { nodes: [], recovered: 0, broken: 0 }
 
   const nodes: TreeNode[] = []
+  const claimedPaths = new Set<string>()
+  const brokenEntries: { indexKey: keyof TomesManifest['index']; id: string }[] = []
   const categories: { key: keyof TomesManifest['index']; type: NodeType }[] = [
     { key: 'folders', type: 'folder' },
     { key: 'chapters', type: 'chapter' },
@@ -275,21 +309,82 @@ async function loadAllNodes(): Promise<TreeNode[]> {
     { key: 'entries', type: 'entry' }
   ]
 
+  // Pass 1: claim files referenced by the manifest whose content actually
+  // matches the entry. A missing file is left alone (could be an unsynced
+  // cloud file, not necessarily gone) — only an id mismatch (a different
+  // node's content now sits at this path, e.g. from a past filename
+  // collision) marks the entry as broken.
   for (const { key, type } of categories) {
     const entries = manifest.index[key] ?? []
     for (const entry of entries) {
       const filePath = getTxdPathForEntry(entry, type)
-      if (await fse.pathExists(filePath)) {
-        const txd = await readTxdFile(filePath)
-        if (txd.id !== entry.id) continue
-        const node = txdToNode(txd, entry)
-        nodes.push(node)
-        nodeCache.set(node.id, node)
+      if (!(await fse.pathExists(filePath))) continue
+      const txd = await readTxdFile(filePath)
+      if (txd.id !== entry.id) {
+        brokenEntries.push({ indexKey: key, id: entry.id })
+        continue
       }
+      const node = txdToNode(txd, entry)
+      nodes.push(node)
+      nodeCache.set(node.id, node)
+      claimedPaths.add(resolve(filePath))
     }
   }
 
-  return nodes
+  // Pass 2: any .txd file left unclaimed is either an orphan (never made it
+  // into the manifest — e.g. a manifest rolled back to an older backup) or
+  // the real content that a broken entry above no longer points to. Either
+  // way, its content is real and shouldn't be invisible — recover it as a
+  // new entry.
+  let recovered = 0
+  for (const scanDir of getScanDirectories(projectRoot)) {
+    if (!(await fse.pathExists(scanDir.dir))) continue
+    const files = await fse.readdir(scanDir.dir)
+    for (const file of files) {
+      if (!file.endsWith(TXD_EXT)) continue
+      const filePath = join(scanDir.dir, file)
+      if (claimedPaths.has(resolve(filePath))) continue
+
+      let txd: TxDFile
+      try {
+        txd = await readTxdFile(filePath)
+      } catch {
+        continue
+      }
+
+      const indexKey = indexKeyForType(txd.type)
+      const parentId = txd.parentId && nodeCache.has(txd.parentId) ? txd.parentId : null
+      const sortOrder = (manifest.index[indexKey] ?? []).filter(
+        (e) => !e.deletedAt && (e.parentId ?? null) === parentId
+      ).length
+
+      const entry: TomesIndexEntry = {
+        id: txd.id,
+        filename: file,
+        title: txd.title,
+        sortOrder,
+        ...(parentId ? { parentId } : {}),
+        ...(txd.type === 'folder' && scanDir.folderScope ? { folderScope: scanDir.folderScope } : {}),
+        ...(txd.categoryId ? { categoryId: txd.categoryId } : {}),
+        ...(txd.deletedAt ? { deletedAt: txd.deletedAt } : {}),
+        ...(txd.originalParentId ? { originalParentId: txd.originalParentId } : {})
+      }
+
+      manifest.index[indexKey].push(entry)
+      const node = txdToNode({ ...txd, parentId }, entry)
+      nodes.push(node)
+      nodeCache.set(node.id, node)
+      claimedPaths.add(resolve(filePath))
+      recovered += 1
+    }
+  }
+
+  // Pass 3: drop entries whose backing content is confirmed gone.
+  for (const { indexKey, id } of brokenEntries) {
+    manifest.index[indexKey] = manifest.index[indexKey].filter((e) => e.id !== id)
+  }
+
+  return { nodes, recovered, broken: brokenEntries.length }
 }
 
 function getEntryScope(entry: TomesIndexEntry, type: NodeType): FolderScope | undefined {
@@ -430,12 +525,7 @@ export async function createProject(input: CreateProjectInput): Promise<{
   }
 }
 
-export async function openProject(tomesFilePath: string): Promise<{
-  path: string
-  meta: ProjectMeta
-  nodes: TreeNode[]
-  uiState: ProjectUiState
-}> {
+export async function openProject(tomesFilePath: string): Promise<OpenProjectResult> {
   const validation = await validateTomesFile(tomesFilePath)
   if (!validation.valid || !validation.manifest || !validation.projectRoot) {
     throw new Error(validation.error ?? 'Invalid project')
@@ -448,18 +538,42 @@ export async function openProject(tomesFilePath: string): Promise<{
   tomesPath = tomesFilePath
   nodeCache.clear()
 
-  const nodes = await loadAllNodes()
+  const { nodes, recovered, broken } = await loadAllNodes()
+  if (recovered > 0 || broken > 0) {
+    await writeManifest()
+  }
   await purgeExpiredTrash()
   await updateRecentLastOpened(manifest.id)
 
   const categories = manifest.categories ?? defaultFictionCategories()
   const uiState = sanitizeProjectUiState(getUiState(), nodes, categories)
 
+  const openWarnings: { path: string; message: string }[] = []
+  if (validation.restoredFromBackup) {
+    openWarnings.push({
+      path: tomesPath,
+      message: 'Your project file was corrupted and restored from the most recent local backup.'
+    })
+  }
+  if (recovered > 0) {
+    openWarnings.push({
+      path: tomesPath,
+      message: `Recovered ${recovered} item${recovered === 1 ? '' : 's'} that ${recovered === 1 ? 'was' : 'were'} missing from the project index.`
+    })
+  }
+  if (broken > 0) {
+    openWarnings.push({
+      path: tomesPath,
+      message: `Removed ${broken} project index entr${broken === 1 ? 'y' : 'ies'} pointing to content that no longer exists.`
+    })
+  }
+
   return {
     path: tomesPath,
     meta: getProjectMeta()!,
     nodes,
-    uiState
+    uiState,
+    ...(openWarnings.length > 0 ? { openWarnings } : {})
   }
 }
 
@@ -514,7 +628,15 @@ export async function createNode(
   })
   const sortOrder = siblings.length
 
+  // Filenames live in a flat, type-wide directory (see getNodeDir), so the
+  // numeric suffix must be unique across ALL entries of this type/index —
+  // not just the siblings under this parent — including trashed entries,
+  // whose files stay in place. Using a per-parent count here would let two
+  // nodes under different parents (or a new node after a sibling was
+  // trashed) collide on the same filename and silently overwrite each
+  // other's content on disk.
   let filename: string
+  const scopeForPath = options?.scope ?? (type === 'folder' ? 'manuscript' : undefined)
   if (type === 'scene') {
     const parentChapter = parentId
       ? manifest.index.chapters.find((c) => c.id === parentId)
@@ -522,9 +644,20 @@ export async function createNode(
     const chapterIdx = parentChapter
       ? manifest.index.chapters.indexOf(parentChapter) + 1
       : 1
-    filename = generateFilename('scene', sortOrder + 1, chapterIdx)
+    const scenePattern = new RegExp(`^scene-${chapterIdx}-([0-9]+)\\.txd$`)
+    let sceneIndex = nextFilenameIndex(manifest.index.scenes, scenePattern)
+    filename = generateFilename('scene', sceneIndex, chapterIdx)
+    while (await fse.pathExists(getTxdPath(filename, type))) {
+      sceneIndex += 1
+      filename = generateFilename('scene', sceneIndex, chapterIdx)
+    }
   } else {
-    filename = generateFilename(type, siblings.length + 1)
+    let filenameIndex = nextFilenameIndex(manifest.index[indexKey], /-([0-9]+)\.txd$/)
+    filename = generateFilename(type, filenameIndex)
+    while (await fse.pathExists(getTxdPath(filename, type, scopeForPath))) {
+      filenameIndex += 1
+      filename = generateFilename(type, filenameIndex)
+    }
   }
 
   const metadata =

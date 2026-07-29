@@ -11,6 +11,7 @@ import type {
   FolderScope,
   NavigationSyncState,
   NodeType,
+  OpenProjectResult,
   PriamaConfig,
   PriamaPreferences,
   ProjectMeta,
@@ -31,7 +32,7 @@ export interface SyncState {
 export interface ElectronAPI {
   tomes: {
     createProject: (input: CreateProjectInput) => Promise<{ path: string; meta: ProjectMeta; projectRoot: string }>
-    openProject: (path: string) => Promise<{ path: string; meta: ProjectMeta; nodes: TreeNode[]; uiState: ProjectUiState }>
+    openProject: (path: string) => Promise<OpenProjectResult>
     saveProject: () => Promise<SaveResult>
     closeProject: () => Promise<{ success: boolean }>
     getProjectInfo: () => Promise<{ path: string; meta: ProjectMeta } | null>

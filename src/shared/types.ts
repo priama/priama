@@ -537,6 +537,14 @@ export interface SaveResult {
   unreachableBackupPaths?: string[]
 }
 
+export interface OpenProjectResult {
+  path: string
+  meta: ProjectMeta
+  nodes: TreeNode[]
+  uiState: ProjectUiState
+  openWarnings?: BackupWarning[]
+}
+
 export interface RecentProjectEntry {
   id: string
   title: string

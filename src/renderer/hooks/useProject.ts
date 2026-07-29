@@ -81,6 +81,9 @@ export function useProject(): {
         const result = await window.electronAPI.tomes.openProject(path)
         await applyOpenProjectResult(result)
         setBackupWarningCount(0)
+        for (const w of result.openWarnings ?? []) {
+          addToast(w.message, 'warning')
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Could not open project'
         addToast(message, 'warning')

@@ -79,8 +79,6 @@ async function openPanelCategoryItem(
   } else if (node.type === 'entry') {
     if (!resolvedCategoryId) return
     selectEntry(node.id, resolvedCategoryId)
-  } else if (node.type === 'note') {
-    setSelectedEntity(node.id, node.type)
   } else {
     return
   }

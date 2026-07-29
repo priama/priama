@@ -5,15 +5,8 @@ import {
   markUiRestoreComplete,
   resolveProjectUiOnOpen
 } from '@/lib/projectUiState'
-import type { ProjectMeta, ProjectUiState, TreeNode } from '@shared/types'
+import type { OpenProjectResult } from '@shared/types'
 import { setSpellCheckLang } from '@/lib/spellCheck'
-
-export interface OpenProjectResult {
-  path: string
-  meta: ProjectMeta
-  nodes: TreeNode[]
-  uiState: ProjectUiState
-}
 
 export async function applyOpenProjectResult(result: OpenProjectResult): Promise<void> {
   setSpellCheckLang(result.meta.spellCheckLang ?? 'en')

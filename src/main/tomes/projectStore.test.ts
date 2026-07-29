@@ -193,6 +193,84 @@ describe('openProject / closeProject', () => {
   })
 })
 
+describe('openProject recovery', () => {
+  beforeEach(async () => {
+    await createProject(makeInput())
+  })
+
+  it('recovers a .txd file not present in the manifest', async () => {
+    const root = getProjectRootPath()!
+    const orphanId = uuidv4()
+    const orphanTxd = {
+      id: orphanId,
+      parentId: null,
+      type: 'chapter',
+      title: 'Orphaned Chapter',
+      sortOrder: 0,
+      content: 'Recovered words',
+      metadata: '{}',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    await fse.writeFile(
+      join(root, 'manuscript', 'chapter-99.txd'),
+      JSON.stringify(orphanTxd),
+      'utf-8'
+    )
+
+    const path = getProjectPath()!
+    closeProject()
+    const opened = await openProject(path)
+
+    const recovered = opened.nodes.find((n) => n.id === orphanId)
+    expect(recovered?.content).toBe('Recovered words')
+    expect(opened.openWarnings?.length).toBeGreaterThan(0)
+  })
+
+  it('drops a broken entry whose file id no longer matches and recovers the real content', async () => {
+    const chapter = await createNode(null, 'chapter', 'Ch1')
+    await updateNode(chapter.id, { content: 'Original' })
+
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const manifestJson = JSON.parse(await fse.readFile(path, 'utf-8'))
+    const entry = manifestJson.index.chapters.find((e: { id: string }) => e.id === chapter.id)
+
+    const replacementId = uuidv4()
+    const replacementTxd = {
+      id: replacementId,
+      parentId: null,
+      type: 'chapter',
+      title: 'Replacement',
+      sortOrder: 0,
+      content: 'Replacement content',
+      metadata: '{}',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    await fse.writeFile(
+      join(root, 'manuscript', entry.filename),
+      JSON.stringify(replacementTxd),
+      'utf-8'
+    )
+
+    closeProject()
+    const opened = await openProject(path)
+
+    expect(opened.nodes.find((n) => n.id === chapter.id)).toBeUndefined()
+    const recoveredNode = opened.nodes.find((n) => n.id === replacementId)
+    expect(recoveredNode?.content).toBe('Replacement content')
+  })
+
+  it('has no openWarnings on a normal open', async () => {
+    await createNode(null, 'chapter', 'Ch1')
+    const path = getProjectPath()!
+    closeProject()
+    const opened = await openProject(path)
+    expect(opened.openWarnings ?? []).toHaveLength(0)
+  })
+})
+
 describe('createNode', () => {
   beforeEach(async () => {
     await createProject(makeInput())
@@ -253,6 +331,42 @@ describe('createNode', () => {
       categoryId: 'custom-cat'
     })
     expect(node.categoryId).toBe('custom-cat')
+  })
+
+  it('does not collide filenames across different parents', async () => {
+    const folderA = await createFolder('manuscript', null, 'Folder A')
+    const folderB = await createFolder('manuscript', null, 'Folder B')
+    const chapterA = await createNode(folderA.id, 'chapter', 'Chapter A')
+    const chapterB = await createNode(folderB.id, 'chapter', 'Chapter B')
+    await updateNode(chapterA.id, { content: 'Content A' })
+    await updateNode(chapterB.id, { content: 'Content B' })
+
+    const path = getProjectPath()!
+    closeProject()
+    const opened = await openProject(path)
+
+    const foundA = opened.nodes.find((n) => n.id === chapterA.id)
+    const foundB = opened.nodes.find((n) => n.id === chapterB.id)
+    expect(foundA?.content).toBe('Content A')
+    expect(foundB?.content).toBe('Content B')
+  })
+
+  it('does not reuse a trashed sibling filename for a new node', async () => {
+    const ch1 = await createNode(null, 'chapter', 'Ch1')
+    await updateNode(ch1.id, { content: 'Original content' })
+    await moveToTrash(ch1.id)
+
+    const ch2 = await createNode(null, 'chapter', 'Ch2')
+    await updateNode(ch2.id, { content: 'New content' })
+
+    const path = getProjectPath()!
+    closeProject()
+    const opened = await openProject(path)
+
+    const trashed = opened.nodes.find((n) => n.id === ch1.id)
+    const fresh = opened.nodes.find((n) => n.id === ch2.id)
+    expect(trashed?.content).toBe('Original content')
+    expect(fresh?.content).toBe('New content')
   })
 })
 
