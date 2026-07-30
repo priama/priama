@@ -2,7 +2,7 @@ import { useCallback, useEffect } from 'react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
-import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
+import { PanelNameField } from '@/components/Wiki/PanelNameField'
 import { markContentDirty, registerActiveNoteContent } from '@/lib/contentPersistence'
 import type { NoteMeta } from '@shared/types'
 
@@ -37,14 +37,11 @@ export function NotePanel({
   onUpdate: (updates: { metadata?: NoteMeta; title?: string; content?: string }) => void
 }): React.JSX.Element {
   const updateNodeInStore = useAppStore((s) => s.updateNodeInStore)
-  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
-    usePendingPanelRename(nodeId)
   const { meta, setMeta, name, setName } = usePanelNodeState({
     nodeId,
     title,
     metadata,
-    metadataSource,
-    nameInputRef: nameRef
+    metadataSource
   })
 
   useEffect(() => {
@@ -52,12 +49,15 @@ export function NotePanel({
     return () => registerActiveNoteContent(null)
   }, [nodeId, content])
 
-  const saveFields = useCallback(() => {
-    onUpdate({
-      metadata: meta,
-      ...(name !== title ? { title: name } : {})
-    })
-  }, [meta, name, title, onUpdate])
+  const saveFields = useCallback(
+    (nextName: string = name) => {
+      onUpdate({
+        metadata: meta,
+        ...(nextName !== title ? { title: nextName } : {})
+      })
+    },
+    [meta, name, title, onUpdate]
+  )
 
   const handleBodyChange = (next: string): void => {
     updateNodeInStore(nodeId, { content: next })
@@ -67,16 +67,12 @@ export function NotePanel({
   return (
     <div className="space-y-4">
       <Field label="Title">
-        <SpellCheckedInput
-          ref={nameRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onFocus={handleFocus}
-          onKeyDown={(e) => handleKeyDown(e, saveFields)}
-          onBlur={() => {
-            handleBlur()
-            saveFields()
-          }}
+        <PanelNameField
+          nodeId={nodeId}
+          name={name}
+          setName={setName}
+          onSave={(n) => saveFields(n)}
+          onSaveMetaOnly={() => onUpdate({ metadata: meta })}
         />
       </Field>
       <Field label="Tags">
@@ -91,7 +87,7 @@ export function NotePanel({
                 .filter(Boolean)
             })
           }
-          onBlur={saveFields}
+          onBlur={() => saveFields()}
           placeholder="separate with ,"
         />
       </Field>

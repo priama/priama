@@ -1,9 +1,12 @@
 import { create } from 'zustand'
-import type { CategoryDefinition, ContainerViewMode, FolderScope, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
+import type { CategoryDefinition, ContainerViewMode, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
 import { DEFAULT_SECTION_ORDER, DEFAULT_EXPANDED_SECTIONS, migrateExpandedSections, migrateSectionOrder, SIDEBAR_MAX_WIDTH } from '@shared/types'
 import { isValidContainerId, pruneContainerNavigation } from '@shared/projectUiState'
+import type { RenameSession, RenameSurface, RenamePhase } from '@/lib/renameSession'
+import { createRenameSession } from '@/lib/renameSession'
 
-export type PendingRenameTarget = 'sidebar' | 'container' | 'panel'
+/** @deprecated Prefer RenameSurface — kept for call-site compatibility during migration. */
+export type PendingRenameTarget = RenameSurface
 
 interface AppState {
   projectPath: string | null
@@ -39,8 +42,7 @@ interface AppState {
   containerHistory: string[]
   containerHistoryIndex: number
 
-  pendingRenameNodeId: string | null
-  pendingRenameTargets: PendingRenameTarget[]
+  renameSession: RenameSession | null
 
   setProject: (path: string, meta: ProjectMeta, nodes?: TreeNode[]) => void
   closeProject: () => void
@@ -80,10 +82,34 @@ interface AppState {
   setRightPanelWidth: (width: number) => void
   applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
 
-  requestRename: (id: string, ...targets: PendingRenameTarget[]) => void
-  hasPendingRename: (target: PendingRenameTarget, nodeId?: string) => boolean
-  clearPendingRenameTarget: (target: PendingRenameTarget) => void
+  startRenameSession: (params: {
+    nodeId: string
+    originalTitle: string
+    preferredSurfaces: RenameSurface[]
+  }) => string
+  updateRenameDraft: (requestId: string, draft: string) => void
+  claimRenameOwner: (requestId: string, surface: RenameSurface) => boolean
+  releaseRenameOwner: (requestId: string, surface: RenameSurface) => void
+  markSelectAllConsumed: (requestId: string) => void
+  setRenamePhase: (requestId: string, phase: RenamePhase) => void
+  cancelRenameSession: (requestId?: string) => void
+  /** Clear only if requestId still matches — prevents stale blur from killing a newer session. */
+  clearRenameSessionIf: (requestId: string) => void
+
+  /** @deprecated Use startRenameSession via pendingRename helpers. */
+  requestRename: (id: string, ...targets: RenameSurface[]) => void
+  hasPendingRename: (target: RenameSurface, nodeId?: string) => boolean
+  clearPendingRenameTarget: (target: RenameSurface) => void
   clearPendingRename: () => void
+}
+
+function pruneRenameIfNodeMissing(
+  nodes: TreeNode[],
+  session: RenameSession | null
+): RenameSession | null {
+  if (!session) return null
+  if (nodes.some((n) => n.id === session.nodeId && !n.deletedAt)) return session
+  return null
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -119,19 +145,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   showExportDialog: false,
   showBookSettingsModal: false,
 
-  pendingRenameNodeId: null,
-  pendingRenameTargets: [],
+  renameSession: null,
 
   setProject: (path, meta, nodes) =>
-    set({
+    set((s) => ({
       projectPath: path,
       projectId: meta.id,
       projectMeta: meta,
       isProjectOpen: true,
       isDirty: false,
       categories: meta.categories ?? [],
-      ...(nodes ? { nodes } : {})
-    }),
+      ...(nodes
+        ? {
+            nodes,
+            renameSession: pruneRenameIfNodeMissing(nodes, s.renameSession)
+          }
+        : {})
+    })),
 
   closeProject: () =>
     set({
@@ -150,8 +180,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       isDirty: false,
       lastSaved: null,
       backupWarningCount: 0,
-      pendingRenameNodeId: null,
-      pendingRenameTargets: [],
+      renameSession: null,
       containerHistory: [],
       containerHistoryIndex: -1,
       containerViewModes: {}
@@ -181,7 +210,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       nodes,
       s.categories
     )
-    set({ nodes, ...pruned })
+    set({
+      nodes,
+      ...pruned,
+      renameSession: pruneRenameIfNodeMissing(nodes, s.renameSession)
+    })
   },
   addNode: (node) => set((s) => ({ nodes: [...s.nodes, node] })),
   upsertNode: (node) =>
@@ -205,7 +238,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         : {}),
       ...(s.selectedEntryId === id
         ? { selectedEntryId: null, selectedEntryCategoryId: null, rightPanelOpen: false }
-        : {})
+        : {}),
+      renameSession: s.renameSession?.nodeId === id ? null : s.renameSession
     })),
   setSelectedNodeId: (id) => {
     const state = get()
@@ -336,7 +370,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
 
   applyNavigationSync: (nav) =>
-    set({
+    set((s) => ({
       selectedNodeId: nav.selectedNodeId,
       selectedContainerId: nav.selectedContainerId,
       selectedEntityId: nav.selectedEntityId,
@@ -345,32 +379,125 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntryCategoryId: nav.selectedEntryCategoryId ?? null,
       expandedSections: migrateExpandedSections(nav.expandedSections),
       rightPanelOpen: nav.rightPanelOpen,
-      sectionOrder: migrateSectionOrder(nav.sectionOrder, get().categories),
-      pendingRenameNodeId: null,
-      pendingRenameTargets: []
-    }),
+      sectionOrder: migrateSectionOrder(nav.sectionOrder, s.categories)
+      // Intentionally preserve renameSession through navigation sync.
+    })),
 
-  requestRename: (id, ...targets) =>
-    set({ pendingRenameNodeId: id, pendingRenameTargets: targets }),
+  startRenameSession: ({ nodeId, originalTitle, preferredSurfaces }) => {
+    const session = createRenameSession({ nodeId, originalTitle, preferredSurfaces })
+    set({ renameSession: session })
+    return session.requestId
+  },
+
+  updateRenameDraft: (requestId, draft) => {
+    const session = get().renameSession
+    if (!session || session.requestId !== requestId) return
+    if (session.phase === 'committing') return
+    set({
+      renameSession: {
+        ...session,
+        draft,
+        phase: session.phase === 'waiting' ? 'editing' : session.phase
+      }
+    })
+  },
+
+  claimRenameOwner: (requestId, surface) => {
+    const session = get().renameSession
+    if (!session || session.requestId !== requestId) return false
+    if (!session.preferredSurfaces.includes(surface)) return false
+    if (session.owner === surface) return true
+    if (session.owner !== null) {
+      // Allow a more-preferred surface (earlier in preferredSurfaces) to steal.
+      const ownerRank = session.preferredSurfaces.indexOf(session.owner)
+      const claimRank = session.preferredSurfaces.indexOf(surface)
+      if (claimRank < 0 || (ownerRank >= 0 && claimRank >= ownerRank)) return false
+    }
+    set({
+      renameSession: {
+        ...session,
+        owner: surface,
+        phase: session.phase === 'waiting' ? 'editing' : session.phase
+      }
+    })
+    return true
+  },
+
+  releaseRenameOwner: (requestId, surface) => {
+    const session = get().renameSession
+    if (!session || session.requestId !== requestId) return
+    if (session.owner !== surface) return
+    set({
+      renameSession: {
+        ...session,
+        owner: null,
+        phase: session.phase === 'committing' ? session.phase : 'waiting'
+      }
+    })
+  },
+
+  markSelectAllConsumed: (requestId) => {
+    const session = get().renameSession
+    if (!session || session.requestId !== requestId) return
+    if (session.selectAllConsumed) return
+    set({ renameSession: { ...session, selectAllConsumed: true } })
+  },
+
+  setRenamePhase: (requestId, phase) => {
+    const session = get().renameSession
+    if (!session || session.requestId !== requestId) return
+    set({ renameSession: { ...session, phase } })
+  },
+
+  cancelRenameSession: (requestId) => {
+    const session = get().renameSession
+    if (!session) return
+    if (requestId !== undefined && session.requestId !== requestId) return
+    set({ renameSession: null })
+  },
+
+  clearRenameSessionIf: (requestId) => {
+    const session = get().renameSession
+    if (!session || session.requestId !== requestId) return
+    set({ renameSession: null })
+  },
+
+  requestRename: (id, ...targets) => {
+    if (targets.length === 0) return
+    const node = get().nodes.find((n) => n.id === id)
+    get().startRenameSession({
+      nodeId: id,
+      originalTitle: node?.title ?? '',
+      preferredSurfaces: targets
+    })
+  },
 
   hasPendingRename: (target, nodeId) => {
-    const { pendingRenameNodeId, pendingRenameTargets } = get()
-    if (!pendingRenameNodeId || !pendingRenameTargets.includes(target)) return false
-    if (nodeId !== undefined && pendingRenameNodeId !== nodeId) return false
+    const session = get().renameSession
+    if (!session || !session.preferredSurfaces.includes(target)) return false
+    if (nodeId !== undefined && session.nodeId !== nodeId) return false
     return true
   },
 
   clearPendingRenameTarget: (target) => {
-    const { pendingRenameTargets } = get()
-    const next = pendingRenameTargets.filter((t) => t !== target)
+    const session = get().renameSession
+    if (!session) return
+    const next = session.preferredSurfaces.filter((t) => t !== target)
     if (next.length === 0) {
-      set({ pendingRenameNodeId: null, pendingRenameTargets: [] })
-    } else {
-      set({ pendingRenameTargets: next })
+      set({ renameSession: null })
+      return
     }
+    set({
+      renameSession: {
+        ...session,
+        preferredSurfaces: next,
+        owner: session.owner === target ? null : session.owner,
+        phase: session.owner === target ? 'waiting' : session.phase
+      }
+    })
   },
 
-  clearPendingRename: () => set({ pendingRenameNodeId: null, pendingRenameTargets: [] })
+  clearPendingRename: () => set({ renameSession: null })
 }))
 
 export function getContainerViewMode(

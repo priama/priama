@@ -4,7 +4,7 @@ import { ComboField } from '@/components/UI/ComboField'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
-import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
+import { PanelNameField } from '@/components/Wiki/PanelNameField'
 import {
   DEFAULT_BESTIARY_META,
   OPTIONAL_BESTIARY_CATEGORY_ID,
@@ -39,14 +39,11 @@ export function BestiaryPanel({
   metadataSource: string
   onUpdate: (meta: BestiaryMeta, title?: string) => void
 }): React.JSX.Element {
-  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
-    usePendingPanelRename(nodeId)
   const { meta, setMeta, name, setName } = usePanelNodeState({
     nodeId,
     title,
     metadata,
-    metadataSource,
-    nameInputRef: nameRef
+    metadataSource
   })
 
   const speciesSuggestions = useEntryFieldSuggestions(
@@ -95,16 +92,12 @@ export function BestiaryPanel({
       />
 
       <Field label="Name">
-        <SpellCheckedInput
-          ref={nameRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onFocus={handleFocus}
-          onKeyDown={(e) => handleKeyDown(e, save)}
-          onBlur={() => {
-            handleBlur()
-            save()
-          }}
+        <PanelNameField
+          nodeId={nodeId}
+          name={name}
+          setName={setName}
+          onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
+          onSaveMetaOnly={() => onUpdate(meta)}
         />
       </Field>
 

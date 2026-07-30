@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { X } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
-import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
+import { SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { ComboField } from '@/components/UI/ComboField'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
@@ -12,7 +12,7 @@ import { NotePanel } from '@/components/Wiki/NotePanel'
 import { ensureNodeInStore } from '@/lib/categoryNavigation'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
-import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
+import { PanelNameField } from '@/components/Wiki/PanelNameField'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { cn } from '@/lib/utils'
 import {
@@ -59,14 +59,11 @@ function LocationPanel({
   metadataSource: string
   onUpdate: (meta: LocationMeta, title?: string) => void
 }): React.JSX.Element {
-  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
-    usePendingPanelRename(nodeId)
   const { meta, setMeta, name, setName } = usePanelNodeState({
     nodeId,
     title,
     metadata,
-    metadataSource,
-    nameInputRef: nameRef
+    metadataSource
   })
   const typeSuggestions = useFieldSuggestions('location', 'type', nodeId)
 
@@ -96,16 +93,12 @@ function LocationPanel({
       />
 
       <Field label="Name">
-        <SpellCheckedInput
-          ref={nameRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onFocus={handleFocus}
-          onKeyDown={(e) => handleKeyDown(e, save)}
-          onBlur={() => {
-            handleBlur()
-            save()
-          }}
+        <PanelNameField
+          nodeId={nodeId}
+          name={name}
+          setName={setName}
+          onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
+          onSaveMetaOnly={() => onUpdate(meta)}
         />
       </Field>
       <Field label="Type">
@@ -143,14 +136,11 @@ function LorePanel({
   metadataSource: string
   onUpdate: (meta: LoreMeta, title?: string) => void
 }): React.JSX.Element {
-  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
-    usePendingPanelRename(nodeId)
   const { meta, setMeta, name, setName } = usePanelNodeState({
     nodeId,
     title,
     metadata,
-    metadataSource,
-    nameInputRef: nameRef
+    metadataSource
   })
   const categorySuggestions = useFieldSuggestions('lore', 'category', nodeId)
 
@@ -180,16 +170,12 @@ function LorePanel({
       />
 
       <Field label="Name">
-        <SpellCheckedInput
-          ref={nameRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onFocus={handleFocus}
-          onKeyDown={(e) => handleKeyDown(e, save)}
-          onBlur={() => {
-            handleBlur()
-            save()
-          }}
+        <PanelNameField
+          nodeId={nodeId}
+          name={name}
+          setName={setName}
+          onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
+          onSaveMetaOnly={() => onUpdate(meta)}
         />
       </Field>
       <Field label="Category">

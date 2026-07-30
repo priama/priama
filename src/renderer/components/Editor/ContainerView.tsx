@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -24,7 +24,7 @@ import { countNodeWords, isFolder, isChapterFolder, isSimpleChapter, stripNodeCo
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeRenameCommand } from '@/lib/commands'
-import { shouldAutoFocusPendingRename } from '@/lib/pendingRename'
+import { useRenameInput } from '@/hooks/useRenameInput'
 import { TreeContextMenu, EmptyAreaContextMenu, type MoveToFolder } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import type { ContainerViewMode, TreeNode } from '@shared/types'
@@ -97,8 +97,8 @@ type ItemMenuProps = {
   readOnly?: boolean
   menuVariant?: 'manuscript' | 'wiki' | 'trash'
   listVariant?: ListVariant
+  /** Manual (context-menu) rename — session rename is handled inside the item. */
   renaming?: boolean
-  renameAutoFocus?: boolean
   renameValue?: string
   onRenameValueChange?: (value: string) => void
   onRenameCommit?: () => void
@@ -341,14 +341,16 @@ function SortableCard(props: ItemMenuProps): React.JSX.Element {
     node,
     isSelected,
     readOnly,
-    renaming,
-    renameAutoFocus = true,
+    renaming: localRenaming,
     renameValue,
     onRenameValueChange,
     onRenameCommit,
     onRenameCancel,
     onSelect
   } = props
+
+  const sessionRename = useRenameInput('container', node.id)
+  const renaming = sessionRename.isEditing || !!localRenaming
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id,
@@ -391,9 +393,20 @@ function SortableCard(props: ItemMenuProps): React.JSX.Element {
       )}
       <div className="flex items-start gap-2 pr-8">
         {folderNode && <Folder className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
-        {renaming ? (
+        {sessionRename.isEditing ? (
           <input
-            autoFocus={renameAutoFocus}
+            ref={sessionRename.inputRef}
+            value={sessionRename.draft}
+            onFocus={sessionRename.onFocus}
+            onChange={sessionRename.onChange}
+            onBlur={sessionRename.onBlur}
+            onKeyDown={sessionRename.onKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full rounded border border-input bg-background px-2 py-1 text-sm font-medium"
+          />
+        ) : localRenaming ? (
+          <input
+            autoFocus
             value={renameValue ?? node.title}
             onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => onRenameValueChange?.(e.target.value)}
@@ -422,14 +435,16 @@ function SortableListRow(props: ItemMenuProps): React.JSX.Element {
     isSelected,
     readOnly,
     listVariant = 'default',
-    renaming,
-    renameAutoFocus = true,
+    renaming: localRenaming,
     renameValue,
     onRenameValueChange,
     onRenameCommit,
     onRenameCancel,
     onSelect
   } = props
+
+  const sessionRename = useRenameInput('container', node.id)
+  const renaming = sessionRename.isEditing || !!localRenaming
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id,
@@ -464,9 +479,20 @@ function SortableListRow(props: ItemMenuProps): React.JSX.Element {
     >
       <div className="flex min-w-0 items-center gap-2">
         {folderNode && <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
-        {renaming ? (
+        {sessionRename.isEditing ? (
           <input
-            autoFocus={renameAutoFocus}
+            ref={sessionRename.inputRef}
+            value={sessionRename.draft}
+            onFocus={sessionRename.onFocus}
+            onChange={sessionRename.onChange}
+            onBlur={sessionRename.onBlur}
+            onKeyDown={sessionRename.onKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full rounded border border-input bg-background px-2 py-1 text-sm font-medium"
+          />
+        ) : localRenaming ? (
+          <input
+            autoFocus
             value={renameValue ?? node.title}
             onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => onRenameValueChange?.(e.target.value)}
@@ -544,20 +570,7 @@ export function ContainerView({
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
-  const pendingRenameNodeId = useAppStore((s) => s.pendingRenameNodeId)
-  const pendingRenameTargets = useAppStore((s) => s.pendingRenameTargets)
   const nodes = useAppStore((s) => s.nodes)
-
-  const isPendingContainerRename = (nodeId: string): boolean =>
-    pendingRenameNodeId === nodeId && pendingRenameTargets.includes('container')
-
-  useEffect(() => {
-    if (!pendingRenameNodeId || !pendingRenameTargets.includes('container')) return
-    const node = nodes.find((n) => n.id === pendingRenameNodeId)
-    if (node && items.some((item) => item.id === pendingRenameNodeId)) {
-      setRenameValue(node.title)
-    }
-  }, [pendingRenameNodeId, pendingRenameTargets, nodes, items])
 
   const startRename = (node: TreeNode): void => {
     setRenamingId(node.id)
@@ -566,33 +579,19 @@ export function ContainerView({
 
   const handleRenameCommit = async (id: string): Promise<void> => {
     const trimmed = renameValue.trim()
-    const store = useAppStore.getState()
-    const isPending = store.hasPendingRename('container', id)
-
     if (!trimmed) {
       setRenamingId(null)
-      if (isPending) {
-        store.clearPendingRenameTarget('container')
-      } else {
-        store.clearPendingRename()
-      }
       return
     }
     const node = nodes.find((n) => n.id === id)
     if (!node || trimmed === node.title) {
       setRenamingId(null)
-      if (isPending) {
-        store.clearPendingRenameTarget('container')
-      } else {
-        store.clearPendingRename()
-      }
       return
     }
     await useHistoryStore.getState().push(
       makeRenameCommand({ id, oldTitle: node.title, newTitle: trimmed })
     )
     setRenamingId(null)
-    store.clearPendingRename()
   }
 
   const sensors = useSensors(
@@ -611,7 +610,7 @@ export function ContainerView({
   }
 
   const itemProps = (node: TreeNode): ItemMenuProps => {
-    const showRename = renamingId === node.id || isPendingContainerRename(node.id)
+    const showRename = renamingId === node.id
     return {
       node,
       isSelected: selectedNodeId === node.id,
@@ -619,14 +618,10 @@ export function ContainerView({
       menuVariant,
       listVariant,
       renaming: showRename,
-      renameAutoFocus: shouldAutoFocusPendingRename('container'),
       renameValue,
       onRenameValueChange: setRenameValue,
       onRenameCommit: () => void handleRenameCommit(node.id),
-      onRenameCancel: () => {
-        setRenamingId(null)
-        useAppStore.getState().clearPendingRename()
-      },
+      onRenameCancel: () => setRenamingId(null),
       onSelect: () => onSelect(node),
       onRename: onRename ? () => onRename(node) : () => startRename(node),
       onMoveTo: onMoveTo ? () => onMoveTo(node) : undefined,

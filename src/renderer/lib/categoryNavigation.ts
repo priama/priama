@@ -49,8 +49,10 @@ export function resolveRenameTargetsForNode(
   const category = findCategory(categories, categoryId)
 
   if (categoryOpensInRightPanel(category)) return ['panel', 'sidebar']
+  // Editor-mode entries replace the center container with the document, so prefer
+  // container only while creating from the container list; sidebar is always fallback.
   if (source === 'container') return ['container', 'sidebar']
-  return ['sidebar']
+  return ['sidebar', 'container']
 }
 
 function applyRenameAfterCreate(node: TreeNode, opts?: OpenCategoryOptions): void {

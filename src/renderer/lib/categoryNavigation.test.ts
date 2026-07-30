@@ -61,14 +61,14 @@ describe('resolveRenameTargetsForNode', () => {
     expect(resolveRenameTargetsForNode(entry, 'container')).toEqual(['container', 'sidebar'])
   })
 
-  it('main-editor entry from sidebar targets sidebar only', () => {
+  it('main-editor entry from sidebar prefers sidebar with container fallback', () => {
     const entry = node({
       id: 'e1',
       parentId: null,
       type: 'entry',
       categoryId: editorCategoryId
     })
-    expect(resolveRenameTargetsForNode(entry, 'sidebar')).toEqual(['sidebar'])
+    expect(resolveRenameTargetsForNode(entry, 'sidebar')).toEqual(['sidebar', 'container'])
   })
 
   it('uses built-in characters category as panel mode', () => {

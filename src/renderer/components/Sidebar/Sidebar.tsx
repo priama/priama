@@ -42,7 +42,7 @@ import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeCreateChapterCommand, makeCreateNodeCommand } from '@/lib/commands'
 import { createCategoryItem } from '@/lib/categoryNavigation'
-import { requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
+import { requestRenameAfterCreate, requestSidebarRenameAfterCreate } from '@/lib/pendingRename'
 import {
   buildCategorySidebarMenuActions,
   buildManuscriptSidebarMenuActions
@@ -286,7 +286,7 @@ export function Sidebar(): React.JSX.Element {
     } else {
       setSelectedNodeId(chapterId)
     }
-    requestSidebarRenameAfterCreate(chapterId)
+    requestRenameAfterCreate(chapterId, 'sidebar', 'container')
   }
 
   const openInNewWindow = (node: import('@shared/types').TreeNode): void => {

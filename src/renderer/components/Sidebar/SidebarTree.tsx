@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -22,7 +22,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ChevronDown, ChevronRight, Folder, GripVertical, Plus } from 'lucide-react'
-import { useAppStore, type PendingRenameTarget } from '@/store/appStore'
+import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import {
   makeMoveToTrashCommand,
@@ -31,10 +31,10 @@ import {
   makeReparentCommand
 } from '@/lib/commands'
 import { openCategoryItem } from '@/lib/categoryNavigation'
-import { shouldAutoFocusPendingRename } from '@/lib/pendingRename'
 import { buildTreeContextMenuActions, type SidebarMenuActions } from '@/lib/treeNodeMenuActions'
 import { TreeContextMenu } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
+import { RenameSurfaceSlot } from '@/components/UI/RenameSessionInput'
 import { cn } from '@/lib/utils'
 import {
   folderContainerId,
@@ -346,11 +346,7 @@ export function SidebarTree({
   const [renameValue, setRenameValue] = useState('')
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
-  const pendingRenameNodeId = useAppStore((s) => s.pendingRenameNodeId)
-  const pendingRenameTargets = useAppStore((s) => s.pendingRenameTargets)
-
-  const isPendingSidebarRename = (nodeId: string): boolean =>
-    pendingRenameNodeId === nodeId && pendingRenameTargets.includes('sidebar')
+  const renameSession = useAppStore((s) => s.renameSession)
 
   const children = useMemo(() => {
     const raw = getChildren(nodes, parentId, scope)
@@ -381,45 +377,25 @@ export function SidebarTree({
 
   const handleRename = async (id: string): Promise<void> => {
     const trimmed = renameValue.trim()
-    const store = useAppStore.getState()
-    const isPending = store.hasPendingRename('sidebar', id)
-
     if (!trimmed) {
       setRenamingId(null)
-      if (isPending) {
-        store.clearPendingRenameTarget('sidebar')
-      } else {
-        store.clearPendingRename()
-      }
       return
     }
     const node = nodes.find((n) => n.id === id)
     if (!node || trimmed === node.title) {
       setRenamingId(null)
-      if (isPending) {
-        store.clearPendingRenameTarget('sidebar')
-      } else {
-        store.clearPendingRename()
-      }
       return
     }
     await useHistoryStore.getState().push(
       makeRenameCommand({ id, oldTitle: node.title, newTitle: trimmed })
     )
     setRenamingId(null)
-    store.clearPendingRename()
   }
 
   const startRename = (node: TreeNode): void => {
     setRenamingId(node.id)
     setRenameValue(node.title)
   }
-
-  useEffect(() => {
-    if (!pendingRenameNodeId || !pendingRenameTargets.includes('sidebar')) return
-    const node = nodes.find((n) => n.id === pendingRenameNodeId)
-    if (node) setRenameValue(node.title)
-  }, [pendingRenameNodeId, pendingRenameTargets, nodes])
 
   const handleSelect = (node: TreeNode): void => {
     if (isFolder(node)) {
@@ -480,21 +456,18 @@ export function SidebarTree({
     await useHistoryStore.getState().push(makeReorderCommand({ previousNodes: nodesBefore, newItems: items }))
   }
 
-  const renderRenameInput = (id: string, autoFocus = true): React.JSX.Element => {
+  const renderLocalRenameInput = (id: string): React.JSX.Element => {
     const isFolderRename = nodes.find((n) => n.id === id)?.type === 'folder'
     return (
       <input
-        autoFocus={autoFocus}
+        autoFocus
         value={renameValue}
         onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setRenameValue(e.target.value)}
         onBlur={() => void handleRename(id)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') void handleRename(id)
-          if (e.key === 'Escape') {
-            setRenamingId(null)
-            useAppStore.getState().clearPendingRename()
-          }
+          if (e.key === 'Escape') setRenamingId(null)
         }}
         className={cn(
           'mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1',
@@ -526,16 +499,32 @@ export function SidebarTree({
             const expanded = expandedSections.has(node.id)
             const scenes = sceneChapter ? getScenes(nodes, node.id) : []
 
-            if (renamingId === node.id || isPendingSidebarRename(node.id)) {
+            const needsRenameSlot =
+              renamingId === node.id ||
+              (renameSession?.nodeId === node.id &&
+                renameSession.preferredSurfaces.includes('sidebar'))
+
+            if (renamingId === node.id) {
               return (
                 <div key={node.id}>
-                  {renderRenameInput(node.id, shouldAutoFocusPendingRename('sidebar'))}
+                  <RenameSurfaceSlot
+                    surface="sidebar"
+                    nodeId={node.id}
+                    enabled={!disabled}
+                    inputClassName={cn(
+                      'mx-2 mb-1 w-[calc(100%-16px)]',
+                      isFolder(node) ? 'text-sm' : 'text-xs'
+                    )}
+                    inputStyle={{ marginLeft: `${treeRowPadding(depth)}px` }}
+                    localEditor={renderLocalRenameInput(node.id)}
+                  >
+                    {null}
+                  </RenameSurfaceSlot>
                 </div>
               )
             }
 
-            return (
-              <div key={node.id} className={cn(folderNode ? 'group/folder' : 'group/chapter')}>
+            const treeItem = (
                 <SortableTreeItem
                   node={node}
                   depth={depth}
@@ -567,6 +556,26 @@ export function SidebarTree({
                     ) : undefined
                   }
                 />
+            )
+
+            return (
+              <div key={node.id} className={cn(folderNode ? 'group/folder' : 'group/chapter')}>
+                {needsRenameSlot ? (
+                  <RenameSurfaceSlot
+                    surface="sidebar"
+                    nodeId={node.id}
+                    enabled={!disabled}
+                    inputClassName={cn(
+                      'mx-2 mb-1 w-[calc(100%-16px)]',
+                      folderNode ? 'text-sm' : 'text-xs'
+                    )}
+                    inputStyle={{ marginLeft: `${treeRowPadding(depth)}px` }}
+                  >
+                    {treeItem}
+                  </RenameSurfaceSlot>
+                ) : (
+                  treeItem
+                )}
                 {folderNode && expanded && (
                   <SidebarTree
                     scope={scope}
@@ -607,8 +616,6 @@ export function SidebarTree({
                         onOpenNewWindow={onOpenNewWindow}
                         onAddScene={onAddScene}
                         disabled={disabled}
-                        pendingRenameNodeId={pendingRenameNodeId}
-                        pendingRenameTargets={pendingRenameTargets}
                       />
                     </div>
                   </div>
@@ -661,9 +668,7 @@ function SceneList({
   confirmTrash,
   onOpenNewWindow,
   onAddScene,
-  disabled,
-  pendingRenameNodeId,
-  pendingRenameTargets
+  disabled
 }: {
   chapterId: string
   scenes: TreeNode[]
@@ -681,10 +686,8 @@ function SceneList({
   onOpenNewWindow: (node: TreeNode) => void
   onAddScene?: (chapterId: string) => void
   disabled?: boolean
-  pendingRenameNodeId: string | null
-  pendingRenameTargets: PendingRenameTarget[]
 }): React.JSX.Element {
-  const { selectedNodeId, setSelectedNodeId, setNodes, nodes } = useAppStore()
+  const { selectedNodeId, setSelectedNodeId, setNodes, nodes, renameSession } = useAppStore()
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
   const sensors = useSensors(
@@ -719,56 +722,69 @@ function SceneList({
       <SortableContext items={scenes.map((s) => s.id)} strategy={verticalListSortingStrategy}>
       {scenes.map((scene, sceneIndex) => {
         const isLastScene = sceneIndex === scenes.length - 1
-        const isPendingSidebarRename =
-          pendingRenameNodeId === scene.id && pendingRenameTargets.includes('sidebar')
-        const showRename = renamingId === scene.id || isPendingSidebarRename
-        const renameAutoFocus = shouldAutoFocusPendingRename('sidebar')
+        const needsRenameSlot =
+          renamingId === scene.id ||
+          (renameSession?.nodeId === scene.id &&
+            renameSession.preferredSurfaces.includes('sidebar'))
+        const localEditor =
+          renamingId === scene.id ? (
+            <input
+              autoFocus
+              value={renameValue}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onBlur={() => onRename(scene.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onRename(scene.id)
+                if (e.key === 'Escape') setRenamingId(null)
+              }}
+              className="mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1 text-xs"
+              style={{ marginLeft: `${treeRowPadding(depth)}px` }}
+            />
+          ) : undefined
 
-        return showRename ? (
-          <input
-            key={scene.id}
-            autoFocus={renameAutoFocus}
-            value={renameValue}
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onBlur={() => onRename(scene.id)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onRename(scene.id)
-              if (e.key === 'Escape') {
-                setRenamingId(null)
-                useAppStore.getState().clearPendingRename()
+        const item = (
+            <SortableTreeItem
+              node={scene}
+              depth={depth}
+              ancestorContinues={ancestorContinues}
+              isLastSibling={isLastScene}
+              isSelected={selectedNodeId === scene.id}
+              onSelect={() => setSelectedNodeId(scene.id)}
+              onRename={() => startRename(scene)}
+              onMoveToTrash={() =>
+                confirmTrash(scene, async () => {
+                  /* selection cleared by store sync */
+                })
               }
-            }}
-            className="mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1 text-xs"
-            style={{ marginLeft: `${treeRowPadding(depth)}px` }}
-          />
-        ) : (
-          <SortableTreeItem
+              onOpenNewWindow={() => onOpenNewWindow(scene)}
+              menuActions={menuActions}
+              className={isLastChapter && sceneIndex === scenes.length - 1 ? 'mb-1' : undefined}
+              trailingAction={
+                sceneIndex === scenes.length - 1 && onAddScene ? (
+                  <HoverAddButton
+                    className="group-hover/chapter:opacity-100"
+                    onClick={() => onAddScene(chapterId)}
+                  />
+                ) : undefined
+              }
+            />
+        )
+
+        if (!needsRenameSlot) return <div key={scene.id}>{item}</div>
+
+        return (
+          <RenameSurfaceSlot
             key={scene.id}
-            node={scene}
-            depth={depth}
-            ancestorContinues={ancestorContinues}
-            isLastSibling={isLastScene}
-            isSelected={selectedNodeId === scene.id}
-            onSelect={() => setSelectedNodeId(scene.id)}
-            onRename={() => startRename(scene)}
-            onMoveToTrash={() =>
-              confirmTrash(scene, async () => {
-                /* selection cleared by store sync */
-              })
-            }
-            onOpenNewWindow={() => onOpenNewWindow(scene)}
-            menuActions={menuActions}
-            className={isLastChapter && sceneIndex === scenes.length - 1 ? 'mb-1' : undefined}
-            trailingAction={
-              sceneIndex === scenes.length - 1 && onAddScene ? (
-                <HoverAddButton
-                  className="group-hover/chapter:opacity-100"
-                  onClick={() => onAddScene(chapterId)}
-                />
-              ) : undefined
-            }
-          />
+            surface="sidebar"
+            nodeId={scene.id}
+            enabled={!disabled}
+            inputClassName="mx-2 mb-1 w-[calc(100%-16px)] text-xs"
+            inputStyle={{ marginLeft: `${treeRowPadding(depth)}px` }}
+            localEditor={localEditor}
+          >
+            {item}
+          </RenameSurfaceSlot>
         )
       })}
       </SortableContext>

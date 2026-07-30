@@ -1,8 +1,9 @@
 import { useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useAppStore } from '@/store/appStore'
 
 export function shouldSyncNameFromTitle(
   nameInputRef: RefObject<HTMLInputElement | null> | undefined,
-  activeElement: Element | null = document.activeElement
+  activeElement: Element | null = typeof document !== 'undefined' ? document.activeElement : null
 ): boolean {
   if (!nameInputRef?.current) return true
   return nameInputRef.current !== activeElement
@@ -28,6 +29,9 @@ export function usePanelNodeState<T>({
 } {
   const [meta, setMeta] = useState(metadata)
   const [name, setName] = useState(title)
+  const renameActive = useAppStore(
+    (s) => s.renameSession?.nodeId === nodeId && s.renameSession.preferredSurfaces.includes('panel')
+  )
 
   useEffect(() => {
     setMeta(metadata)
@@ -39,9 +43,11 @@ export function usePanelNodeState<T>({
   }, [nodeId, metadataSource])
 
   useEffect(() => {
+    // Never reset local name from node title while a rename transaction owns this node.
+    if (renameActive) return
     if (!shouldSyncNameFromTitle(nameInputRef)) return
     setName(title)
-  }, [nodeId, title, nameInputRef])
+  }, [nodeId, title, nameInputRef, renameActive])
 
   return { meta, setMeta, name, setName }
 }

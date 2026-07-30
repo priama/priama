@@ -10,7 +10,7 @@ import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
-import { usePendingPanelRename } from '@/hooks/usePendingPanelRename'
+import { PanelNameField } from '@/components/Wiki/PanelNameField'
 import { useArrayFieldSuggestions } from '@/hooks/useArrayFieldSuggestions'
 import { cn } from '@/lib/utils'
 import {
@@ -128,14 +128,11 @@ export function CharacterPanel({
   onUpdate: (meta: CharacterMeta, title?: string) => void
 }): React.JSX.Element {
   const nodes = useAppStore((s) => s.nodes)
-  const { inputRef: nameRef, handleFocus, handleBlur, handleKeyDown } =
-    usePendingPanelRename(nodeId)
   const { meta, setMeta, name, setName } = usePanelNodeState({
     nodeId,
     title,
     metadata,
-    metadataSource,
-    nameInputRef: nameRef
+    metadataSource
   })
 
   const otherCharacters = useMemo(
@@ -199,16 +196,12 @@ export function CharacterPanel({
       />
 
       <Field label="Name">
-        <SpellCheckedInput
-          ref={nameRef}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onFocus={handleFocus}
-          onKeyDown={(e) => handleKeyDown(e, save)}
-          onBlur={() => {
-            handleBlur()
-            save()
-          }}
+        <PanelNameField
+          nodeId={nodeId}
+          name={name}
+          setName={setName}
+          onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
+          onSaveMetaOnly={() => onUpdate(meta)}
         />
       </Field>
       <Field label="Also known as">

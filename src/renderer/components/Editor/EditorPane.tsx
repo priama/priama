@@ -210,6 +210,8 @@ export function EditorPane(): React.JSX.Element {
     } else {
       setSelectedNodeId(chapterId)
     }
+    // Prefer container when the center list still shows the new chapter; sidebar is fallback
+    // (e.g. after selecting a scene of a scenes-chapter, which leaves the container).
     requestRenameAfterCreate(chapterId, 'container', 'sidebar')
   }
 
