@@ -107,7 +107,7 @@ const NOTES_PRESET: CategoryDefinition = {
   id: BUILTIN_CATEGORY_IDS.notes,
   name: 'Notes',
   icon: 'StickyNote',
-  mode: 'editor',
+  mode: 'panel',
   sortOrder: 3,
   builtIn: true
 }
@@ -258,9 +258,12 @@ function inferNodeKindFromCategoryId(id: string): CategoryNodeKind {
 }
 
 export function normalizeCategoryDefinition(cat: CategoryDefinition): CategoryDefinition {
+  const nodeKind = inferNodeKindFromCategoryId(cat.id)
   return {
     ...cat,
-    nodeKind: inferNodeKindFromCategoryId(cat.id)
+    // Notes always open in the right panel; keep stored mode aligned with runtime.
+    ...(cat.id === BUILTIN_CATEGORY_IDS.notes ? { mode: 'panel' as const } : {}),
+    nodeKind
   }
 }
 

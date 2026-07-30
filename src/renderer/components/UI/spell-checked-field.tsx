@@ -35,13 +35,127 @@ function buildMirrorContent(text: string, matches: SpellMatch[]): React.ReactNod
   return nodes
 }
 
+/** Layout metrics copied from the real field so underlines track glyph positions. */
+interface FieldMirrorMetrics {
+  top: number
+  left: number
+  width: number
+  height: number
+  paddingTop: string
+  paddingRight: string
+  paddingBottom: string
+  paddingLeft: string
+  fontFamily: string
+  fontSize: string
+  fontWeight: string
+  fontStyle: string
+  lineHeight: string
+  letterSpacing: string
+  wordSpacing: string
+  textTransform: string
+  textAlign: string
+}
+
+function readFieldMirrorMetrics(el: HTMLElement): FieldMirrorMetrics {
+  const cs = getComputedStyle(el)
+  return {
+    top: el.clientTop,
+    left: el.clientLeft,
+    width: el.clientWidth,
+    height: el.clientHeight,
+    paddingTop: cs.paddingTop,
+    paddingRight: cs.paddingRight,
+    paddingBottom: cs.paddingBottom,
+    paddingLeft: cs.paddingLeft,
+    fontFamily: cs.fontFamily,
+    fontSize: cs.fontSize,
+    fontWeight: cs.fontWeight,
+    fontStyle: cs.fontStyle,
+    lineHeight: cs.lineHeight,
+    letterSpacing: cs.letterSpacing,
+    wordSpacing: cs.wordSpacing,
+    textTransform: cs.textTransform,
+    textAlign: cs.textAlign
+  }
+}
+
+function metricsEqual(a: FieldMirrorMetrics | null, b: FieldMirrorMetrics): boolean {
+  if (!a) return false
+  return (
+    a.top === b.top &&
+    a.left === b.left &&
+    a.width === b.width &&
+    a.height === b.height &&
+    a.paddingTop === b.paddingTop &&
+    a.paddingRight === b.paddingRight &&
+    a.paddingBottom === b.paddingBottom &&
+    a.paddingLeft === b.paddingLeft &&
+    a.fontFamily === b.fontFamily &&
+    a.fontSize === b.fontSize &&
+    a.fontWeight === b.fontWeight &&
+    a.fontStyle === b.fontStyle &&
+    a.lineHeight === b.lineHeight &&
+    a.letterSpacing === b.letterSpacing &&
+    a.wordSpacing === b.wordSpacing &&
+    a.textTransform === b.textTransform &&
+    a.textAlign === b.textAlign
+  )
+}
+
+function useFieldMirrorMetrics(
+  fieldRef: React.RefObject<HTMLElement | null>,
+  enabled: boolean,
+  /** Structural changes that affect typography or box size (not every keystroke). */
+  layoutKey: string,
+  /** Content changes that may resize an auto-growing field. */
+  contentKey: string
+): FieldMirrorMetrics | null {
+  const [metrics, setMetrics] = useState<FieldMirrorMetrics | null>(null)
+
+  useLayoutEffect(() => {
+    if (!enabled) {
+      setMetrics(null)
+      return
+    }
+
+    const el = fieldRef.current
+    if (!el) return
+
+    const sync = (): void => {
+      const next = readFieldMirrorMetrics(el)
+      setMetrics((prev) => (metricsEqual(prev, next) ? prev : next))
+    }
+
+    sync()
+
+    const observer = new ResizeObserver(sync)
+    observer.observe(el)
+    window.addEventListener('resize', sync)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', sync)
+    }
+  }, [enabled, fieldRef, layoutKey])
+
+  useLayoutEffect(() => {
+    if (!enabled) return
+    const el = fieldRef.current
+    if (!el) return
+    const next = readFieldMirrorMetrics(el)
+    setMetrics((prev) => (metricsEqual(prev, next) ? prev : next))
+  }, [enabled, fieldRef, contentKey])
+
+  return metrics
+}
+
 interface SpellMirrorProps {
   text: string
   matches: SpellMatch[]
   multiline?: boolean
   scrollLeft?: number
   scrollTop?: number
-  className?: string
+  metrics: FieldMirrorMetrics | null
 }
 
 function SpellMirror({
@@ -50,16 +164,25 @@ function SpellMirror({
   multiline,
   scrollLeft = 0,
   scrollTop = 0,
-  className
-}: SpellMirrorProps): React.JSX.Element {
+  metrics
+}: SpellMirrorProps): React.JSX.Element | null {
+  if (!metrics) return null
+
   return (
     <div
-      className={cn(
-        'pointer-events-none absolute inset-0 overflow-hidden rounded-md border border-transparent px-3 text-sm shadow-sm',
-        multiline ? 'py-2' : 'py-1',
-        className
-      )}
+      className="pointer-events-none absolute overflow-hidden"
       aria-hidden
+      style={{
+        top: metrics.top,
+        left: metrics.left,
+        width: metrics.width,
+        height: metrics.height,
+        paddingTop: metrics.paddingTop,
+        paddingRight: metrics.paddingRight,
+        paddingBottom: metrics.paddingBottom,
+        paddingLeft: metrics.paddingLeft,
+        boxSizing: 'border-box'
+      }}
     >
       <div
         className={cn(
@@ -71,12 +194,15 @@ function SpellMirror({
             scrollLeft || scrollTop
               ? `translate(${scrollLeft ? -scrollLeft : 0}px, ${scrollTop ? -scrollTop : 0}px)`
               : undefined,
-          lineHeight: 'inherit',
-          fontFamily: 'inherit',
-          fontSize: 'inherit',
-          fontWeight: 'inherit',
-          letterSpacing: 'inherit',
-          wordSpacing: 'inherit'
+          fontFamily: metrics.fontFamily,
+          fontSize: metrics.fontSize,
+          fontWeight: metrics.fontWeight,
+          fontStyle: metrics.fontStyle,
+          lineHeight: metrics.lineHeight,
+          letterSpacing: metrics.letterSpacing,
+          wordSpacing: metrics.wordSpacing,
+          textTransform: metrics.textTransform as React.CSSProperties['textTransform'],
+          textAlign: metrics.textAlign as React.CSSProperties['textAlign']
         }}
       >
         {buildMirrorContent(text, matches)}
@@ -107,6 +233,12 @@ export const SpellCheckedInput = React.forwardRef<HTMLInputElement, SpellChecked
     const innerRef = useRef<HTMLInputElement>(null)
     const text = String(value ?? '')
     const [mirrorScrollLeft, setMirrorScrollLeft] = useState(0)
+    const metrics = useFieldMirrorMetrics(
+      innerRef,
+      spellCheckEnabled,
+      className ?? '',
+      text
+    )
 
     const {
       matches,
@@ -179,7 +311,12 @@ export const SpellCheckedInput = React.forwardRef<HTMLInputElement, SpellChecked
       <>
         <div className="relative">
           {spellCheckEnabled && (
-            <SpellMirror text={text} matches={matches} scrollLeft={mirrorScrollLeft} />
+            <SpellMirror
+              text={text}
+              matches={matches}
+              scrollLeft={mirrorScrollLeft}
+              metrics={metrics}
+            />
           )}
           <Input
             ref={setRefs}
@@ -238,6 +375,12 @@ export const SpellCheckedTextarea = React.forwardRef<
     const innerRef = useRef<HTMLTextAreaElement>(null)
     const text = String(value ?? '')
     const [mirrorScrollTop, setMirrorScrollTop] = useState(0)
+    const metrics = useFieldMirrorMetrics(
+      innerRef,
+      spellCheckEnabled,
+      `${className ?? ''}\0${measureKey ?? ''}\0${rows ?? ''}`,
+      text
+    )
 
     const {
       matches,
@@ -303,7 +446,13 @@ export const SpellCheckedTextarea = React.forwardRef<
       <>
         <div className="relative">
           {spellCheckEnabled && (
-            <SpellMirror text={text} matches={matches} multiline scrollTop={mirrorScrollTop} />
+            <SpellMirror
+              text={text}
+              matches={matches}
+              multiline
+              scrollTop={mirrorScrollTop}
+              metrics={metrics}
+            />
           )}
           <AutoGrowTextarea
             ref={setRefs}
