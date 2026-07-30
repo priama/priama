@@ -90,5 +90,5 @@ export function renderEntryPanel(
   props: EntryPanelRenderProps
 ): React.JSX.Element {
   const Panel = ENTRY_PANEL_REGISTRY[category.id] ?? GenericEntryPanel
-  return <Panel {...props} />
+  return <Panel key={props.nodeId} {...props} />
 }

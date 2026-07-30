@@ -39,13 +39,14 @@ export function resetPersistenceState(): void {
   syncDirtyFlag()
 }
 
-function captureActiveEditorContent(): void {
+/** Capture active editor/note content. When `nodeId` is set, only that node is captured. */
+function captureActiveContent(nodeId?: string): void {
   const active = getActiveEditorContent?.()
-  if (active) {
+  if (active && (nodeId === undefined || active.nodeId === nodeId)) {
     dirtyNodes.set(active.nodeId, { content: active.content })
   }
   const note = getActiveNoteContent?.()
-  if (note) {
+  if (note && (nodeId === undefined || note.nodeId === nodeId)) {
     dirtyNodes.set(note.nodeId, { content: note.content })
   }
 }
@@ -62,17 +63,29 @@ async function persistNode(nodeId: string): Promise<void> {
   const entry = dirtyNodes.get(nodeId)
   if (!entry || persisting.has(nodeId)) return
 
+  const writingContent = entry.content
   persisting.add(nodeId)
   syncDirtyFlag()
 
   try {
-    await window.electronAPI.tree.update(nodeId, { content: entry.content })
-    dirtyNodes.delete(nodeId)
+    await window.electronAPI.tree.update(nodeId, { content: writingContent })
+    const current = dirtyNodes.get(nodeId)
+    // Only clear if nothing newer arrived while we were writing.
+    if (current && current.content === writingContent) {
+      dirtyNodes.delete(nodeId)
+    }
   } catch (err) {
     console.error(`Failed to persist node ${nodeId}:`, err)
   } finally {
     persisting.delete(nodeId)
-    syncDirtyFlag()
+    if (dirtyNodes.has(nodeId)) {
+      // Newer edit landed during the write — persist it immediately.
+      cancelDebounce(nodeId)
+      syncDirtyFlag()
+      void persistNode(nodeId)
+    } else {
+      syncDirtyFlag()
+    }
   }
 }
 
@@ -114,26 +127,18 @@ export function mergeIncomingNodes(incoming: TreeNode[]): TreeNode[] {
     if (dirty) {
       return { ...n, content: dirty.content }
     }
-    if (persisting.has(n.id)) {
-      if (activeEditor?.nodeId === n.id) {
-        return { ...n, content: activeEditor.content }
-      }
-      if (activeNote?.nodeId === n.id) {
-        return { ...n, content: activeNote.content }
-      }
-    }
     return n
   })
 }
 
 export async function flushNode(nodeId: string): Promise<void> {
   cancelDebounce(nodeId)
-  captureActiveEditorContent()
+  captureActiveContent(nodeId)
   await persistNode(nodeId)
 }
 
 export async function flushAllDirty(): Promise<void> {
-  captureActiveEditorContent()
+  captureActiveContent()
   for (const nodeId of debounceTimers.keys()) cancelDebounce(nodeId)
   const ids = [...dirtyNodes.keys()]
   for (const id of ids) {
@@ -144,6 +149,20 @@ export async function flushAllDirty(): Promise<void> {
 export async function flushAndSaveProject(): Promise<SaveResult> {
   await flushAllDirty()
   return window.electronAPI.tomes.saveProject()
+}
+
+/** Test helpers — not for production UI. */
+export const __test__ = {
+  getDirtyContent(nodeId: string): string | undefined {
+    return dirtyNodes.get(nodeId)?.content
+  },
+  isPersisting(nodeId: string): boolean {
+    return persisting.has(nodeId)
+  },
+  async persistNow(nodeId: string): Promise<void> {
+    cancelDebounce(nodeId)
+    await persistNode(nodeId)
+  }
 }
 
 export { AUTOSAVE_INTERVAL_MS }

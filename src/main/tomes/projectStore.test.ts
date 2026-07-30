@@ -448,6 +448,17 @@ describe('updateNode', () => {
     const updated = await updateNode(node.id, { title: 'Ch2' })
     expect(updated.updatedAt).not.toBe(before)
   })
+
+  it('serializes concurrent content and title updates so both persist', async () => {
+    const node = await createNode(null, 'note', 'Draft')
+    const contentPromise = updateNode(node.id, { content: 'Body text' })
+    const titlePromise = updateNode(node.id, { title: 'Final title' })
+    await Promise.all([contentPromise, titlePromise])
+
+    const final = getNode(node.id)!
+    expect(final.content).toBe('Body text')
+    expect(final.title).toBe('Final title')
+  })
 })
 
 describe('moveToTrash', () => {

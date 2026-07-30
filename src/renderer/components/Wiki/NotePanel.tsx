@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect } from 'react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
@@ -46,16 +46,11 @@ export function NotePanel({
     metadataSource,
     nameInputRef: nameRef
   })
-  const [body, setBody] = useState(content)
 
   useEffect(() => {
-    setBody(content)
-  }, [nodeId])
-
-  useEffect(() => {
-    registerActiveNoteContent(() => ({ nodeId, content: body }))
+    registerActiveNoteContent(() => ({ nodeId, content }))
     return () => registerActiveNoteContent(null)
-  }, [nodeId, body])
+  }, [nodeId, content])
 
   const saveFields = useCallback(() => {
     onUpdate({
@@ -65,7 +60,6 @@ export function NotePanel({
   }, [meta, name, title, onUpdate])
 
   const handleBodyChange = (next: string): void => {
-    setBody(next)
     updateNodeInStore(nodeId, { content: next })
     markContentDirty(nodeId, next)
   }
@@ -104,7 +98,7 @@ export function NotePanel({
       <Field label="Content">
         <SpellCheckedTextarea
           measureKey={nodeId}
-          value={body}
+          value={content}
           onChange={(e) => handleBodyChange(e.target.value)}
           rows={3}
           className="font-serif text-base leading-relaxed"

@@ -232,6 +232,7 @@ export function EntityPanel(): React.JSX.Element | null {
     selectedEntryCategoryId,
     categories,
     rightPanelWidth,
+    rightPanelOpen,
     setRightPanelOpen,
     setRightPanelWidth,
     setSelectedEntity,
@@ -241,7 +242,7 @@ export function EntityPanel(): React.JSX.Element | null {
   } = useAppStore()
 
   const activeId = selectedEntryId ?? selectedEntityId
-  const wantsOpen = !!activeId
+  const wantsOpen = !!activeId && rightPanelOpen
 
   const [mounted, setMounted] = useState(wantsOpen)
   const [expanded, setExpanded] = useState(wantsOpen)
@@ -250,15 +251,25 @@ export function EntityPanel(): React.JSX.Element | null {
 
   useEffect(() => {
     if (!activeId) return
-    const liveNode = nodes.find((n) => n.id === activeId)
-    setSnapshot({
-      nodeId: activeId,
-      panelType: selectedEntryId
-        ? 'entry'
-        : (selectedEntityType ?? liveNode?.type ?? 'entry'),
-      entryCategoryId: selectedEntryId ? (selectedEntryCategoryId ?? null) : null
+    setSnapshot((prev) => {
+      const next: PanelSnapshot = {
+        nodeId: activeId,
+        panelType: selectedEntryId
+          ? 'entry'
+          : (selectedEntityType ?? prev?.panelType ?? 'entry'),
+        entryCategoryId: selectedEntryId ? (selectedEntryCategoryId ?? null) : null
+      }
+      if (
+        prev &&
+        prev.nodeId === next.nodeId &&
+        prev.panelType === next.panelType &&
+        prev.entryCategoryId === next.entryCategoryId
+      ) {
+        return prev
+      }
+      return next
     })
-  }, [activeId, selectedEntryId, selectedEntryCategoryId, selectedEntityType, nodes])
+  }, [activeId, selectedEntryId, selectedEntryCategoryId, selectedEntityType])
 
   useEffect(() => {
     if (wantsOpen) {
@@ -498,6 +509,7 @@ export function EntityPanel(): React.JSX.Element | null {
               <div className="p-4">
                 {resolvedPanelType === 'character' && (
                   <CharacterPanel
+                    key={node.id}
                     nodeId={node.id}
                     title={node.title}
                     metadata={characterMeta}
@@ -507,6 +519,7 @@ export function EntityPanel(): React.JSX.Element | null {
                 )}
                 {resolvedPanelType === 'location' && (
                   <LocationPanel
+                    key={node.id}
                     nodeId={node.id}
                     title={node.title}
                     metadata={locationMeta}
@@ -516,6 +529,7 @@ export function EntityPanel(): React.JSX.Element | null {
                 )}
                 {resolvedPanelType === 'lore' && (
                   <LorePanel
+                    key={node.id}
                     nodeId={node.id}
                     title={node.title}
                     metadata={loreMeta}
@@ -525,6 +539,7 @@ export function EntityPanel(): React.JSX.Element | null {
                 )}
                 {resolvedPanelType === 'note' && (
                   <NotePanel
+                    key={node.id}
                     nodeId={node.id}
                     title={node.title}
                     content={node.content}

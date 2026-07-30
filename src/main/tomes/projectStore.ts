@@ -68,6 +68,8 @@ let projectRoot: string | null = null
 let tomesPath: string | null = null
 let manifest: TomesManifest | null = null
 const nodeCache = new Map<string, TreeNode>()
+/** Serialize concurrent updateNode calls per id so patches apply against the latest cache. */
+const nodeUpdateChains = new Map<string, Promise<void>>()
 
 function now(): string {
   return new Date().toISOString()
@@ -582,6 +584,7 @@ export function closeProject(): void {
   tomesPath = null
   manifest = null
   nodeCache.clear()
+  nodeUpdateChains.clear()
 }
 
 export async function deleteProject(primaryPath: string): Promise<{ wasOpen: boolean }> {
@@ -719,35 +722,51 @@ export async function updateNode(
     sortOrder?: number
   }
 ): Promise<TreeNode> {
-  if (!manifest) throw new Error('No project open')
+  const previous = nodeUpdateChains.get(id) ?? Promise.resolve()
+  let result!: TreeNode
 
-  const current = nodeCache.get(id)
-  if (!current) throw new Error(`Node ${id} not found`)
+  const run = previous.catch(() => undefined).then(async () => {
+    if (!manifest) throw new Error('No project open')
 
-  const timestamp = now()
-  const updated: TreeNode = {
-    ...current,
-    title: updates.title ?? current.title,
-    content: updates.content ?? current.content,
-    metadata: updates.metadata ?? current.metadata,
-    parentId: updates.parentId !== undefined ? updates.parentId : current.parentId,
-    sortOrder: updates.sortOrder ?? current.sortOrder,
-    updatedAt: timestamp
-  }
+    const current = nodeCache.get(id)
+    if (!current) throw new Error(`Node ${id} not found`)
 
-  const type = getEntryType(id)
-  const indexKey = indexKeyForType(type)
-  const entry = manifest.index[indexKey].find((e) => e.id === id)
-  if (!entry) throw new Error(`Index entry ${id} not found`)
+    const timestamp = now()
+    const updated: TreeNode = {
+      ...current,
+      title: updates.title ?? current.title,
+      content: updates.content ?? current.content,
+      metadata: updates.metadata ?? current.metadata,
+      parentId: updates.parentId !== undefined ? updates.parentId : current.parentId,
+      sortOrder: updates.sortOrder ?? current.sortOrder,
+      updatedAt: timestamp
+    }
 
-  if (updates.title) entry.title = updates.title
-  if (updates.sortOrder !== undefined) entry.sortOrder = updates.sortOrder
-  if (updates.parentId !== undefined) entry.parentId = updates.parentId
+    const type = getEntryType(id)
+    const indexKey = indexKeyForType(type)
+    const entry = manifest.index[indexKey].find((e) => e.id === id)
+    if (!entry) throw new Error(`Index entry ${id} not found`)
 
-  await writeTxdFile(getTxdPathForNode(updated, entry.filename), nodeToTxd(updated))
-  await writeManifest()
-  nodeCache.set(id, updated)
-  return updated
+    if (updates.title) entry.title = updates.title
+    if (updates.sortOrder !== undefined) entry.sortOrder = updates.sortOrder
+    if (updates.parentId !== undefined) entry.parentId = updates.parentId
+
+    await writeTxdFile(getTxdPathForNode(updated, entry.filename), nodeToTxd(updated))
+    await writeManifest()
+    nodeCache.set(id, updated)
+    result = updated
+  })
+
+  nodeUpdateChains.set(
+    id,
+    run.then(
+      () => undefined,
+      () => undefined
+    )
+  )
+
+  await run
+  return result
 }
 
 export async function deleteNode(id: string): Promise<void> {
