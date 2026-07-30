@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { X } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
@@ -214,6 +214,15 @@ function LorePanel({
   )
 }
 
+const PANEL_TRANSITION_MS = 320
+const PANEL_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)'
+
+type PanelSnapshot = {
+  nodeId: string
+  panelType: string
+  entryCategoryId: string | null
+}
+
 export function EntityPanel(): React.JSX.Element | null {
   const {
     nodes,
@@ -232,10 +241,63 @@ export function EntityPanel(): React.JSX.Element | null {
   } = useAppStore()
 
   const activeId = selectedEntryId ?? selectedEntityId
-  const node = activeId ? nodes.find((n) => n.id === activeId) : null
-  const entryCategory = selectedEntryId
-    ? (categories.find((c) => c.id === selectedEntryCategoryId) ?? null)
-    : null
+  const wantsOpen = !!activeId
+
+  const [mounted, setMounted] = useState(wantsOpen)
+  const [expanded, setExpanded] = useState(wantsOpen)
+  const [snapshot, setSnapshot] = useState<PanelSnapshot | null>(null)
+  const openFrameRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!activeId) return
+    const liveNode = nodes.find((n) => n.id === activeId)
+    setSnapshot({
+      nodeId: activeId,
+      panelType: selectedEntryId
+        ? 'entry'
+        : (selectedEntityType ?? liveNode?.type ?? 'entry'),
+      entryCategoryId: selectedEntryId ? (selectedEntryCategoryId ?? null) : null
+    })
+  }, [activeId, selectedEntryId, selectedEntryCategoryId, selectedEntityType, nodes])
+
+  useEffect(() => {
+    if (wantsOpen) {
+      setMounted(true)
+      if (openFrameRef.current != null) cancelAnimationFrame(openFrameRef.current)
+      openFrameRef.current = requestAnimationFrame(() => {
+        openFrameRef.current = requestAnimationFrame(() => {
+          setExpanded(true)
+          openFrameRef.current = null
+        })
+      })
+      return () => {
+        if (openFrameRef.current != null) {
+          cancelAnimationFrame(openFrameRef.current)
+          openFrameRef.current = null
+        }
+      }
+    }
+
+    setExpanded(false)
+  }, [wantsOpen])
+
+  const displayId = activeId ?? snapshot?.nodeId ?? null
+  const node = displayId ? (nodes.find((n) => n.id === displayId) ?? null) : null
+
+  const resolvedPanelType = wantsOpen
+    ? selectedEntryId
+      ? 'entry'
+      : (selectedEntityType ?? node?.type ?? snapshot?.panelType ?? 'entry')
+    : (snapshot?.panelType ?? node?.type ?? 'entry')
+
+  const resolvedEntryCategory =
+    resolvedPanelType === 'entry'
+      ? categories.find(
+          (c) =>
+            c.id ===
+            (wantsOpen ? selectedEntryCategoryId : snapshot?.entryCategoryId)
+        ) ?? null
+      : null
 
   const characterMeta = useMemo(
     () =>
@@ -299,7 +361,7 @@ export function EntityPanel(): React.JSX.Element | null {
     title?: string
     content?: string
   }) => {
-    if (!node) return
+    if (!node || !wantsOpen) return
     const payload: { metadata?: string; title?: string; content?: string } = {}
     if (updates.metadata) payload.metadata = serializeMetadata(updates.metadata)
     if (updates.title) payload.title = updates.title
@@ -318,7 +380,7 @@ export function EntityPanel(): React.JSX.Element | null {
     metadata: CharacterMeta | LocationMeta | LoreMeta,
     title?: string
   ) => {
-    if (!node) return
+    if (!node || !wantsOpen) return
     const updates: { metadata: string; title?: string } = {
       metadata: serializeMetadata(metadata)
     }
@@ -333,7 +395,7 @@ export function EntityPanel(): React.JSX.Element | null {
     title?: string
     metadata?: string
   }): Promise<void> => {
-    if (!node) return
+    if (!node || !wantsOpen) return
     const payload: { title?: string; metadata?: string } = {}
     if (updates.title) payload.title = updates.title
     if (updates.metadata !== undefined) payload.metadata = updates.metadata
@@ -346,121 +408,150 @@ export function EntityPanel(): React.JSX.Element | null {
     setDirty(true)
   }
 
-  if (!activeId) return null
-
-  if (!node && activeId) {
-    return (
-      <aside
-        className="relative flex h-full shrink-0 flex-col border-l border-border bg-card"
-        style={{ width: rightPanelWidth }}
-      >
-        <div
-          {...handleProps}
-          className={cn(handleProps.className, 'left-0')}
-          style={{ left: 0 }}
-        />
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          <p className="text-sm">{resolvingNode ? 'Loading…' : 'Entry not found'}</p>
-        </div>
-      </aside>
-    )
+  const handleClose = (): void => {
+    setRightPanelOpen(false)
+    if (selectedEntryId) {
+      selectEntry(null, null)
+    } else {
+      setSelectedEntity(null, null)
+    }
   }
 
-  if (!node) return null
+  const handleTransitionEnd = (event: React.TransitionEvent<HTMLElement>): void => {
+    if (event.propertyName !== 'width') return
+    if (event.target !== event.currentTarget) return
+    if (!wantsOpen) {
+      setMounted(false)
+      setSnapshot(null)
+    }
+  }
 
-  const panelType = selectedEntryId ? 'entry' : (selectedEntityType ?? node.type)
+  if (!mounted) return null
+
+  const showLoading = !node && !!activeId
+  const interactive = wantsOpen && expanded
 
   return (
     <aside
-      className="relative flex h-full shrink-0 flex-col border-l border-border bg-card"
-      style={{ width: rightPanelWidth }}
+      className={cn(
+        'relative h-full shrink-0 overflow-hidden border-l border-border bg-card',
+        !expanded && 'border-l-transparent',
+        !interactive && 'pointer-events-none'
+      )}
+      style={{
+        width: expanded ? rightPanelWidth : 0,
+        transition: `width ${PANEL_TRANSITION_MS}ms ${PANEL_EASE}, border-color ${PANEL_TRANSITION_MS}ms ${PANEL_EASE}`
+      }}
+      onTransitionEnd={handleTransitionEnd}
+      aria-hidden={!interactive}
     >
       <div
-        {...handleProps}
-        className={cn(handleProps.className, 'left-0')}
-        style={{ left: 0 }}
-      />
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div>
-          <h2 className="text-sm font-semibold capitalize">
-            {panelType === 'entry' ? (entryCategory?.name ?? 'Entry') : panelType}
-          </h2>
-          <p className="text-xs text-muted-foreground">{node.title}</p>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => {
-              setRightPanelOpen(false)
-              if (selectedEntryId) {
-                selectEntry(null, null)
-              } else {
-                setSelectedEntity(null, null)
-              }
-            }}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        className={cn(
+          'relative flex h-full flex-col',
+          expanded ? 'opacity-100' : 'opacity-0'
+        )}
+        style={{
+          width: rightPanelWidth,
+          transition: `opacity ${PANEL_TRANSITION_MS * 0.7}ms ${PANEL_EASE}`,
+          transitionDelay: expanded ? '40ms' : '0ms'
+        }}
+      >
+        {interactive && (
+          <div
+            {...handleProps}
+            className={cn(handleProps.className, 'left-0')}
+            style={{ left: 0 }}
+          />
+        )}
 
-      <ScrollArea className="flex-1">
-        <div className="p-4">
-          {panelType === 'character' && (
-            <CharacterPanel
-              nodeId={node.id}
-              title={node.title}
-              metadata={characterMeta}
-              metadataSource={node.metadata}
-              onUpdate={handleUpdate}
-            />
-          )}
-          {panelType === 'location' && (
-            <LocationPanel
-              nodeId={node.id}
-              title={node.title}
-              metadata={locationMeta}
-              metadataSource={node.metadata}
-              onUpdate={handleUpdate}
-            />
-          )}
-          {panelType === 'lore' && (
-            <LorePanel
-              nodeId={node.id}
-              title={node.title}
-              metadata={loreMeta}
-              metadataSource={node.metadata}
-              onUpdate={handleUpdate}
-            />
-          )}
-          {panelType === 'note' && (
-            <NotePanel
-              nodeId={node.id}
-              title={node.title}
-              content={node.content}
-              metadata={noteMeta}
-              metadataSource={node.metadata}
-              onUpdate={handleNoteUpdate}
-            />
-          )}
-          {panelType === 'entry' && entryCategory && (
-            renderEntryPanel(entryCategory, {
-              nodeId: node.id,
-              title: node.title,
-              rawMetadata: node.metadata,
-              category: entryCategory,
-              onUpdate: handleEntryUpdate
-            })
-          )}
-          {panelType === 'entry' && !entryCategory && (
-            <p className="text-sm text-muted-foreground">
-              Category not found. It may have been deleted.
+        {showLoading || !node ? (
+          <div className="flex flex-1 items-center justify-center text-muted-foreground">
+            <p className="text-sm">
+              {showLoading ? (resolvingNode ? 'Loading…' : 'Entry not found') : 'Entry not found'}
             </p>
-          )}
-        </div>
-      </ScrollArea>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div>
+                <h2 className="text-sm font-semibold capitalize">
+                  {resolvedPanelType === 'entry'
+                    ? (resolvedEntryCategory?.name ?? 'Entry')
+                    : resolvedPanelType}
+                </h2>
+                <p className="text-xs text-muted-foreground">{node.title}</p>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={handleClose}
+                  tabIndex={interactive ? 0 : -1}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <ScrollArea className="flex-1">
+              <div className="p-4">
+                {resolvedPanelType === 'character' && (
+                  <CharacterPanel
+                    nodeId={node.id}
+                    title={node.title}
+                    metadata={characterMeta}
+                    metadataSource={node.metadata}
+                    onUpdate={handleUpdate}
+                  />
+                )}
+                {resolvedPanelType === 'location' && (
+                  <LocationPanel
+                    nodeId={node.id}
+                    title={node.title}
+                    metadata={locationMeta}
+                    metadataSource={node.metadata}
+                    onUpdate={handleUpdate}
+                  />
+                )}
+                {resolvedPanelType === 'lore' && (
+                  <LorePanel
+                    nodeId={node.id}
+                    title={node.title}
+                    metadata={loreMeta}
+                    metadataSource={node.metadata}
+                    onUpdate={handleUpdate}
+                  />
+                )}
+                {resolvedPanelType === 'note' && (
+                  <NotePanel
+                    nodeId={node.id}
+                    title={node.title}
+                    content={node.content}
+                    metadata={noteMeta}
+                    metadataSource={node.metadata}
+                    onUpdate={handleNoteUpdate}
+                  />
+                )}
+                {resolvedPanelType === 'entry' && resolvedEntryCategory && (
+                  renderEntryPanel(resolvedEntryCategory, {
+                    nodeId: node.id,
+                    title: node.title,
+                    rawMetadata: node.metadata,
+                    category: resolvedEntryCategory,
+                    onUpdate: handleEntryUpdate
+                  })
+                )}
+                {resolvedPanelType === 'entry' && !resolvedEntryCategory && (
+                  <p className="text-sm text-muted-foreground">
+                    Category not found. It may have been deleted.
+                  </p>
+                )}
+              </div>
+            </ScrollArea>
+          </>
+        )}
+      </div>
     </aside>
   )
 }

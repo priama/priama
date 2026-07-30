@@ -173,6 +173,8 @@ function TreeItemRow({
     listeners: ReturnType<typeof useSortable>['listeners']
   }
 }): React.JSX.Element {
+  const contentLeft = treeRowPadding(depth)
+
   return (
     <div
       className={cn(
@@ -182,15 +184,16 @@ function TreeItemRow({
         isSelected ? 'text-accent-foreground' : !overlay && 'text-foreground',
         overlay && 'cursor-grabbing bg-sidebar text-foreground shadow-md ring-1 ring-border'
       )}
-      style={{ paddingLeft: `${treeRowPadding(depth)}px` }}
+      style={{ paddingLeft: `${contentLeft}px` }}
     >
       {!overlay && (
         <span
           aria-hidden="true"
           className={cn(
-            'pointer-events-none absolute inset-x-0 top-0.5 bottom-0.5 -z-10 rounded-md',
+            'pointer-events-none absolute top-0.5 bottom-0.5 right-1 -z-10 rounded-md',
             isSelected ? 'bg-accent' : 'bg-transparent group-hover:bg-accent/50'
           )}
+          style={{ left: `${contentLeft}px` }}
         />
       )}
       {!overlay && (
