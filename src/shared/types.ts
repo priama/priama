@@ -386,6 +386,8 @@ export interface LoreMeta {
 
 export interface NoteMeta {
   tags: string[]
+  /** Persisted content textarea height in px — tracks content size (grows and shrinks). */
+  contentHeightPx?: number
 }
 
 export interface PeopleMeta {
@@ -940,7 +942,12 @@ export function normalizeBestiaryMeta(raw: Partial<BestiaryMeta> & Record<string
 
 export function normalizeNoteMeta(raw: Partial<NoteMeta> & Record<string, unknown>): NoteMeta {
   const tags = Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === 'string') : []
-  return { tags }
+  const height = raw.contentHeightPx
+  const contentHeightPx =
+    typeof height === 'number' && Number.isFinite(height) && height > 0
+      ? Math.round(height)
+      : undefined
+  return contentHeightPx !== undefined ? { tags, contentHeightPx } : { tags }
 }
 
 export const DEFAULT_CHAPTER_META: ChapterMeta = {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
@@ -43,16 +43,25 @@ export function NotePanel({
     metadata,
     metadataSource
   })
+  const heightSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const metaRef = useRef(meta)
+  metaRef.current = meta
 
   useEffect(() => {
     registerActiveNoteContent(() => ({ nodeId, content }))
     return () => registerActiveNoteContent(null)
   }, [nodeId, content])
 
+  useEffect(() => {
+    return () => {
+      if (heightSaveTimerRef.current) clearTimeout(heightSaveTimerRef.current)
+    }
+  }, [nodeId])
+
   const saveFields = useCallback(
-    (nextName: string = name) => {
+    (nextName: string = name, nextMeta: NoteMeta = meta) => {
       onUpdate({
-        metadata: meta,
+        metadata: nextMeta,
         ...(nextName !== title ? { title: nextName } : {})
       })
     },
@@ -63,6 +72,22 @@ export function NotePanel({
     updateNodeInStore(nodeId, { content: next })
     markContentDirty(nodeId, next)
   }
+
+  const handleContentHeightChange = useCallback(
+    (height: number) => {
+      setMeta((prev) => {
+        if (prev.contentHeightPx === height) return prev
+        return { ...prev, contentHeightPx: height }
+      })
+
+      if (heightSaveTimerRef.current) clearTimeout(heightSaveTimerRef.current)
+      heightSaveTimerRef.current = setTimeout(() => {
+        const latest = metaRef.current
+        onUpdate({ metadata: { ...latest, contentHeightPx: height } })
+      }, 300)
+    },
+    [setMeta, onUpdate]
+  )
 
   return (
     <div className="space-y-4">
@@ -97,6 +122,9 @@ export function NotePanel({
           value={content}
           onChange={(e) => handleBodyChange(e.target.value)}
           rows={3}
+          growCap={null}
+          persistedHeight={meta.contentHeightPx ?? null}
+          onHeightChange={handleContentHeightChange}
           className="font-serif text-base leading-relaxed"
         />
       </Field>

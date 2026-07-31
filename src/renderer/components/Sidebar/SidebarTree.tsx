@@ -576,19 +576,33 @@ export function SidebarTree({
                 ) : (
                   treeItem
                 )}
-                {folderNode && expanded && (
-                  <SidebarTree
-                    scope={scope}
-                    parentId={node.id}
-                    depth={depth + 1}
-                    ancestorContinues={childAncestors}
-                    disabled={disabled}
-                    categoryId={categoryId}
-                    menuActions={menuActions}
-                    onAddScene={onAddScene}
-                    onAddEntity={onAddEntity}
-                    onOpenNewWindow={onOpenNewWindow}
-                  />
+                {folderNode && (
+                  <div
+                    className={cn(
+                      'grid transition-[grid-template-rows] duration-200 ease-in-out',
+                      expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'overflow-hidden transition-opacity duration-200 ease-in-out',
+                        expanded ? 'opacity-100' : 'pointer-events-none opacity-0'
+                      )}
+                    >
+                      <SidebarTree
+                        scope={scope}
+                        parentId={node.id}
+                        depth={depth + 1}
+                        ancestorContinues={childAncestors}
+                        disabled={disabled}
+                        categoryId={categoryId}
+                        menuActions={menuActions}
+                        onAddScene={onAddScene}
+                        onAddEntity={onAddEntity}
+                        onOpenNewWindow={onOpenNewWindow}
+                      />
+                    </div>
+                  </div>
                 )}
                 {sceneChapter && scenes.length > 0 && (
                   <div className={cn(
