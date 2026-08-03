@@ -327,6 +327,28 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 
 export const MAX_ENTITY_GALLERY_IMAGES = 30
 
+/** Focal point for object-position on the panel banner (0–100). Image file is never cropped. */
+export interface ImageFocus {
+  x: number
+  y: number
+}
+
+export const DEFAULT_IMAGE_FOCUS: ImageFocus = { x: 50, y: 50 }
+
+function clampFocusAxis(value: number): number {
+  if (!Number.isFinite(value)) return 50
+  return Math.min(100, Math.max(0, value))
+}
+
+export function normalizeImageFocus(raw: unknown): ImageFocus {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_IMAGE_FOCUS }
+  const record = raw as Record<string, unknown>
+  return {
+    x: typeof record.x === 'number' ? clampFocusAxis(record.x) : DEFAULT_IMAGE_FOCUS.x,
+    y: typeof record.y === 'number' ? clampFocusAxis(record.y) : DEFAULT_IMAGE_FOCUS.y
+  }
+}
+
 function normalizeSecondaryImagePaths(
   raw: unknown,
   imagePath: string | null
@@ -360,6 +382,7 @@ export interface CharacterMeta {
   notes: string
   imagePath: string | null
   secondaryImagePaths: string[]
+  imageFocus: ImageFocus
 }
 
 export interface LocationMeta {
@@ -371,6 +394,7 @@ export interface LocationMeta {
   notes: string
   imagePath: string | null
   secondaryImagePaths: string[]
+  imageFocus: ImageFocus
 }
 
 export interface LoreMeta {
@@ -382,6 +406,7 @@ export interface LoreMeta {
   notes: string
   imagePath: string | null
   secondaryImagePaths: string[]
+  imageFocus: ImageFocus
 }
 
 export interface NoteMeta {
@@ -393,6 +418,7 @@ export interface NoteMeta {
 export interface PeopleMeta {
   imagePath: string | null
   secondaryImagePaths: string[]
+  imageFocus: ImageFocus
   knownAs: string
   ethnicity: string
   gender: string
@@ -410,6 +436,7 @@ export interface PeopleMeta {
 export interface BestiaryMeta {
   imagePath: string | null
   secondaryImagePaths: string[]
+  imageFocus: ImageFocus
   /** Creature species/kind (e.g. "Fire Dragon") — not CharacterMeta.race */
   species: string
   /** Creature type classification — not TreeNode.type */
@@ -729,7 +756,8 @@ export const DEFAULT_CHARACTER_META: CharacterMeta = {
   endsAs: '',
   notes: '',
   imagePath: null,
-  secondaryImagePaths: []
+  secondaryImagePaths: [],
+  imageFocus: { ...DEFAULT_IMAGE_FOCUS }
 }
 
 export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<string, unknown>): CharacterMeta {
@@ -766,7 +794,8 @@ export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<stri
     startsAs: typeof raw.startsAs === 'string' ? raw.startsAs : DEFAULT_CHARACTER_META.startsAs,
     endsAs: typeof raw.endsAs === 'string' ? raw.endsAs : DEFAULT_CHARACTER_META.endsAs,
     imagePath,
-    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath),
+    imageFocus: normalizeImageFocus(raw.imageFocus)
   }
 }
 
@@ -778,7 +807,8 @@ export const DEFAULT_LOCATION_META: LocationMeta = {
   notableCharacters: [],
   notes: '',
   imagePath: null,
-  secondaryImagePaths: []
+  secondaryImagePaths: [],
+  imageFocus: { ...DEFAULT_IMAGE_FOCUS }
 }
 
 export function normalizeLocationMeta(raw: Partial<LocationMeta> & Record<string, unknown>): LocationMeta {
@@ -795,7 +825,8 @@ export function normalizeLocationMeta(raw: Partial<LocationMeta> & Record<string
     connectedLocations: Array.isArray(parsed.connectedLocations) ? parsed.connectedLocations : [],
     notableCharacters: Array.isArray(parsed.notableCharacters) ? parsed.notableCharacters : [],
     imagePath,
-    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath),
+    imageFocus: normalizeImageFocus(raw.imageFocus)
   }
 }
 
@@ -807,7 +838,8 @@ export const DEFAULT_LORE_META: LoreMeta = {
   relatedLocations: [],
   notes: '',
   imagePath: null,
-  secondaryImagePaths: []
+  secondaryImagePaths: [],
+  imageFocus: { ...DEFAULT_IMAGE_FOCUS }
 }
 
 export function normalizeLoreMeta(raw: Partial<LoreMeta> & Record<string, unknown>): LoreMeta {
@@ -824,7 +856,8 @@ export function normalizeLoreMeta(raw: Partial<LoreMeta> & Record<string, unknow
     relatedCharacters: Array.isArray(raw.relatedCharacters) ? raw.relatedCharacters.map(String) : [],
     relatedLocations: Array.isArray(raw.relatedLocations) ? raw.relatedLocations.map(String) : [],
     imagePath,
-    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath),
+    imageFocus: normalizeImageFocus(raw.imageFocus)
   }
 }
 
@@ -835,6 +868,7 @@ export const DEFAULT_NOTE_META: NoteMeta = {
 export const DEFAULT_PEOPLE_META: PeopleMeta = {
   imagePath: null,
   secondaryImagePaths: [],
+  imageFocus: { ...DEFAULT_IMAGE_FOCUS },
   knownAs: '',
   ethnicity: '',
   gender: '',
@@ -891,13 +925,15 @@ export function normalizePeopleMeta(raw: Partial<PeopleMeta> & Record<string, un
     notes: typeof raw.notes === 'string' ? raw.notes : DEFAULT_PEOPLE_META.notes,
     relationships,
     imagePath,
-    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath),
+    imageFocus: normalizeImageFocus(raw.imageFocus)
   }
 }
 
 export const DEFAULT_BESTIARY_META: BestiaryMeta = {
   imagePath: null,
   secondaryImagePaths: [],
+  imageFocus: { ...DEFAULT_IMAGE_FOCUS },
   species: '',
   type: '',
   general: '',
@@ -936,7 +972,8 @@ export function normalizeBestiaryMeta(raw: Partial<BestiaryMeta> & Record<string
       typeof raw.weaknesses === 'string' ? raw.weaknesses : DEFAULT_BESTIARY_META.weaknesses,
     notes: typeof raw.notes === 'string' ? raw.notes : DEFAULT_BESTIARY_META.notes,
     imagePath,
-    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath)
+    secondaryImagePaths: normalizeSecondaryImagePaths(raw.secondaryImagePaths, imagePath),
+    imageFocus: normalizeImageFocus(raw.imageFocus)
   }
 }
 

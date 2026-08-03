@@ -86,9 +86,10 @@ function LocationPanel({
         title={name}
         imagePath={meta.imagePath}
         secondaryImagePaths={meta.secondaryImagePaths}
+        imageFocus={meta.imageFocus}
         entityType="location"
-        onImagesChange={({ imagePath, secondaryImagePaths }) =>
-          saveMeta({ ...meta, imagePath, secondaryImagePaths })
+        onImagesChange={({ imagePath, secondaryImagePaths, imageFocus }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths, imageFocus })
         }
       />
 
@@ -163,9 +164,10 @@ function LorePanel({
         title={name}
         imagePath={meta.imagePath}
         secondaryImagePaths={meta.secondaryImagePaths}
+        imageFocus={meta.imageFocus}
         entityType="lore"
-        onImagesChange={({ imagePath, secondaryImagePaths }) =>
-          saveMeta({ ...meta, imagePath, secondaryImagePaths })
+        onImagesChange={({ imagePath, secondaryImagePaths, imageFocus }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths, imageFocus })
         }
       />
 

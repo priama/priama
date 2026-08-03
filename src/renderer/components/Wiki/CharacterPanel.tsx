@@ -189,9 +189,10 @@ export function CharacterPanel({
         title={name}
         imagePath={meta.imagePath}
         secondaryImagePaths={meta.secondaryImagePaths}
+        imageFocus={meta.imageFocus}
         entityType="character"
-        onImagesChange={({ imagePath, secondaryImagePaths }) =>
-          saveMeta({ ...meta, imagePath, secondaryImagePaths })
+        onImagesChange={({ imagePath, secondaryImagePaths, imageFocus }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths, imageFocus })
         }
       />
 
