@@ -57,7 +57,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     } catch (err) {
       console.error('Undo failed:', err)
       set({ isUndoing: false })
-      useToastStore.getState().addToast('Undo failed', 'warning')
+      useToastStore.getState().addToast({ title: 'Undo failed', variant: 'warning' })
     }
   },
 
@@ -78,7 +78,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     } catch (err) {
       console.error('Redo failed:', err)
       set({ isUndoing: false })
-      useToastStore.getState().addToast('Redo failed', 'warning')
+      useToastStore.getState().addToast({ title: 'Redo failed', variant: 'warning' })
     }
   },
 

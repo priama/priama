@@ -555,6 +555,9 @@ export interface ManuscriptChapterRef {
 
 export interface BackupWarning {
   path: string
+  /** Short headline shown in the toast. */
+  title: string
+  /** Supporting detail under the title. */
   message: string
 }
 

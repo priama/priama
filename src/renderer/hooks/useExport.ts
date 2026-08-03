@@ -17,15 +17,23 @@ export function useExport(): {
         await flushAllDirty()
         const result = await window.electronAPI.export.document(options)
         if (result.success) {
-          addToast(result.path ? `Exported to ${result.path}` : 'Export complete', 'default')
+          addToast({
+            title: 'Export complete',
+            description: result.path ? `Saved to ${result.path}` : undefined,
+            variant: 'success'
+          })
           return true
         }
         if (result.message && result.message !== 'Cancelled') {
-          addToast(result.message, 'warning')
+          addToast({ title: 'Export failed', description: result.message, variant: 'warning' })
         }
         return false
       } catch (err) {
-        addToast(err instanceof Error ? err.message : 'Export failed', 'warning')
+        addToast({
+          title: 'Export failed',
+          description: err instanceof Error ? err.message : 'Something went wrong during export.',
+          variant: 'warning'
+        })
         return false
       } finally {
         setExporting(false)

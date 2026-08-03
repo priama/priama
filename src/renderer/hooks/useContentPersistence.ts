@@ -15,14 +15,18 @@ function applySaveResult(
   result: SaveResult,
   setLastSaved: (timestamp: string) => void,
   setBackupWarningCount: (count: number) => void,
-  addToast: (message: string, type: 'warning') => void
+  addToast: (input: { title: string; description?: string; variant?: 'warning' }) => void
 ): void {
   if (result.success) {
     setLastSaved(result.lastSaved)
   }
   if (result.backupWarnings?.length) {
     for (const w of result.backupWarnings) {
-      addToast(w.message, 'warning')
+      addToast({
+        title: w.title,
+        description: w.message,
+        variant: 'warning'
+      })
     }
   }
   setBackupWarningCount(result.unreachableBackupPaths?.length ?? 0)

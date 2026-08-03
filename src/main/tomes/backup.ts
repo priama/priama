@@ -133,6 +133,16 @@ export interface BackupResult {
   unreachablePaths: string[]
 }
 
+function friendlyErrorDetail(err: unknown): string {
+  if (!(err instanceof Error)) return 'Something went wrong while writing the backup file.'
+  const code = (err as NodeJS.ErrnoException).code
+  if (code === 'ENOSPC') return 'The disk appears to be full.'
+  if (code === 'EACCES' || code === 'EPERM') return 'Permission was denied writing to the backups folder.'
+  if (code === 'ENOENT') return 'The backups folder could not be found or created.'
+  if (err.message?.trim()) return err.message.trim()
+  return 'Something went wrong while writing the backup file.'
+}
+
 export async function createProjectBackup(
   projectRoot: string,
   externalDestinations: string[]
@@ -154,7 +164,8 @@ export async function createProjectBackup(
   } catch (err) {
     warnings.push({
       path: localBackupDir,
-      message: `Local backup failed: ${err instanceof Error ? err.message : 'unknown error'}`
+      title: "Couldn't create local backup",
+      message: `Your project may still be saved, but a zip could not be written to the project's backups folder. ${friendlyErrorDetail(err)}`
     })
     return { warnings, unreachablePaths }
   }
@@ -163,11 +174,13 @@ export async function createProjectBackup(
 
   for (const dest of externalDestinations) {
     const status = await checkPathReachable(dest)
+    const destLabel = status.label || dest
     if (!status.reachable || !status.writable) {
       unreachablePaths.push(dest)
       warnings.push({
         path: dest,
-        message: `Backup to ${dest} failed — drive not found`
+        title: 'Backup location unavailable',
+        message: `Couldn't reach "${destLabel}". Connect that drive or folder to keep off-machine copies in sync.`
       })
       continue
     }
@@ -184,7 +197,8 @@ export async function createProjectBackup(
       unreachablePaths.push(dest)
       warnings.push({
         path: dest,
-        message: `Backup to ${dest} failed — drive not found`
+        title: 'Backup location unavailable',
+        message: `Couldn't copy the backup to "${destLabel}". Check that the drive is connected and writable.`
       })
     }
   }

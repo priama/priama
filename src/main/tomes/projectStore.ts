@@ -2,6 +2,7 @@ import { join, extname, relative, resolve, dirname } from 'path'
 import fse from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import type {
+  BackupWarning,
   BookSettings,
   CategoryDefinition,
   CreateProjectInput,
@@ -550,23 +551,27 @@ export async function openProject(tomesFilePath: string): Promise<OpenProjectRes
   const categories = manifest.categories ?? defaultFictionCategories()
   const uiState = sanitizeProjectUiState(getUiState(), nodes, categories)
 
-  const openWarnings: { path: string; message: string }[] = []
+  const openWarnings: BackupWarning[] = []
   if (validation.restoredFromBackup) {
     openWarnings.push({
       path: tomesPath,
-      message: 'Your project file was corrupted and restored from the most recent local backup.'
+      title: 'Restored from backup',
+      message:
+        'Your project file was damaged, so Priama restored it from the most recent local backup zip.'
     })
   }
   if (recovered > 0) {
     openWarnings.push({
       path: tomesPath,
-      message: `Recovered ${recovered} item${recovered === 1 ? '' : 's'} that ${recovered === 1 ? 'was' : 'were'} missing from the project index.`
+      title: 'Recovered missing items',
+      message: `Found and restored ${recovered} item${recovered === 1 ? '' : 's'} that ${recovered === 1 ? 'was' : 'were'} missing from the project index.`
     })
   }
   if (broken > 0) {
     openWarnings.push({
       path: tomesPath,
-      message: `Removed ${broken} project index entr${broken === 1 ? 'y' : 'ies'} pointing to content that no longer exists.`
+      title: 'Cleaned project index',
+      message: `Removed ${broken} index entr${broken === 1 ? 'y' : 'ies'} that pointed to content that no longer exists.`
     })
   }
 
@@ -1106,7 +1111,7 @@ export async function saveProject(): Promise<{
   success: boolean
   lastSaved: string
   backupPath?: string
-  backupWarnings: { path: string; message: string }[]
+  backupWarnings: BackupWarning[]
   unreachableBackupPaths: string[]
 }> {
   if (!manifest || !projectRoot || !tomesPath) {

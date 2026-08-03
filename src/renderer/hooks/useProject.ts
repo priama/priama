@@ -55,7 +55,11 @@ export function useProject(): {
       }
       if (result.backupWarnings?.length) {
         for (const w of result.backupWarnings) {
-          addToast(w.message, 'warning')
+          addToast({
+            title: w.title,
+            description: w.message,
+            variant: 'warning'
+          })
         }
       }
       if (result.unreachableBackupPaths?.length) {
@@ -82,11 +86,15 @@ export function useProject(): {
         await applyOpenProjectResult(result)
         setBackupWarningCount(0)
         for (const w of result.openWarnings ?? []) {
-          addToast(w.message, 'warning')
+          addToast({
+            title: w.title,
+            description: w.message,
+            variant: 'warning'
+          })
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Could not open project'
-        addToast(message, 'warning')
+        addToast({ title: 'Could not open project', description: message, variant: 'warning' })
         throw err
       }
     },
@@ -126,7 +134,11 @@ export function useProject(): {
       await flushAllDirty()
     } catch (err) {
       console.error('Failed to flush before close:', err)
-      addToast('Could not save all changes before closing.', 'warning')
+      addToast({
+        title: 'Could not save all changes',
+        description: 'Some edits may not have been written before closing.',
+        variant: 'warning'
+      })
     }
 
     try {
@@ -146,14 +158,22 @@ export function useProject(): {
       applySaveResult(result)
     } catch (err) {
       console.error('Save failed on close:', err)
-      addToast('Project could not be fully saved before closing.', 'warning')
+      addToast({
+        title: 'Save before close failed',
+        description: 'The project could not be fully saved before closing.',
+        variant: 'warning'
+      })
     }
 
     try {
       await window.electronAPI.tomes.closeProject()
     } catch (err) {
       console.error('Close project failed:', err)
-      addToast('Could not finish closing the project.', 'warning')
+      addToast({
+        title: 'Could not finish closing',
+        description: 'The project may still appear open until you restart.',
+        variant: 'warning'
+      })
     }
 
     setSpellCheckLang('en')
