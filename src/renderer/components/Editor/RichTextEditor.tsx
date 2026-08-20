@@ -8,7 +8,7 @@ import Color from '@tiptap/extension-color'
 import Highlight from '@tiptap/extension-highlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
-import { isSupportedFamily } from './FontDropdown'
+import { isSupportedFamily } from '@shared/types'
 import { EntityMention } from './EntityMention'
 import { BlockStyle } from './BlockStyle'
 import { EditorToolbar } from './EditorToolbar'
@@ -496,8 +496,8 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         />
       )}
       <div className="editor-scroll relative flex-1 overflow-y-auto px-8 py-6">
-        <div className="mx-auto max-w-3xl">
-          <EditorContent editor={editor} className="font-serif text-lg leading-relaxed" />
+        <div className="editor-measure mx-auto">
+          <EditorContent editor={editor} />
         </div>
         {focusChrome && (
           <div className="pointer-events-none absolute bottom-4 right-4 z-10 flex items-center gap-2">

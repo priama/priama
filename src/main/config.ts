@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { join } from 'path'
 import fse from 'fs-extra'
 import type { PriamaConfig, RecentProjectEntry, PriamaPreferences } from '@shared/types'
-import { COVER_COLORS } from '@shared/types'
+import { COVER_COLORS, DEFAULT_EDITOR_APPEARANCE, clampEditorAppearance } from '@shared/types'
 const CONFIG_FILENAME = 'priama-config.json'
 
 function getConfigPath(): string {
@@ -15,8 +15,15 @@ function defaultPreferences(): PriamaPreferences {
     theme: 'dark',
     focusMode: false,
     typewriterScrolling: 'focus',
-    entityHighlights: 'hide-in-focus'
+    entityHighlights: 'hide-in-focus',
+    editorAppearance: { ...DEFAULT_EDITOR_APPEARANCE }
   }
+}
+
+function normalizePreferences(prefs: Partial<PriamaPreferences> | undefined): PriamaPreferences {
+  const merged = { ...defaultPreferences(), ...prefs }
+  merged.editorAppearance = clampEditorAppearance(prefs?.editorAppearance ?? merged.editorAppearance)
+  return merged
 }
 
 function defaultConfig(): PriamaConfig {
@@ -44,7 +51,7 @@ async function loadConfig(): Promise<PriamaConfig> {
     cachedConfig = {
       ...defaultConfig(),
       ...parsed,
-      preferences: { ...defaultPreferences(), ...parsed.preferences }
+      preferences: normalizePreferences(parsed.preferences)
     }
     return cachedConfig
   } catch {
@@ -124,7 +131,16 @@ export async function getBackupLocations(projectId: string): Promise<string[]> {
 
 export async function updatePreferences(updates: Partial<PriamaPreferences>): Promise<PriamaPreferences> {
   const config = await getConfig()
-  config.preferences = { ...config.preferences, ...updates }
+  const next: PriamaPreferences = {
+    ...config.preferences,
+    ...updates,
+    editorAppearance: clampEditorAppearance(
+      updates.editorAppearance !== undefined
+        ? { ...config.preferences.editorAppearance, ...updates.editorAppearance }
+        : config.preferences.editorAppearance
+    )
+  }
+  config.preferences = next
   await saveConfig(config)
   return config.preferences
 }

@@ -17,7 +17,6 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { useAppStore } from '@/store/appStore'
 import { SIDEBAR_MIN_WIDTH } from '@shared/types'
 import { StyleDropdown } from './StyleDropdown'
-import { FontDropdown } from './FontDropdown'
 import { ColorPickerButton, TEXT_COLORS, HIGHLIGHT_COLORS } from './ColorPicker'
 import { cn } from '@/lib/utils'
 
@@ -72,7 +71,6 @@ export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbar
         )}
       >
         <StyleDropdown editor={editor} />
-        <FontDropdown editor={editor} />
 
         <Separator orientation="vertical" className="mx-1 h-6" />
 

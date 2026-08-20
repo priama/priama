@@ -400,13 +400,53 @@ function buildMenu(): void {
           ]
         },
         { type: 'separator' },
+        {
+          label: 'Editor Appearance…',
+          click: () => sendToFocusedWindow('menu:editorAppearance')
+        },
+        {
+          label: 'Bigger Text',
+          accelerator: 'CmdOrCtrl+=',
+          click: () => sendToFocusedWindow('menu:editorSize', 'in')
+        },
+        {
+          label: 'Bigger Text',
+          accelerator: 'CmdOrCtrl+Plus',
+          visible: false,
+          click: () => sendToFocusedWindow('menu:editorSize', 'in')
+        },
+        {
+          label: 'Smaller Text',
+          accelerator: 'CmdOrCtrl+-',
+          click: () => sendToFocusedWindow('menu:editorSize', 'out')
+        },
+        {
+          label: 'Default Text Size',
+          accelerator: 'CmdOrCtrl+0',
+          click: () => sendToFocusedWindow('menu:editorSize', 'reset')
+        },
+        { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
         { role: 'toggleDevTools' },
         { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        {
+          role: 'resetZoom',
+          accelerator: 'Alt+CmdOrCtrl+0'
+        },
+        {
+          role: 'zoomIn',
+          accelerator: 'Alt+CmdOrCtrl+='
+        },
+        {
+          role: 'zoomIn',
+          accelerator: 'Alt+CmdOrCtrl+Plus',
+          visible: false
+        },
+        {
+          role: 'zoomOut',
+          accelerator: 'Alt+CmdOrCtrl+-'
+        },
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]

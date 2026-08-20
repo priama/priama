@@ -52,6 +52,12 @@
     --sidebar: 0 0% 97%;
     --sidebar-foreground: 240 10% 10%;
     --sidebar-border: 240 6% 90%;
+
+    /* Editor appearance (app prefs — not document styles) */
+    --editor-font: Literata, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    --editor-size: 18px;
+    --editor-leading: 1.625;
+    --editor-measure: 80ch;
   }
 
   .dark {
@@ -104,68 +110,114 @@
   }
 }
 
-/* TipTap editor styles */
+/* TipTap editor styles — sizes are em so they scale with --editor-size */
+.editor-measure {
+  max-width: var(--editor-measure);
+}
+
 .prose-editor {
   @apply text-foreground;
+  font-family: var(--editor-font);
+  font-size: var(--editor-size);
+  line-height: var(--editor-leading);
 }
 
 .prose-editor p {
-  @apply mb-4 leading-relaxed;
+  margin-bottom: 1em;
+  line-height: var(--editor-leading);
 }
 
 .prose-editor h1 {
-  @apply mb-4 mt-6 font-serif text-3xl font-semibold;
+  margin: 1.5em 0 1em;
+  font-family: var(--editor-font);
+  font-size: 1.667em;
+  font-weight: 600;
 }
 
 .prose-editor h2 {
-  @apply mb-3 mt-5 font-serif text-2xl font-semibold;
+  margin: 1.4em 0 0.85em;
+  font-family: var(--editor-font);
+  font-size: 1.333em;
+  font-weight: 600;
 }
 
 .prose-editor h3 {
-  @apply mb-2 mt-4 font-serif text-xl font-semibold;
+  margin: 1.25em 0 0.65em;
+  font-family: var(--editor-font);
+  font-size: 1.111em;
+  font-weight: 600;
 }
 
 .prose-editor h4 {
-  @apply mb-2 mt-3 font-serif text-lg font-medium italic text-muted-foreground;
+  margin: 1.1em 0 0.55em;
+  font-family: var(--editor-font);
+  font-size: 1em;
+  font-weight: 500;
+  font-style: italic;
+  @apply text-muted-foreground;
 }
 
 /* Block style variants */
 .prose-editor [data-block-style='title'] {
-  @apply font-serif text-4xl font-bold tracking-tight;
+  font-family: var(--editor-font);
+  font-size: 2em;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
 
 .prose-editor [data-block-style='heading1'] {
-  @apply font-serif text-3xl font-semibold;
+  font-family: var(--editor-font);
+  font-size: 1.667em;
+  font-weight: 600;
 }
 
 .prose-editor [data-block-style='heading2'] {
-  @apply font-serif text-2xl font-semibold;
+  font-family: var(--editor-font);
+  font-size: 1.333em;
+  font-weight: 600;
 }
 
 .prose-editor [data-block-style='heading3'] {
-  @apply font-serif text-xl font-semibold;
+  font-family: var(--editor-font);
+  font-size: 1.111em;
+  font-weight: 600;
 }
 
 .prose-editor [data-block-style='subheading'] {
-  @apply text-lg font-medium italic text-muted-foreground;
+  font-size: 1em;
+  font-weight: 500;
+  font-style: italic;
+  @apply text-muted-foreground;
 }
 
 .prose-editor [data-block-style='caption'] {
-  @apply text-sm text-muted-foreground;
+  font-size: 0.778em;
+  @apply text-muted-foreground;
 }
 
 /* Icon-only sidebar — removed; sidebar keeps layout and truncates at narrow widths */
 
 .prose-editor ul {
-  @apply mb-4 list-disc pl-6;
+  margin: 0 0 1em;
+  padding-left: 1.5em;
+  list-style-type: disc;
+  line-height: var(--editor-leading);
 }
 
 .prose-editor ol {
-  @apply mb-4 list-decimal pl-6;
+  margin: 0 0 1em;
+  padding-left: 1.5em;
+  list-style-type: decimal;
+  line-height: var(--editor-leading);
 }
 
 .prose-editor blockquote {
-  @apply mb-4 border-l-4 border-muted-foreground/30 pl-4 italic text-muted-foreground;
+  margin: 0 0 1em;
+  padding-left: 1em;
+  border-left: 4px solid hsl(var(--muted-foreground) / 0.3);
+  font-style: italic;
+  line-height: var(--editor-leading);
+  @apply text-muted-foreground;
 }
 
 .prose-editor p.is-editor-empty:first-child::before {

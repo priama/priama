@@ -600,12 +600,29 @@ export interface BackupLocationStatus {
 export type TypewriterScrolling = 'off' | 'on' | 'focus'
 export type EntityHighlights = 'on' | 'off' | 'hide-in-focus'
 
+export type {
+  EditorAppearance,
+  EditorFontId,
+  EditorSizeStep
+} from './editorAppearance'
+
+export {
+  DEFAULT_EDITOR_APPEARANCE,
+  EDITOR_FONT_CSS,
+  EDITOR_FONT_IDS,
+  clampEditorAppearance,
+  editorFontCss,
+  isSupportedFamily,
+  stepEditorSize
+} from './editorAppearance'
+
 export interface PriamaPreferences {
   maxBackupsPerLocation: number
   theme: 'light' | 'dark'
   focusMode: boolean
   typewriterScrolling: TypewriterScrolling
   entityHighlights: EntityHighlights
+  editorAppearance: import('./editorAppearance').EditorAppearance
   defaultChapterStructure?: ChapterStructure
   skipChapterStructurePrompt?: boolean
 }

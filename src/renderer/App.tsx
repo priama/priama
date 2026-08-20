@@ -7,6 +7,7 @@ import { StatusBar } from '@/components/UI/StatusBar'
 import { ErrorBoundary } from '@/components/UI/ErrorBoundary'
 import { ExportDialog } from '@/components/Export/ExportDialog'
 import { BookSettingsModal } from '@/components/Settings/BookSettingsModal'
+import { EditorAppearanceModal } from '@/components/Settings/EditorAppearanceModal'
 import { RecentProjectsScreen } from '@/components/Project/RecentProjectsScreen'
 import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
 import { Toaster } from '@/components/UI/toast'
@@ -20,6 +21,7 @@ import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
 import { applyOpenProjectResult } from '@/lib/applyOpenProject'
 import { usePreferencesSync } from '@/hooks/usePreferencesSync'
 import { useFocusMode, useFocusChromeActive } from '@/hooks/useFocusMode'
+import { useEditorAppearance } from '@/hooks/useEditorAppearance'
 import { isWorkspaceWindow } from '@/lib/hashParams'
 import { useSearchParams } from '@/lib/hashParams'
 import { SIDEBAR_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, RIGHT_PANEL_MAX_WIDTH } from '@shared/types'
@@ -36,6 +38,8 @@ export function AppLayout(): React.JSX.Element {
     setShowExportDialog,
     showBookSettingsModal,
     setShowBookSettingsModal,
+    showEditorAppearanceModal,
+    setShowEditorAppearanceModal,
     setSidebarWidth,
     setRightPanelWidth,
     setSelectedNodeId,
@@ -53,6 +57,7 @@ export function AppLayout(): React.JSX.Element {
   useSyncFromMain()
   usePreferencesSync()
   useFocusMode()
+  useEditorAppearance()
   useNavigationSync()
   useNavigationSyncPublisher(isProjectOpen && !isSecondary)
 
@@ -179,6 +184,10 @@ export function AppLayout(): React.JSX.Element {
       </div>
       <ExportDialog open={showExportDialog} onOpenChange={setShowExportDialog} />
       <BookSettingsModal open={showBookSettingsModal} onOpenChange={setShowBookSettingsModal} />
+      <EditorAppearanceModal
+        open={showEditorAppearanceModal}
+        onOpenChange={setShowEditorAppearanceModal}
+      />
       <Toaster />
       {!isSecondary && (
         <QuitWarningModal

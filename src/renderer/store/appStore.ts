@@ -2,16 +2,28 @@ import { create } from 'zustand'
 import type {
   CategoryDefinition,
   ContainerViewMode,
+  EditorAppearance,
   EntityHighlights,
+  EditorSizeStep,
   ProjectMeta,
   TreeNode,
   TypewriterScrolling,
   WikiEntityType
 } from '@shared/types'
-import { DEFAULT_SECTION_ORDER, DEFAULT_EXPANDED_SECTIONS, migrateExpandedSections, migrateSectionOrder, SIDEBAR_MAX_WIDTH } from '@shared/types'
+import {
+  DEFAULT_EDITOR_APPEARANCE,
+  DEFAULT_SECTION_ORDER,
+  DEFAULT_EXPANDED_SECTIONS,
+  clampEditorAppearance,
+  migrateExpandedSections,
+  migrateSectionOrder,
+  SIDEBAR_MAX_WIDTH,
+  stepEditorSize
+} from '@shared/types'
 import { isValidContainerId, pruneContainerNavigation } from '@shared/projectUiState'
 import type { RenameSession, RenameSurface, RenamePhase } from '@/lib/renameSession'
 import { createRenameSession } from '@/lib/renameSession'
+import { applyEditorAppearanceToDocument } from '@/lib/editorAppearance'
 
 /** @deprecated Prefer RenameSurface — kept for call-site compatibility during migration. */
 export type PendingRenameTarget = RenameSurface
@@ -42,6 +54,7 @@ interface AppState {
   focusMode: boolean
   typewriterScrolling: TypewriterScrolling
   entityHighlights: EntityHighlights
+  editorAppearance: EditorAppearance
   sidebarWidth: number
   rightPanelWidth: number
   rightPanelOpen: boolean
@@ -49,6 +62,7 @@ interface AppState {
   showNewProjectModal: boolean
   showExportDialog: boolean
   showBookSettingsModal: boolean
+  showEditorAppearanceModal: boolean
 
   containerHistory: string[]
   containerHistoryIndex: number
@@ -95,16 +109,23 @@ interface AppState {
     entityHighlights: EntityHighlights,
     options?: { persist?: boolean }
   ) => void
+  setEditorAppearance: (
+    updates: Partial<EditorAppearance>,
+    options?: { persist?: boolean }
+  ) => void
+  stepEditorSize: (direction: EditorSizeStep, options?: { persist?: boolean }) => void
   applyWritingPreferences: (prefs: {
     theme?: 'light' | 'dark'
     focusMode?: boolean
     typewriterScrolling?: TypewriterScrolling
     entityHighlights?: EntityHighlights
+    editorAppearance?: EditorAppearance
   }) => void
   setRightPanelOpen: (open: boolean) => void
   setShowNewProjectModal: (show: boolean) => void
   setShowExportDialog: (show: boolean) => void
   setShowBookSettingsModal: (show: boolean) => void
+  setShowEditorAppearanceModal: (show: boolean) => void
   setSidebarWidth: (width: number) => void
   setRightPanelWidth: (width: number) => void
   applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
@@ -168,12 +189,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   focusMode: false,
   typewriterScrolling: 'focus' as TypewriterScrolling,
   entityHighlights: 'hide-in-focus' as EntityHighlights,
+  editorAppearance: { ...DEFAULT_EDITOR_APPEARANCE },
   sidebarWidth: SIDEBAR_MAX_WIDTH,
   rightPanelWidth: 320,
   rightPanelOpen: true,
   showNewProjectModal: false,
   showExportDialog: false,
   showBookSettingsModal: false,
+  showEditorAppearanceModal: false,
 
   renameSession: null,
 
@@ -415,6 +438,22 @@ export const useAppStore = create<AppState>((set, get) => ({
       void window.electronAPI.tomes.updatePreferences({ entityHighlights })
     }
   },
+  setEditorAppearance: (updates, options) => {
+    const next = clampEditorAppearance({ ...get().editorAppearance, ...updates })
+    applyEditorAppearanceToDocument(next)
+    set({ editorAppearance: next })
+    if (options?.persist !== false) {
+      void window.electronAPI.tomes.updatePreferences({ editorAppearance: next })
+    }
+  },
+  stepEditorSize: (direction, options) => {
+    const next = stepEditorSize(get().editorAppearance, direction)
+    applyEditorAppearanceToDocument(next)
+    set({ editorAppearance: next })
+    if (options?.persist !== false) {
+      void window.electronAPI.tomes.updatePreferences({ editorAppearance: next })
+    }
+  },
   applyWritingPreferences: (prefs) => {
     if (prefs.theme !== undefined) {
       document.documentElement.classList.toggle('dark', prefs.theme === 'dark')
@@ -425,19 +464,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (prefs.entityHighlights !== undefined) {
       document.documentElement.dataset.entityHighlights = prefs.entityHighlights
     }
+    if (prefs.editorAppearance !== undefined) {
+      applyEditorAppearanceToDocument(prefs.editorAppearance)
+    }
     set({
       ...(prefs.theme !== undefined ? { theme: prefs.theme } : {}),
       ...(prefs.focusMode !== undefined ? { focusMode: prefs.focusMode } : {}),
       ...(prefs.typewriterScrolling !== undefined
         ? { typewriterScrolling: prefs.typewriterScrolling }
         : {}),
-      ...(prefs.entityHighlights !== undefined ? { entityHighlights: prefs.entityHighlights } : {})
+      ...(prefs.entityHighlights !== undefined ? { entityHighlights: prefs.entityHighlights } : {}),
+      ...(prefs.editorAppearance !== undefined
+        ? { editorAppearance: clampEditorAppearance(prefs.editorAppearance) }
+        : {})
     })
   },
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setShowNewProjectModal: (show) => set({ showNewProjectModal: show }),
   setShowExportDialog: (show) => set({ showExportDialog: show }),
   setShowBookSettingsModal: (show) => set({ showBookSettingsModal: show }),
+  setShowEditorAppearanceModal: (show) => set({ showEditorAppearanceModal: show }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
 

@@ -1,13 +1,14 @@
 import { useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
-import type { PriamaPreferences } from '@shared/types'
+import { DEFAULT_EDITOR_APPEARANCE, type PriamaPreferences } from '@shared/types'
 
 function applyFromConfig(prefs: PriamaPreferences): void {
   useAppStore.getState().applyWritingPreferences({
     theme: prefs.theme,
     focusMode: prefs.focusMode,
     typewriterScrolling: prefs.typewriterScrolling,
-    entityHighlights: prefs.entityHighlights
+    entityHighlights: prefs.entityHighlights,
+    editorAppearance: prefs.editorAppearance ?? DEFAULT_EDITOR_APPEARANCE
   })
 }
 
