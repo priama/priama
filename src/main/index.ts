@@ -90,7 +90,9 @@ let writingMenuState: WritingMenuState = {
   focusMode: false,
   focusModeEnabled: false,
   typewriterScrolling: 'focus',
-  entityHighlights: 'hide-in-focus'
+  entityHighlights: 'hide-in-focus',
+  canSplitDocument: false,
+  canMergeWithNext: false
 }
 
 function aliveWindow(win: BrowserWindow | null | undefined): BrowserWindow | null {
@@ -251,6 +253,11 @@ function applyWritingMenuState(state: WritingMenuState): void {
       const item = menu.getMenuItemById(id)
       if (item) item.checked = state.entityHighlights === value
     }
+
+    const splitItem = menu.getMenuItemById('split-document')
+    if (splitItem) splitItem.enabled = state.canSplitDocument
+    const mergeItem = menu.getMenuItemById('merge-with-next')
+    if (mergeItem) mergeItem.enabled = state.canMergeWithNext
   } catch {
     // Menu torn down during quit / reload.
   }
@@ -331,7 +338,22 @@ function buildMenu(): void {
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        { role: 'selectAll' }
+        { role: 'selectAll' },
+        { type: 'separator' },
+        {
+          id: 'split-document',
+          label: 'Split Document',
+          accelerator: 'CmdOrCtrl+\\',
+          enabled: writingMenuState.canSplitDocument,
+          click: () => sendToFocusedWindow('menu:splitDocument')
+        },
+        {
+          id: 'merge-with-next',
+          label: 'Merge with Next',
+          accelerator: 'Alt+CmdOrCtrl+M',
+          enabled: writingMenuState.canMergeWithNext,
+          click: () => sendToFocusedWindow('menu:mergeWithNext')
+        }
       ]
     },
     {

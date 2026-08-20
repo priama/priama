@@ -4,6 +4,8 @@ import {
   focusChromeActive,
   isWritingSurfaceOpen
 } from '@/lib/writingSurface'
+import { syncWritingMenuState } from '@/lib/writingMenuSync'
+import { mergeWithNext, splitDocumentAtCaret } from '@/lib/documentActions'
 import type { EntityHighlights, TypewriterScrolling } from '@shared/types'
 
 /**
@@ -41,13 +43,8 @@ export function useFocusMode(): void {
   }, [chromeActive, entityHighlights])
 
   useEffect(() => {
-    void window.electronAPI.app.setWritingMenuState({
-      focusMode,
-      focusModeEnabled: writingSurfaceOpen,
-      typewriterScrolling,
-      entityHighlights
-    })
-  }, [focusMode, writingSurfaceOpen, typewriterScrolling, entityHighlights])
+    syncWritingMenuState()
+  }, [focusMode, writingSurfaceOpen, typewriterScrolling, entityHighlights, selectedNodeId, nodes])
 
   useEffect(() => {
     const unsubToggle = window.electronAPI.on('menu:toggleFocusMode', () => {
@@ -83,10 +80,19 @@ export function useFocusMode(): void {
       }
     )
 
+    const unsubSplit = window.electronAPI.on('menu:splitDocument', () => {
+      void splitDocumentAtCaret()
+    })
+    const unsubMerge = window.electronAPI.on('menu:mergeWithNext', () => {
+      void mergeWithNext()
+    })
+
     return () => {
       unsubToggle()
       unsubTypewriter()
       unsubHighlights()
+      unsubSplit()
+      unsubMerge()
     }
   }, [])
 

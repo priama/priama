@@ -116,7 +116,6 @@ interface SidebarTreeProps {
   menuActions: SidebarMenuActions
   onAddScene?: (chapterId: string) => void
   onAddEntity?: () => void
-  onOpenNewWindow: (node: TreeNode) => void
 }
 
 interface ConfirmState {
@@ -179,7 +178,7 @@ function TreeItemRow({
     <div
       className={cn(
         'group relative isolate flex min-w-0 items-center gap-0.5 rounded-md py-1 pr-2 select-none',
-        isFolderNode ? 'text-sm' : 'text-xs',
+        isFolderNode || node.type === 'chapter' ? 'text-sm' : 'text-xs',
         !overlay && 'cursor-pointer',
         isSelected ? 'text-accent-foreground' : !overlay && 'text-foreground',
         overlay && 'cursor-grabbing bg-sidebar text-foreground shadow-md ring-1 ring-border'
@@ -251,7 +250,6 @@ function SortableTreeItem({
   onSelect,
   onRename,
   onMoveToTrash,
-  onOpenNewWindow,
   menuActions,
   trailingAction,
   className
@@ -268,7 +266,6 @@ function SortableTreeItem({
   onSelect: () => void
   onRename: () => void
   onMoveToTrash: () => void
-  onOpenNewWindow: () => void
   menuActions: SidebarMenuActions
   trailingAction?: React.ReactNode
   className?: string
@@ -285,7 +282,6 @@ function SortableTreeItem({
       variant={isFolderNode ? 'folder' : isWikiEntityType(node.type) ? 'wikiRow' : 'manuscript'}
       node={node}
       onRename={onRename}
-      onOpenNewWindow={isFolderNode ? undefined : onOpenNewWindow}
       onMoveToTrash={onMoveToTrash}
       {...contextMenuActions}
     >
@@ -325,8 +321,7 @@ export function SidebarTree({
   categoryId,
   menuActions,
   onAddScene,
-  onAddEntity,
-  onOpenNewWindow
+  onAddEntity
 }: SidebarTreeProps): React.JSX.Element {
   const {
     nodes,
@@ -457,7 +452,9 @@ export function SidebarTree({
   }
 
   const renderLocalRenameInput = (id: string): React.JSX.Element => {
-    const isFolderRename = nodes.find((n) => n.id === id)?.type === 'folder'
+    const renameNode = nodes.find((n) => n.id === id)
+    const largeRename =
+      renameNode?.type === 'folder' || renameNode?.type === 'chapter'
     return (
       <input
         autoFocus
@@ -471,7 +468,7 @@ export function SidebarTree({
         }}
         className={cn(
           'mx-2 mb-1 w-[calc(100%-16px)] rounded border border-input bg-background px-2 py-1',
-          isFolderRename ? 'text-sm' : 'text-xs'
+          largeRename ? 'text-sm' : 'text-xs'
         )}
         style={{ marginLeft: `${treeRowPadding(depth)}px` }}
       />
@@ -513,7 +510,7 @@ export function SidebarTree({
                     enabled={!disabled}
                     inputClassName={cn(
                       'mx-2 mb-1 w-[calc(100%-16px)]',
-                      isFolder(node) ? 'text-sm' : 'text-xs'
+                      isFolder(node) || node.type === 'chapter' ? 'text-sm' : 'text-xs'
                     )}
                     inputStyle={{ marginLeft: `${treeRowPadding(depth)}px` }}
                     localEditor={renderLocalRenameInput(node.id)}
@@ -542,7 +539,6 @@ export function SidebarTree({
                       /* selection cleared by store sync */
                     })
                   }
-                  onOpenNewWindow={() => onOpenNewWindow(node)}
                   menuActions={menuActions}
                   className={isLast && scenes.length === 0 ? 'mb-1' : undefined}
                   trailingAction={
@@ -567,7 +563,7 @@ export function SidebarTree({
                     enabled={!disabled}
                     inputClassName={cn(
                       'mx-2 mb-1 w-[calc(100%-16px)]',
-                      folderNode ? 'text-sm' : 'text-xs'
+                      folderNode || node.type === 'chapter' ? 'text-sm' : 'text-xs'
                     )}
                     inputStyle={{ marginLeft: `${treeRowPadding(depth)}px` }}
                   >
@@ -599,7 +595,6 @@ export function SidebarTree({
                         menuActions={menuActions}
                         onAddScene={onAddScene}
                         onAddEntity={onAddEntity}
-                        onOpenNewWindow={onOpenNewWindow}
                       />
                     </div>
                   </div>
@@ -627,7 +622,6 @@ export function SidebarTree({
                         setRenamingId={setRenamingId}
                         startRename={startRename}
                         confirmTrash={confirmTrash}
-                        onOpenNewWindow={onOpenNewWindow}
                         onAddScene={onAddScene}
                         disabled={disabled}
                       />
@@ -680,7 +674,6 @@ function SceneList({
   setRenamingId,
   startRename,
   confirmTrash,
-  onOpenNewWindow,
   onAddScene,
   disabled
 }: {
@@ -697,7 +690,6 @@ function SceneList({
   setRenamingId: (id: string | null) => void
   startRename: (node: TreeNode) => void
   confirmTrash: (node: TreeNode, onConfirm: () => Promise<void>) => void
-  onOpenNewWindow: (node: TreeNode) => void
   onAddScene?: (chapterId: string) => void
   disabled?: boolean
 }): React.JSX.Element {
@@ -771,7 +763,6 @@ function SceneList({
                   /* selection cleared by store sync */
                 })
               }
-              onOpenNewWindow={() => onOpenNewWindow(scene)}
               menuActions={menuActions}
               className={isLastChapter && sceneIndex === scenes.length - 1 ? 'mb-1' : undefined}
               trailingAction={

@@ -1,5 +1,5 @@
 import * as ContextMenu from '@radix-ui/react-context-menu'
-import { ArrowRightLeft, ExternalLink, FolderInput, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, FolderInput, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import type { TreeNode } from '@shared/types'
 
 type TreeMenuVariant = 'manuscript' | 'wiki' | 'folder' | 'trash' | 'wikiRow'
@@ -21,7 +21,8 @@ interface TreeContextMenuProps {
   onConvertToSimpleChapter?: () => void
   onConvertToSceneChapter?: () => void
   onConvertSimpleToSceneChapter?: () => void
-  onOpenNewWindow?: () => void
+  onConvertScenesChapterToSimple?: () => void
+  onMergeWithNext?: () => void
   onMoveToTrash?: () => void
   onRecover?: () => void
   onPermanentDelete?: () => void
@@ -40,7 +41,8 @@ export function TreeContextMenu({
   onConvertToSimpleChapter,
   onConvertToSceneChapter,
   onConvertSimpleToSceneChapter,
-  onOpenNewWindow,
+  onConvertScenesChapterToSimple,
+  onMergeWithNext,
   onMoveToTrash,
   onRecover,
   onPermanentDelete,
@@ -180,16 +182,25 @@ export function TreeContextMenu({
                   Convert to chapter with scenes
                 </ContextMenu.Item>
               )}
-              {onOpenNewWindow && variant !== 'folder' && (
+              {onConvertScenesChapterToSimple && (
                 <ContextMenu.Item
                   className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
-                  onSelect={onOpenNewWindow}
+                  onSelect={onConvertScenesChapterToSimple}
                 >
-                  <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                  Open in new window
+                  <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />
+                  Convert to simple chapter
                 </ContextMenu.Item>
               )}
-              {(onRename || onMoveTo || onOpenNewWindow) && onMoveToTrash && (
+              {onMergeWithNext && (
+                <ContextMenu.Item
+                  className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                  onSelect={onMergeWithNext}
+                >
+                  <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />
+                  Merge with Next
+                </ContextMenu.Item>
+              )}
+              {(onRename || onMoveTo) && onMoveToTrash && (
                 <ContextMenu.Separator className="my-1 h-px bg-border" />
               )}
               {onMoveToTrash && (
@@ -223,7 +234,7 @@ export function EmptyAreaContextMenu({
       <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className="z-50 min-w-[200px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
-          {items.map((item, i) => (
+          {items.map((item) => (
             <ContextMenu.Item
               key={item.label}
               className={`flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent ${

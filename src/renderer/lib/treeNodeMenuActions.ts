@@ -1,9 +1,17 @@
 import { makeReparentCommand } from '@/lib/commands'
-import { getFolderScope, getSceneChapters, isSimpleChapter } from '@/lib/treeUtils'
+import { getFolderScope, getSceneChapters, isSimpleChapter, isChapterFolder } from '@/lib/treeUtils'
+import { canMergeWithNext } from '@/lib/splitMerge'
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import type { FolderScope, TreeNode } from '@shared/types'
 import type { MoveToFolder } from '@/components/Tree/TreeContextMenu'
+import {
+  convertSceneToSceneChapter as promoteToScenesChapter,
+  convertSceneToSimpleChapter as promoteToSimpleChapter,
+  convertSimpleToSceneChapter as convertSimpleInPlace,
+  convertScenesChapterToSimple,
+  mergeWithNext
+} from '@/lib/documentActions'
 
 export const MOVE_TO_ROOT = '__root__'
 
@@ -19,6 +27,8 @@ export type SidebarMenuActions = {
   onConvertToSimpleChapter?: (node: TreeNode) => void
   onConvertToSceneChapter?: (node: TreeNode) => void
   onConvertSimpleToSceneChapter?: (node: TreeNode) => void
+  onConvertScenesChapterToSimple?: (node: TreeNode) => void
+  onMergeWithNext?: (node: TreeNode) => void
   onMoveTo?: (node: TreeNode) => void
 }
 
@@ -49,6 +59,8 @@ export type TreeContextMenuActionProps = {
   onConvertToSimpleChapter?: () => void
   onConvertToSceneChapter?: () => void
   onConvertSimpleToSceneChapter?: () => void
+  onConvertScenesChapterToSimple?: () => void
+  onMergeWithNext?: () => void
 }
 
 export function buildTreeContextMenuActions(
@@ -57,14 +69,19 @@ export function buildTreeContextMenuActions(
 ): TreeContextMenuActionProps {
   const baseFolders = node.parentId ? actions.foldersNested : actions.foldersAtRoot
   const isManuscript = actions.scope === 'manuscript'
+  const nodes = useAppStore.getState().nodes
+
+  const isScene = node.type === 'scene'
 
   return {
-    onMoveTo:
-      node.type === 'scene' && actions.onMoveTo ? () => actions.onMoveTo!(node) : undefined,
-    moveToFolders: baseFolders.filter(
-      (f) => f.id !== node.id && (node.parentId ? f.id !== node.parentId : f.id !== MOVE_TO_ROOT)
-    ),
-    onMoveToFolder: (folderId) => actions.onMoveToFolder(node, folderId),
+    onMoveTo: isScene && actions.onMoveTo ? () => actions.onMoveTo!(node) : undefined,
+    // Scenes belong under chapters only — never offer folder / manuscript-root reparent.
+    moveToFolders: isScene
+      ? undefined
+      : baseFolders.filter(
+          (f) => f.id !== node.id && (node.parentId ? f.id !== node.parentId : f.id !== MOVE_TO_ROOT)
+        ),
+    onMoveToFolder: isScene ? undefined : (folderId) => actions.onMoveToFolder(node, folderId),
     moveToChapters:
       node.type === 'scene' && actions.sceneChapters
         ? actions.sceneChapters.filter((c) => c.id !== node.parentId)
@@ -87,6 +104,19 @@ export function buildTreeContextMenuActions(
       isManuscript &&
       actions.onConvertSimpleToSceneChapter
         ? () => actions.onConvertSimpleToSceneChapter!(node)
+        : undefined,
+    onConvertScenesChapterToSimple:
+      node.type === 'chapter' &&
+      isChapterFolder(node) &&
+      isManuscript &&
+      actions.onConvertScenesChapterToSimple
+        ? () => actions.onConvertScenesChapterToSimple!(node)
+        : undefined,
+    onMergeWithNext:
+      isManuscript &&
+      actions.onMergeWithNext &&
+      canMergeWithNext(node, nodes)
+        ? () => actions.onMergeWithNext!(node)
         : undefined
   }
 }
@@ -112,55 +142,23 @@ export async function moveSceneToChapter(scene: TreeNode, chapterId: string): Pr
 }
 
 export async function convertSceneToSimpleChapter(scene: TreeNode): Promise<void> {
-  const { nodes, setNodes, setSelectedNodeId } = useAppStore.getState()
-  const chapterParent = scene.parentId ? nodes.find((n) => n.id === scene.parentId) : null
-  const newChapter = await window.electronAPI.tree.create(
-    chapterParent?.parentId ?? null,
-    'chapter',
-    scene.title,
-    { metadata: JSON.stringify({ structure: 'simple' }) }
-  )
-  await window.electronAPI.tree.update(newChapter.id, { content: scene.content })
-  await window.electronAPI.tree.moveToTrash(scene.id)
-  const all = await window.electronAPI.tree.getAll()
-  setNodes(all)
-  setSelectedNodeId(newChapter.id)
+  await promoteToSimpleChapter(scene)
 }
 
 export async function convertSceneToSceneChapter(scene: TreeNode): Promise<void> {
-  const { nodes, setNodes, setSelectedNodeId } = useAppStore.getState()
-  const chapterParent = scene.parentId ? nodes.find((n) => n.id === scene.parentId) : null
-  const newChapter = await window.electronAPI.tomes.createChapter(
-    'scenes',
-    chapterParent?.parentId ?? null
-  )
-  await window.electronAPI.tree.update(newChapter.id, { title: scene.title })
-  const newScenes = (await window.electronAPI.tree.getAll()).filter(
-    (n) => !n.deletedAt && n.type === 'scene' && n.parentId === newChapter.id
-  )
-  if (newScenes.length > 0) {
-    await window.electronAPI.tree.update(newScenes[0].id, {
-      content: scene.content,
-      title: scene.title
-    })
-  }
-  await window.electronAPI.tree.moveToTrash(scene.id)
-  const all = await window.electronAPI.tree.getAll()
-  setNodes(all)
-  setSelectedNodeId(newChapter.id)
+  await promoteToScenesChapter(scene)
 }
 
 export async function convertSimpleToSceneChapter(chapter: TreeNode): Promise<void> {
-  const { setNodes, setSelectedNodeId } = useAppStore.getState()
-  await window.electronAPI.tree.update(chapter.id, {
-    metadata: JSON.stringify({ structure: 'scenes' })
-  })
-  const firstScene = await window.electronAPI.tree.create(chapter.id, 'scene', chapter.title)
-  await window.electronAPI.tree.update(firstScene.id, { content: chapter.content })
-  await window.electronAPI.tree.update(chapter.id, { content: '' })
-  const all = await window.electronAPI.tree.getAll()
-  setNodes(all)
-  setSelectedNodeId(chapter.id)
+  await convertSimpleInPlace(chapter)
+}
+
+export async function convertScenesChapterToSimpleChapter(chapter: TreeNode): Promise<void> {
+  await convertScenesChapterToSimple(chapter)
+}
+
+export async function mergeNodeWithNext(node: TreeNode): Promise<void> {
+  await mergeWithNext(node)
 }
 
 export function buildManuscriptSidebarMenuActions(
@@ -171,6 +169,8 @@ export function buildManuscriptSidebarMenuActions(
     onConvertToSimpleChapter: (node: TreeNode) => void
     onConvertToSceneChapter: (node: TreeNode) => void
     onConvertSimpleToSceneChapter: (node: TreeNode) => void
+    onConvertScenesChapterToSimple: (node: TreeNode) => void
+    onMergeWithNext: (node: TreeNode) => void
     onMoveTo: (node: TreeNode) => void
   }
 ): SidebarMenuActions {

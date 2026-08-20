@@ -632,6 +632,8 @@ export interface WritingMenuState {
   focusModeEnabled: boolean
   typewriterScrolling: TypewriterScrolling
   entityHighlights: EntityHighlights
+  canSplitDocument: boolean
+  canMergeWithNext: boolean
 }
 
 export type ChapterStructure = 'simple' | 'scenes'

@@ -21,6 +21,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { ChevronLeft, ChevronRight, Folder, GripVertical, LayoutGrid, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { countNodeWords, isFolder, isChapterFolder, isSimpleChapter, stripNodeContentPreview } from '@/lib/treeUtils'
+import { canMergeWithNext } from '@/lib/splitMerge'
 import { useAppStore } from '@/store/appStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { makeRenameCommand } from '@/lib/commands'
@@ -76,7 +77,8 @@ interface ContainerViewProps {
   onConvertToSimpleChapter?: (node: TreeNode) => void
   onConvertToSceneChapter?: (node: TreeNode) => void
   onConvertSimpleToSceneChapter?: (node: TreeNode) => void
-  onOpenNewWindow?: (node: TreeNode) => void
+  onConvertScenesChapterToSimple?: (node: TreeNode) => void
+  onMergeWithNext?: (node: TreeNode) => void
   onMoveToTrash?: (node: TreeNode) => void
   onRecover?: (node: TreeNode) => void
   onPermanentDelete?: (node: TreeNode) => void
@@ -113,7 +115,8 @@ type ItemMenuProps = {
   onConvertToSimpleChapter?: () => void
   onConvertToSceneChapter?: () => void
   onConvertSimpleToSceneChapter?: () => void
-  onOpenNewWindow?: () => void
+  onConvertScenesChapterToSimple?: () => void
+  onMergeWithNext?: () => void
   onMoveToTrash?: () => void
   onRecover?: () => void
   onPermanentDelete?: () => void
@@ -273,7 +276,8 @@ function wrapItemMenu(
     onConvertToSimpleChapter,
     onConvertToSceneChapter,
     onConvertSimpleToSceneChapter,
-    onOpenNewWindow,
+    onConvertScenesChapterToSimple,
+    onMergeWithNext,
     onMoveToTrash,
     onRecover,
     onPermanentDelete,
@@ -305,7 +309,7 @@ function wrapItemMenu(
 
   if (readOnly) return children
 
-  const folderNode = isFolder(node)
+  const nodes = useAppStore.getState().nodes
 
   return (
     <TreeContextMenu
@@ -313,14 +317,23 @@ function wrapItemMenu(
       node={node}
       onRename={onRename}
       onMoveTo={node.type === 'scene' ? onMoveTo : undefined}
-      moveToFolders={moveToFolders?.filter((f) => f.id !== node.id && (node.parentId ? f.id !== node.parentId : f.id !== '__root__'))}
-      onMoveToFolder={onMoveToFolder}
+      moveToFolders={
+        node.type === 'scene'
+          ? undefined
+          : moveToFolders?.filter(
+              (f) => f.id !== node.id && (node.parentId ? f.id !== node.parentId : f.id !== '__root__')
+            )
+      }
+      onMoveToFolder={node.type === 'scene' ? undefined : onMoveToFolder}
       moveToChapters={node.type === 'scene' ? moveToChapters?.filter((c) => c.id !== node.parentId) : undefined}
       onMoveToChapter={node.type === 'scene' ? onMoveToChapter : undefined}
       onConvertToSimpleChapter={node.type === 'scene' ? onConvertToSimpleChapter : undefined}
       onConvertToSceneChapter={node.type === 'scene' ? onConvertToSceneChapter : undefined}
       onConvertSimpleToSceneChapter={node.type === 'chapter' && isSimpleChapter(node) ? onConvertSimpleToSceneChapter : undefined}
-      onOpenNewWindow={folderNode ? undefined : onOpenNewWindow}
+      onConvertScenesChapterToSimple={
+        node.type === 'chapter' && isChapterFolder(node) ? onConvertScenesChapterToSimple : undefined
+      }
+      onMergeWithNext={canMergeWithNext(node, nodes) ? onMergeWithNext : undefined}
       onMoveToTrash={() =>
         onConfirm({
           title: 'Move to trash?',
@@ -561,7 +574,8 @@ export function ContainerView({
   onConvertToSimpleChapter,
   onConvertToSceneChapter,
   onConvertSimpleToSceneChapter,
-  onOpenNewWindow,
+  onConvertScenesChapterToSimple,
+  onMergeWithNext,
   onMoveToTrash,
   onRecover,
   onPermanentDelete,
@@ -634,7 +648,10 @@ export function ContainerView({
       onConvertSimpleToSceneChapter: onConvertSimpleToSceneChapter
         ? () => onConvertSimpleToSceneChapter(node)
         : undefined,
-      onOpenNewWindow: onOpenNewWindow ? () => onOpenNewWindow(node) : undefined,
+      onConvertScenesChapterToSimple: onConvertScenesChapterToSimple
+        ? () => onConvertScenesChapterToSimple(node)
+        : undefined,
+      onMergeWithNext: onMergeWithNext ? () => onMergeWithNext(node) : undefined,
       onMoveToTrash: onMoveToTrash ? () => onMoveToTrash(node) : undefined,
       onRecover: onRecover ? () => onRecover(node) : undefined,
       onPermanentDelete: onPermanentDelete ? () => onPermanentDelete(node) : undefined,

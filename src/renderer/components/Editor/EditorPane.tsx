@@ -20,6 +20,7 @@ import { useTreeNodeMenuHandlers } from '@/hooks/useTreeNodeMenuHandlers'
 import { RichTextEditor } from '@/components/Editor/RichTextEditor'
 import { ContainerView, type ListVariant } from '@/components/Editor/ContainerView'
 import { MoveSceneDialog } from '@/components/Tree/MoveSceneDialog'
+import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import {
   folderContainerId,
   getCategoryScopedChildren,
@@ -81,7 +82,6 @@ export function EditorPane(): React.JSX.Element {
     selectedEntryId,
     selectedContainerId,
     setSelectedNodeId,
-    selectWikiEntity,
     setSelectedEntity,
     selectContainer,
     setNodes,
@@ -131,7 +131,12 @@ export function EditorPane(): React.JSX.Element {
     onConvertToSimpleChapter: convertToSimpleChapterHandler,
     onConvertToSceneChapter: convertToSceneChapterHandler,
     onConvertSimpleToSceneChapter: convertSimpleToSceneChapterHandler,
-    onMoveTo: openMoveSceneDialog
+    onConvertScenesChapterToSimple: convertScenesChapterToSimpleHandler,
+    onMergeWithNext: mergeWithNextHandler,
+    onMoveTo: openMoveSceneDialog,
+    convertConfirm,
+    setConvertConfirm,
+    confirmConvertScenesToSimple
   } = useTreeNodeMenuHandlers()
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId && !n.deletedAt) ?? null
@@ -167,15 +172,6 @@ export function EditorPane(): React.JSX.Element {
   const handlePermanentDelete = async (node: TreeNode): Promise<void> => {
     const updated = await window.electronAPI.tree.permanentDelete(node.id)
     setNodes(updated)
-  }
-
-  const openInNewWindow = (node: TreeNode): void => {
-    if (node.type === 'note') {
-      selectWikiEntity(node.id, node.type)
-      void window.electronAPI.windows.openDocument(node.id, node.title)
-      return
-    }
-    void window.electronAPI.windows.openDocument(node.id, node.title)
   }
 
   const createFolder = async (
@@ -280,6 +276,18 @@ export function EditorPane(): React.JSX.Element {
         chapters={getSceneChapters(nodes)}
         onMove={handleRecoverScene}
       />
+      <ConfirmDialog
+        open={convertConfirm !== null}
+        onOpenChange={(open) => !open && setConvertConfirm(null)}
+        title="Convert to simple chapter?"
+        description={
+          convertConfirm
+            ? `This will merge ${convertConfirm.sceneCount} scenes into one document with scene breaks. You can undo afterward.`
+            : ''
+        }
+        confirmLabel="Convert"
+        onConfirm={() => void confirmConvertScenesToSimple()}
+      />
     </>
   )
 
@@ -341,7 +349,8 @@ export function EditorPane(): React.JSX.Element {
           onConvertToSimpleChapter={convertToSimpleChapterHandler}
           onConvertToSceneChapter={convertToSceneChapterHandler}
           onConvertSimpleToSceneChapter={convertSimpleToSceneChapterHandler}
-          onOpenNewWindow={openInNewWindow}
+          onConvertScenesChapterToSimple={convertScenesChapterToSimpleHandler}
+          onMergeWithNext={mergeWithNextHandler}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
           emptyMenuItems={buildManuscriptMenu(null)}
         />
@@ -379,7 +388,6 @@ export function EditorPane(): React.JSX.Element {
           onMoveTo={openMoveSceneDialog}
           moveToFolders={listFoldersForScope(nodes, scope)}
           onMoveToFolder={moveToFolderHandler}
-          onOpenNewWindow={openInNewWindow}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
           emptyMenuItems={buildCategoryMenu(containerCategory, null)}
         />
@@ -445,7 +453,10 @@ export function EditorPane(): React.JSX.Element {
             onConvertSimpleToSceneChapter={
               isManuscriptFolder ? convertSimpleToSceneChapterHandler : undefined
             }
-            onOpenNewWindow={openInNewWindow}
+            onConvertScenesChapterToSimple={
+              isManuscriptFolder ? convertScenesChapterToSimpleHandler : undefined
+            }
+            onMergeWithNext={isManuscriptFolder ? mergeWithNextHandler : undefined}
             onMoveToTrash={(node) => void handleMoveToTrash(node)}
             emptyMenuItems={
               isManuscriptFolder
@@ -487,9 +498,16 @@ export function EditorPane(): React.JSX.Element {
           onMoveToChapter={moveToChapterHandler}
           onConvertToSimpleChapter={convertToSimpleChapterHandler}
           onConvertToSceneChapter={convertToSceneChapterHandler}
-          onOpenNewWindow={openInNewWindow}
+          onConvertScenesChapterToSimple={convertScenesChapterToSimpleHandler}
+          onMergeWithNext={mergeWithNextHandler}
           onMoveToTrash={(node) => void handleMoveToTrash(node)}
-          emptyMenuItems={[{ label: 'New Scene', onSelect: () => void createScene(selectedNode.id) }]}
+          emptyMenuItems={[
+            { label: 'New Scene', onSelect: () => void createScene(selectedNode.id) },
+            {
+              label: 'Convert to simple chapter',
+              onSelect: () => convertScenesChapterToSimpleHandler(selectedNode)
+            }
+          ]}
         />
         {dialogs}
       </>

@@ -1,36 +1,35 @@
 import { useEffect } from 'react'
-import { useHistoryStore } from '@/store/historyStore'
+import { coordinatedRedo, coordinatedUndo } from '@/lib/coordinatedUndo'
 
 export function useStructuralUndoShortcuts(): void {
-  const { undo, redo, canUndo, canRedo } = useHistoryStore()
-
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       const target = e.target as HTMLElement
       const tag = target.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
-      if (target.isContentEditable) return
 
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'z') {
-        e.preventDefault()
-        if (canUndo) void undo()
-      }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') {
-        e.preventDefault()
-        if (canRedo) void redo()
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod || e.key.toLowerCase() !== 'z') return
+
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.shiftKey) {
+        void coordinatedRedo()
+      } else {
+        void coordinatedUndo()
       }
     }
 
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [undo, redo, canUndo, canRedo])
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [])
 
   useEffect(() => {
     const unsubUndo = window.electronAPI.on('menu:undo', () => {
-      if (useHistoryStore.getState().canUndo) void useHistoryStore.getState().undo()
+      void coordinatedUndo()
     })
     const unsubRedo = window.electronAPI.on('menu:redo', () => {
-      if (useHistoryStore.getState().canRedo) void useHistoryStore.getState().redo()
+      void coordinatedRedo()
     })
     return () => {
       unsubUndo()

@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react'
 import { useAppStore } from '@/store/appStore'
-import { getSceneChapters } from '@/lib/treeUtils'
+import { getSceneChapters, getScenes, isChapterFolder } from '@/lib/treeUtils'
 import {
   convertSceneToSceneChapter,
   convertSceneToSimpleChapter,
   convertSimpleToSceneChapter,
+  convertScenesChapterToSimpleChapter,
+  mergeNodeWithNext,
   moveNodeToFolder,
   moveSceneToChapter
 } from '@/lib/treeNodeMenuActions'
@@ -15,15 +17,24 @@ export function useTreeNodeMenuHandlers(): {
   setMoveSceneNode: (node: TreeNode | null) => void
   handleMoveScene: (chapterId: string) => Promise<void>
   sceneChapters: TreeNode[]
+  convertConfirm: { chapter: TreeNode; sceneCount: number } | null
+  setConvertConfirm: (value: { chapter: TreeNode; sceneCount: number } | null) => void
+  confirmConvertScenesToSimple: () => Promise<void>
   onMoveToFolder: (node: TreeNode, folderId: string) => void
   onMoveToChapter: (node: TreeNode, chapterId: string) => void
   onConvertToSimpleChapter: (node: TreeNode) => void
   onConvertToSceneChapter: (node: TreeNode) => void
   onConvertSimpleToSceneChapter: (node: TreeNode) => void
+  onConvertScenesChapterToSimple: (node: TreeNode) => void
+  onMergeWithNext: (node: TreeNode) => void
   onMoveTo: (node: TreeNode) => void
 } {
   const nodes = useAppStore((s) => s.nodes)
   const [moveSceneNode, setMoveSceneNode] = useState<TreeNode | null>(null)
+  const [convertConfirm, setConvertConfirm] = useState<{
+    chapter: TreeNode
+    sceneCount: number
+  } | null>(null)
 
   const handleMoveScene = useCallback(async (chapterId: string): Promise<void> => {
     if (!moveSceneNode) return
@@ -51,6 +62,26 @@ export function useTreeNodeMenuHandlers(): {
     void convertSimpleToSceneChapter(node)
   }, [])
 
+  const onConvertScenesChapterToSimple = useCallback((node: TreeNode): void => {
+    if (!isChapterFolder(node)) return
+    const scenes = getScenes(useAppStore.getState().nodes, node.id)
+    if (scenes.length > 1) {
+      setConvertConfirm({ chapter: node, sceneCount: scenes.length })
+      return
+    }
+    void convertScenesChapterToSimpleChapter(node)
+  }, [])
+
+  const confirmConvertScenesToSimple = useCallback(async (): Promise<void> => {
+    if (!convertConfirm) return
+    await convertScenesChapterToSimpleChapter(convertConfirm.chapter)
+    setConvertConfirm(null)
+  }, [convertConfirm])
+
+  const onMergeWithNext = useCallback((node: TreeNode): void => {
+    void mergeNodeWithNext(node)
+  }, [])
+
   const onMoveTo = useCallback((node: TreeNode): void => {
     setMoveSceneNode(node)
   }, [])
@@ -60,11 +91,16 @@ export function useTreeNodeMenuHandlers(): {
     setMoveSceneNode,
     handleMoveScene,
     sceneChapters: getSceneChapters(nodes),
+    convertConfirm,
+    setConvertConfirm,
+    confirmConvertScenesToSimple,
     onMoveToFolder,
     onMoveToChapter,
     onConvertToSimpleChapter,
     onConvertToSceneChapter,
     onConvertSimpleToSceneChapter,
+    onConvertScenesChapterToSimple,
+    onMergeWithNext,
     onMoveTo
   }
 }

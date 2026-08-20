@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -24,6 +25,10 @@ import { FocusModeButton } from './FocusModeButton'
 import { addCustomWord, removeCustomWord, isCustomWord, onSpellCheckLangChange } from '@/lib/spellCheck'
 import { useAppStore } from '@/store/appStore'
 import { markContentDirty, registerActiveEditor } from '@/lib/contentPersistence'
+import { clearEditorHistory, registerActiveEditorInstance } from '@/lib/activeEditor'
+import { syncWritingMenuState } from '@/lib/writingMenuSync'
+import { splitDocumentAtCaret } from '@/lib/documentActions'
+import { canSplitAtCaret, canSplitNode } from '@/lib/splitMerge'
 import { openIndexedEntry } from '@/lib/categoryNavigation'
 import { panelEntryFingerprint } from '@/lib/entryTitleIndex'
 import { countWords } from '@/lib/utils'
@@ -138,6 +143,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     from: number
     to: number
   } | null>(null)
+  const [docMenu, setDocMenu] = useState<{ x: number; y: number } | null>(null)
   const [entityHover, setEntityHover] = useState<{
     x: number
     y: number
@@ -265,23 +271,35 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       const html = ed.getHTML()
       updateNodeInStore(node.id, { content: html })
       markContentDirty(node.id, html)
+    },
+    onSelectionUpdate: () => {
+      syncWritingMenuState()
     }
   }, [node?.id])
 
   useEffect(() => {
     if (!editor || !node) {
       registerActiveEditor(null)
+      registerActiveEditorInstance(null, null)
       return
     }
 
     registerActiveEditor(() => ({ nodeId: node.id, content: editor.getHTML() }))
+    registerActiveEditorInstance(editor, node.id)
+    syncWritingMenuState()
 
-    return () => registerActiveEditor(null)
+    return () => {
+      registerActiveEditor(null)
+      registerActiveEditorInstance(null, null)
+      syncWritingMenuState()
+    }
   }, [editor, node?.id, node])
 
   useEffect(() => {
     if (editor && node) {
       editor.commands.setContent(node.content, false)
+      clearEditorHistory(editor)
+      syncWritingMenuState()
     }
   }, [editor, node?.id])
 
@@ -438,48 +456,61 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       onContextMenu={(e) => {
         const target = e.target as HTMLElement
         const spellEl = target.closest('.spell-error') as HTMLElement | null
-        if (!spellEl) return
+        if (spellEl) {
+          e.preventDefault()
+          setDocMenu(null)
 
-        e.preventDefault()
+          const word = spellEl.dataset.word ?? ''
+          const suggestions: string[] = JSON.parse(spellEl.dataset.suggestions ?? '[]')
+          const message = spellEl.dataset.message || undefined
 
-        const word = spellEl.dataset.word ?? ''
-        const suggestions: string[] = JSON.parse(spellEl.dataset.suggestions ?? '[]')
-        const message = spellEl.dataset.message || undefined
+          if (!editor) return
+          try {
+            const view = editor.view
+            const domPos = view.posAtDOM(spellEl, 0)
+            if (domPos === null) return
 
-        if (!editor) return
-        try {
-          const view = editor.view
-          const domPos = view.posAtDOM(spellEl, 0)
-          if (domPos === null) return
+            // posAtDOM resolves to a DOM boundary, which can land a character or two
+            // off from the decoration's real span — read the decoration's own from/to
+            // instead of trusting that offset, so the replacement can't clip the word
+            // or eat the following space.
+            const pluginState = spellCheckPluginKey.getState(view.state)
+            const candidates = pluginState
+              ? pluginState.decorations.find(
+                  undefined,
+                  undefined,
+                  (spec) => spec.class === 'spell-error' && spec['data-word'] === word
+                )
+              : []
+            const deco = candidates.reduce<(typeof candidates)[number] | null>((closest, d) => {
+              if (!closest) return d
+              return Math.abs(d.from - domPos) < Math.abs(closest.from - domPos) ? d : closest
+            }, null)
 
-          // posAtDOM resolves to a DOM boundary, which can land a character or two
-          // off from the decoration's real span — read the decoration's own from/to
-          // instead of trusting that offset, so the replacement can't clip the word
-          // or eat the following space.
-          const pluginState = spellCheckPluginKey.getState(view.state)
-          const candidates = pluginState
-            ? pluginState.decorations.find(
-                undefined,
-                undefined,
-                (spec) => spec.class === 'spell-error' && spec['data-word'] === word
-              )
-            : []
-          const deco = candidates.reduce<(typeof candidates)[number] | null>((closest, d) => {
-            if (!closest) return d
-            return Math.abs(d.from - domPos) < Math.abs(closest.from - domPos) ? d : closest
-          }, null)
-
-          setSpellMenu({
-            x: e.clientX,
-            y: e.clientY,
-            word,
-            suggestions,
-            message,
-            from: deco?.from ?? domPos,
-            to: deco?.to ?? domPos + word.length
-          })
-        } catch {
+            setSpellMenu({
+              x: e.clientX,
+              y: e.clientY,
+              word,
+              suggestions,
+              message,
+              from: deco?.from ?? domPos,
+              to: deco?.to ?? domPos + word.length
+            })
+          } catch {
+            return
+          }
           return
+        }
+
+        if (
+          node &&
+          editor &&
+          canSplitNode(node, nodes) &&
+          canSplitAtCaret(editor)
+        ) {
+          e.preventDefault()
+          setSpellMenu(null)
+          setDocMenu({ x: e.clientX, y: e.clientY })
         }
       }}
     >
@@ -578,6 +609,75 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           onClose={() => setSpellMenu(null)}
         />
       )}
+
+      {docMenu && (
+        <DocumentSplitMenu
+          x={docMenu.x}
+          y={docMenu.y}
+          onSplit={() => {
+            setDocMenu(null)
+            void splitDocumentAtCaret()
+          }}
+          onClose={() => setDocMenu(null)}
+        />
+      )}
     </div>
+  )
+}
+
+function DocumentSplitMenu({
+  x,
+  y,
+  onSplit,
+  onClose
+}: {
+  x: number
+  y: number
+  onSplit: () => void
+  onClose: () => void
+}): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent): void => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    const handleKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    window.addEventListener('mousedown', handleClick)
+    window.addEventListener('keydown', handleKey)
+    return () => {
+      window.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div
+      ref={ref}
+      style={{
+        position: 'fixed',
+        left: Math.min(x, window.innerWidth - 200),
+        top: Math.min(y, window.innerHeight - 80),
+        zIndex: 9999
+      }}
+      className="min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-md"
+    >
+      <button
+        type="button"
+        className="flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-sm outline-none hover:bg-accent"
+        onMouseDown={(e) => {
+          e.preventDefault()
+          onSplit()
+        }}
+      >
+        Split Document
+      </button>
+    </div>,
+    document.body
   )
 }

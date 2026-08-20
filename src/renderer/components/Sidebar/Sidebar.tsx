@@ -49,6 +49,7 @@ import {
 } from '@/lib/treeNodeMenuActions'
 import { useTreeNodeMenuHandlers } from '@/hooks/useTreeNodeMenuHandlers'
 import { MoveSceneDialog } from '@/components/Tree/MoveSceneDialog'
+import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import { cn } from '@/lib/utils'
@@ -214,7 +215,6 @@ export function Sidebar(): React.JSX.Element {
     sidebarWidth,
     projectMeta,
     selectContainer,
-    selectWikiEntity,
     setSelectedNodeId,
     toggleSection,
     setSectionOrder,
@@ -289,15 +289,6 @@ export function Sidebar(): React.JSX.Element {
     requestRenameAfterCreate(chapterId, 'sidebar', 'container')
   }
 
-  const openInNewWindow = (node: import('@shared/types').TreeNode): void => {
-    if (node.type === 'note') {
-      selectWikiEntity(node.id, node.type)
-      void window.electronAPI.windows.openDocument(node.id, node.title)
-      return
-    }
-    void window.electronAPI.windows.openDocument(node.id, node.title)
-  }
-
   const {
     moveSceneNode,
     setMoveSceneNode,
@@ -308,7 +299,12 @@ export function Sidebar(): React.JSX.Element {
     onConvertToSimpleChapter,
     onConvertToSceneChapter,
     onConvertSimpleToSceneChapter,
-    onMoveTo
+    onConvertScenesChapterToSimple,
+    onMergeWithNext,
+    onMoveTo,
+    convertConfirm,
+    setConvertConfirm,
+    confirmConvertScenesToSimple
   } = useTreeNodeMenuHandlers()
 
   const manuscriptMenuActions = useMemo(
@@ -319,6 +315,8 @@ export function Sidebar(): React.JSX.Element {
         onConvertToSimpleChapter,
         onConvertToSceneChapter,
         onConvertSimpleToSceneChapter,
+        onConvertScenesChapterToSimple,
+        onMergeWithNext,
         onMoveTo
       }),
     [
@@ -328,6 +326,8 @@ export function Sidebar(): React.JSX.Element {
       onConvertToSimpleChapter,
       onConvertToSceneChapter,
       onConvertSimpleToSceneChapter,
+      onConvertScenesChapterToSimple,
+      onMergeWithNext,
       onMoveTo
     ]
   )
@@ -437,7 +437,6 @@ export function Sidebar(): React.JSX.Element {
                       disabled={showChapterModal}
                       menuActions={manuscriptMenuActions}
                       onAddScene={handleAddScene}
-                      onOpenNewWindow={openInNewWindow}
                     />
                   </SidebarSectionBody>
                 )}
@@ -476,7 +475,6 @@ export function Sidebar(): React.JSX.Element {
                                   categoryId={category.id}
                                   menuActions={categoryMenuActionsById.get(category.id)!}
                                   onAddEntity={() => void createCategoryItem(category.id, null, 'sidebar')}
-                                  onOpenNewWindow={openInNewWindow}
                                 />
                               </SidebarSectionBody>
                             )}
@@ -559,6 +557,19 @@ export function Sidebar(): React.JSX.Element {
         onOpenChange={(open) => !open && setMoveSceneNode(null)}
         chapters={sceneChapters}
         onMove={handleMoveScene}
+      />
+
+      <ConfirmDialog
+        open={convertConfirm !== null}
+        onOpenChange={(open) => !open && setConvertConfirm(null)}
+        title="Convert to simple chapter?"
+        description={
+          convertConfirm
+            ? `This will merge ${convertConfirm.sceneCount} scenes into one document with scene breaks. You can undo afterward.`
+            : ''
+        }
+        confirmLabel="Convert"
+        onConfirm={() => void confirmConvertScenesToSimple()}
       />
     </>
   )
