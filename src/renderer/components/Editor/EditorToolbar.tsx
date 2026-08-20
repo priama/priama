@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import {
   Bold,
   Italic,
@@ -21,25 +20,12 @@ import { StyleDropdown } from './StyleDropdown'
 import { FontDropdown } from './FontDropdown'
 import { ColorPickerButton, TEXT_COLORS, HIGHLIGHT_COLORS } from './ColorPicker'
 import { cn } from '@/lib/utils'
-import type { BlockStyleType } from './BlockStyle'
 
 interface EditorToolbarProps {
   editor: Editor | null
   wordCount: number
   onOpenSearch?: () => void
 }
-
-const STYLE_SHORTCUTS: { key: string; style: BlockStyleType }[] = [
-  { key: '1', style: 'title' },
-  { key: '2', style: 'heading1' },
-  { key: '3', style: 'heading2' },
-  { key: '4', style: 'heading3' },
-  { key: '5', style: 'subheading' },
-  { key: '6', style: 'body' },
-  { key: '7', style: 'caption' },
-  { key: '8', style: 'blockquote' },
-  { key: '9', style: 'code' }
-]
 
 const SIDEBAR_ICON_ONLY_THRESHOLD = SIDEBAR_MIN_WIDTH + 16
 
@@ -74,22 +60,6 @@ function ToolbarButton({
 export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbarProps): React.JSX.Element {
   const { sidebarWidth, setShowBookSettingsModal } = useAppStore()
   const isSidebarContracted = sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
-
-  useEffect(() => {
-    if (!editor) return
-
-    const onKeyDown = (e: KeyboardEvent): void => {
-      const mod = e.metaKey || e.ctrlKey
-      if (!mod || !e.altKey || e.shiftKey) return
-      const match = STYLE_SHORTCUTS.find((s) => s.key === e.key)
-      if (!match) return
-      e.preventDefault()
-      editor.chain().focus().setBlockStyle(match.style).run()
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [editor])
 
   if (!editor) return <div className="h-10 border-b border-border" />
 

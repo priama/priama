@@ -19,7 +19,8 @@ import type {
   RecentProjectWithStatus,
   SaveResult,
   TreeNode,
-  WindowLayoutState
+  WindowLayoutState,
+  WritingMenuState
 } from '@shared/types'
 
 export interface SyncState {
@@ -116,6 +117,7 @@ export interface ElectronAPI {
   }
   app: {
     notifyFlushComplete: () => Promise<{ success: boolean }>
+    setWritingMenuState: (state: WritingMenuState) => Promise<{ success: boolean }>
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void
 }
@@ -202,7 +204,8 @@ const api: ElectronAPI = {
     update: (state) => ipcRenderer.invoke('navigation:update', state)
   },
   app: {
-    notifyFlushComplete: () => ipcRenderer.invoke('app:flushComplete')
+    notifyFlushComplete: () => ipcRenderer.invoke('app:flushComplete'),
+    setWritingMenuState: (state) => ipcRenderer.invoke('app:setWritingMenuState', state)
   },
   on: (channel, callback) => {
     const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args)

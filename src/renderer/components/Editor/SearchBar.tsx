@@ -93,10 +93,14 @@ export function SearchBar({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [onClose])
 
   const storage = editor.storage.searchAndReplace as SearchAndReplaceStorage
@@ -142,6 +146,8 @@ export function SearchBar({
       else handleNext()
     }
     if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
       onClose()
     }
   }
@@ -153,6 +159,8 @@ export function SearchBar({
       handleReplaceCurrent()
     }
     if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
       onClose()
     }
   }

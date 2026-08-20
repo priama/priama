@@ -15,17 +15,22 @@ import { EditorToolbar } from './EditorToolbar'
 import { SearchBar } from './SearchBar'
 import SearchAndReplace from './searchAndReplace'
 import { SpellCheckExtension, spellCheckPluginKey } from '@/extensions/SpellCheckExtension'
+import { TypewriterScroll } from '@/extensions/TypewriterScroll'
 import { EntityNamePopover } from './EntityNamePopover'
 import { SpellSuggestions } from './SpellSuggestions'
 import { PasteMenu } from './PasteMenu'
+import { FocusWordCount } from './FocusWordCount'
+import { FocusModeButton } from './FocusModeButton'
 import { addCustomWord, removeCustomWord, isCustomWord, onSpellCheckLangChange } from '@/lib/spellCheck'
 import { useAppStore } from '@/store/appStore'
 import { markContentDirty, registerActiveEditor } from '@/lib/contentPersistence'
 import { openIndexedEntry } from '@/lib/categoryNavigation'
 import { panelEntryFingerprint } from '@/lib/entryTitleIndex'
 import { countWords } from '@/lib/utils'
-import { isSimpleChapter } from '@/lib/treeUtils'
-import { findCategory, categoryOpensInMainEditor } from '@shared/categoryView'
+import { isWritingSurfaceNode, entityHighlightsVisible } from '@/lib/writingSurface'
+import { useBlockStyleShortcuts } from '@/hooks/useBlockStyleShortcuts'
+import { useFocusChromeActive } from '@/hooks/useFocusMode'
+import { findCategory } from '@shared/categoryView'
 import type { TreeNode } from '@shared/types'
 
 import {
@@ -107,8 +112,14 @@ function readEntityRefFromElement(el: HTMLElement): {
   }
 }
 
+function highlightsAreVisible(): boolean {
+  const { entityHighlights, focusMode } = useAppStore.getState()
+  return entityHighlightsVisible(entityHighlights, focusMode)
+}
+
 export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element {
   const { nodes, categories, updateNodeInStore, setSelectedEntity } = useAppStore()
+  const focusChrome = useFocusChromeActive()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchOpenWithReplace, setSearchOpenWithReplace] = useState(false)
   const [searchFocusKey, setSearchFocusKey] = useState(0)
@@ -143,12 +154,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   const prevEntryFingerprintRef = useRef(entryFingerprint)
 
   const entityMap = useMemo(() => buildEntityNames(nodes), [nodes])
-  const isEditable =
-    node &&
-    (node.type === 'scene' ||
-      (node.type === 'chapter' && isSimpleChapter(node)) ||
-      (node.type === 'entry' &&
-        categoryOpensInMainEditor(findCategory(categories, node.categoryId))))
+  const isEditable = isWritingSurfaceNode(node, categories)
 
   const editor = useEditor({
     extensions: [
@@ -170,7 +176,8 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         searchResultClass: 'search-result',
         disableRegex: true
       }),
-      SpellCheckExtension
+      SpellCheckExtension,
+      TypewriterScroll
     ],
     content: node?.content ?? '',
     editable: !!isEditable,
@@ -202,6 +209,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       },
       handleDOMEvents: {
         click: (_view, event) => {
+          if (!highlightsAreVisible()) return false
           const entityEl = (event.target as HTMLElement).closest('.entity-name-ref') as HTMLElement | null
           if (!entityEl) return false
           const entry = readEntityRefFromElement(entityEl)
@@ -211,6 +219,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         }
       },
       handleClickOn: (view, pos, nodeEl) => {
+        if (!highlightsAreVisible()) return false
         if (nodeEl.type.name === 'text') {
           const marks = nodeEl.marks
           const mention = marks.find((m) => m.type.name === 'entityMention')
@@ -297,6 +306,17 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   }, [editor, entryFingerprint])
 
   useEffect(() => {
+    if (!editor) return
+    editor.storage.typewriterScroll.searchOpen = searchOpen
+  }, [editor, searchOpen])
+
+  useBlockStyleShortcuts(editor)
+
+  useEffect(() => {
+    if (!highlightsAreVisible()) setEntityHover(null)
+  }, [focusChrome])
+
+  useEffect(() => {
     return () => {
       if (entityHoverTimerRef.current) clearTimeout(entityHoverTimerRef.current)
     }
@@ -311,9 +331,9 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
 
     const handler = (e: KeyboardEvent): void => {
       const mod = e.metaKey || e.ctrlKey
-      if (!mod) return
+      if (!mod || e.shiftKey) return
 
-      if (e.key === 'f') {
+      if (e.key.toLowerCase() === 'f') {
         e.preventDefault()
         if (searchOpen) {
           setSearchFocusKey((k) => k + 1)
@@ -322,7 +342,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           setSearchOpen(true)
         }
       }
-      if (e.key === 'h') {
+      if (e.key.toLowerCase() === 'h') {
         e.preventDefault()
         if (searchOpen) {
           setSearchOpenWithReplace(true)
@@ -380,6 +400,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     <div
       className="no-drag flex flex-1 flex-col overflow-hidden"
       onMouseOver={(e) => {
+        if (!highlightsAreVisible()) return
         const target = e.target as HTMLElement
         const entityEl = target.closest('.entity-name-ref') as HTMLElement | null
         if (!entityEl) return
@@ -462,7 +483,9 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         }
       }}
     >
-      <EditorToolbar editor={editor} wordCount={wordCount} onOpenSearch={handleOpenSearch} />
+      {!focusChrome && (
+        <EditorToolbar editor={editor} wordCount={wordCount} onOpenSearch={handleOpenSearch} />
+      )}
       {searchOpen && editor && (
         <SearchBar
           key={searchOpenWithReplace ? 'replace' : 'search'}
@@ -472,10 +495,18 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           focusKey={searchFocusKey}
         />
       )}
-      <div className="editor-scroll flex-1 overflow-y-auto px-8 py-6">
+      <div className="editor-scroll relative flex-1 overflow-y-auto px-8 py-6">
         <div className="mx-auto max-w-3xl">
           <EditorContent editor={editor} className="font-serif text-lg leading-relaxed" />
         </div>
+        {focusChrome && (
+          <div className="pointer-events-none absolute bottom-4 right-4 z-10 flex items-center gap-2">
+            <div className="pointer-events-auto">
+              <FocusModeButton floating />
+            </div>
+            <FocusWordCount wordCount={wordCount} />
+          </div>
+        )}
       </div>
 
       {pasteMenu && (

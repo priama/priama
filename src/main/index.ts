@@ -59,8 +59,7 @@ import {
   openDevicePreviewWindow,
   broadcast,
   saveSecondaryWindowState,
-  closeAllChildren,
-  getMainWindow
+  closeAllChildren
 } from './windowManager'
 import {
   getNavigationState,
@@ -75,14 +74,40 @@ import type {
   CategoryDefinition,
   CreateProjectInput,
   DevicePreviewRequestOptions,
+  EntityHighlights,
   ExportOptions,
   NavigationSyncState,
-  NodeType
+  NodeType,
+  TypewriterScrolling,
+  WritingMenuState
 } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let pendingOpenPath: string | null = null
 let isQuitting = false
+
+let writingMenuState: WritingMenuState = {
+  focusMode: false,
+  focusModeEnabled: false,
+  typewriterScrolling: 'focus',
+  entityHighlights: 'hide-in-focus'
+}
+
+function aliveWindow(win: BrowserWindow | null | undefined): BrowserWindow | null {
+  if (!win || win.isDestroyed()) return null
+  try {
+    if (win.webContents.isDestroyed()) return null
+  } catch {
+    return null
+  }
+  return win
+}
+
+function sendToWindow(win: BrowserWindow | null | undefined, channel: string, ...args: unknown[]): void {
+  const alive = aliveWindow(win)
+  if (!alive) return
+  alive.webContents.send(channel, ...args)
+}
 
 const gotLock = app.requestSingleInstanceLock()
 
@@ -92,13 +117,23 @@ if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', (_event, argv) => {
-    const tomesPath = findTomesPathInArgv(argv)
-    if (tomesPath && mainWindow) {
-      void openProjectFromPath(tomesPath)
-    }
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
+    try {
+      const tomesPath = findTomesPathInArgv(argv)
+      if (tomesPath) pendingOpenPath = tomesPath
+
+      let win = aliveWindow(mainWindow)
+      if (!win) {
+        // Window was closed but the app stayed alive (common on macOS).
+        createWindow()
+        win = aliveWindow(mainWindow)
+      }
+      if (!win) return
+
+      if (tomesPath) void openProjectFromPath(tomesPath)
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    } catch (err) {
+      console.error('[second-instance]', err)
     }
   })
 }
@@ -125,7 +160,7 @@ async function openProjectFromPath(tomesPath: string): Promise<void> {
 
   try {
     const result = await openProject(tomesPath)
-    mainWindow?.webContents.send('tomes:projectOpened', result)
+    sendToWindow(mainWindow, 'tomes:projectOpened', result)
   } catch (err) {
     dialog.showErrorBox(
       'Open Failed',
@@ -152,7 +187,8 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
+    const win = aliveWindow(mainWindow)
+    win?.show()
     if (pendingOpenPath) {
       const path = pendingOpenPath
       pendingOpenPath = null
@@ -160,7 +196,12 @@ function createWindow(): void {
     }
   })
 
-  if (mainWindow) setMainWindow(mainWindow)
+  mainWindow.on('closed', () => {
+    mainWindow = null
+    setMainWindow(null)
+  })
+
+  setMainWindow(mainWindow)
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
@@ -171,6 +212,47 @@ function createWindow(): void {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+function sendToFocusedWindow(channel: string, ...args: unknown[]): void {
+  const win = aliveWindow(BrowserWindow.getFocusedWindow()) ?? aliveWindow(mainWindow)
+  sendToWindow(win, channel, ...args)
+}
+
+function applyWritingMenuState(state: WritingMenuState): void {
+  writingMenuState = state
+  try {
+    const menu = Menu.getApplicationMenu()
+    if (!menu) return
+
+    const focusItem = menu.getMenuItemById('focus-mode')
+    if (focusItem) {
+      focusItem.checked = state.focusMode
+      focusItem.enabled = state.focusModeEnabled
+    }
+
+    const typewriterIds: Record<TypewriterScrolling, string> = {
+      off: 'typewriter-off',
+      on: 'typewriter-on',
+      focus: 'typewriter-focus'
+    }
+    for (const [value, id] of Object.entries(typewriterIds)) {
+      const item = menu.getMenuItemById(id)
+      if (item) item.checked = state.typewriterScrolling === value
+    }
+
+    const highlightIds: Record<EntityHighlights, string> = {
+      on: 'highlights-on',
+      off: 'highlights-off',
+      'hide-in-focus': 'highlights-hide-in-focus'
+    }
+    for (const [value, id] of Object.entries(highlightIds)) {
+      const item = menu.getMenuItemById(id)
+      if (item) item.checked = state.entityHighlights === value
+    }
+  } catch {
+    // Menu torn down during quit / reload.
   }
 }
 
@@ -200,31 +282,30 @@ function buildMenu(): void {
         {
           label: 'New Project',
           accelerator: 'CmdOrCtrl+N',
-          click: () => mainWindow?.webContents.send('menu:newProject')
+          click: () => sendToWindow(mainWindow, 'menu:newProject')
         },
         {
           label: 'Open Project',
           accelerator: 'CmdOrCtrl+O',
-          click: () => mainWindow?.webContents.send('menu:openProject')
+          click: () => sendToWindow(mainWindow, 'menu:openProject')
         },
         { type: 'separator' },
         {
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
-          click: () => mainWindow?.webContents.send('menu:save')
+          click: () => sendToWindow(mainWindow, 'menu:save')
         },
         {
           label: 'Export…',
           accelerator: 'CmdOrCtrl+Shift+E',
-          click: () => mainWindow?.webContents.send('menu:export')
+          click: () => sendToWindow(mainWindow, 'menu:export')
         },
         { type: 'separator' },
         {
           label: 'Close Project',
           accelerator: 'CmdOrCtrl+W',
           click: () => {
-            const win = BrowserWindow.getFocusedWindow() ?? mainWindow
-            win?.webContents.send('menu:closeProject')
+            sendToFocusedWindow('menu:closeProject')
           }
         },
         { type: 'separator' },
@@ -239,18 +320,12 @@ function buildMenu(): void {
         {
           label: 'Undo',
           accelerator: 'CmdOrCtrl+Z',
-          click: () => {
-            const win = BrowserWindow.getFocusedWindow() ?? mainWindow
-            win?.webContents.send('menu:undo')
-          }
+          click: () => sendToFocusedWindow('menu:undo')
         },
         {
           label: 'Redo',
           accelerator: 'Shift+CmdOrCtrl+Z',
-          click: () => {
-            const win = BrowserWindow.getFocusedWindow() ?? mainWindow
-            win?.webContents.send('menu:redo')
-          }
+          click: () => sendToFocusedWindow('menu:redo')
         },
         { type: 'separator' },
         { role: 'cut' },
@@ -262,6 +337,69 @@ function buildMenu(): void {
     {
       label: 'View',
       submenu: [
+        {
+          id: 'focus-mode',
+          label: 'Focus Mode',
+          type: 'checkbox',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          checked: writingMenuState.focusMode,
+          enabled: writingMenuState.focusModeEnabled,
+          click: () => sendToFocusedWindow('menu:toggleFocusMode')
+        },
+        { type: 'separator' },
+        {
+          label: 'Typewriter Scrolling',
+          submenu: [
+            {
+              id: 'typewriter-off',
+              label: 'Off',
+              type: 'radio',
+              checked: writingMenuState.typewriterScrolling === 'off',
+              click: () => sendToFocusedWindow('menu:setTypewriterScrolling', 'off')
+            },
+            {
+              id: 'typewriter-on',
+              label: 'On',
+              type: 'radio',
+              checked: writingMenuState.typewriterScrolling === 'on',
+              click: () => sendToFocusedWindow('menu:setTypewriterScrolling', 'on')
+            },
+            {
+              id: 'typewriter-focus',
+              label: 'In Focus Mode',
+              type: 'radio',
+              checked: writingMenuState.typewriterScrolling === 'focus',
+              click: () => sendToFocusedWindow('menu:setTypewriterScrolling', 'focus')
+            }
+          ]
+        },
+        {
+          label: 'Entity Highlights',
+          submenu: [
+            {
+              id: 'highlights-on',
+              label: 'On',
+              type: 'radio',
+              checked: writingMenuState.entityHighlights === 'on',
+              click: () => sendToFocusedWindow('menu:setEntityHighlights', 'on')
+            },
+            {
+              id: 'highlights-off',
+              label: 'Off',
+              type: 'radio',
+              checked: writingMenuState.entityHighlights === 'off',
+              click: () => sendToFocusedWindow('menu:setEntityHighlights', 'off')
+            },
+            {
+              id: 'highlights-hide-in-focus',
+              label: 'Hide in Focus Mode',
+              type: 'radio',
+              checked: writingMenuState.entityHighlights === 'hide-in-focus',
+              click: () => sendToFocusedWindow('menu:setEntityHighlights', 'hide-in-focus')
+            }
+          ]
+        },
+        { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
         { role: 'toggleDevTools' },
@@ -282,7 +420,7 @@ function buildMenu(): void {
             {
               label: 'Device Preview',
               accelerator: 'CmdOrCtrl+Shift+P',
-              click: () => mainWindow?.webContents.send('menu:devicePreview')
+              click: () => sendToWindow(mainWindow, 'menu:devicePreview')
             }
           ]
         }]
@@ -340,10 +478,16 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('tomes:updatePreferences', async (_, updates) => {
     const prefs = await updatePreferences(updates)
+    broadcast('preferences:changed', prefs)
     if (updates.theme) {
       broadcast('theme:changed', { theme: prefs.theme })
     }
     return prefs
+  })
+
+  ipcMain.handle('app:setWritingMenuState', async (_, state: WritingMenuState) => {
+    applyWritingMenuState(state)
+    return { success: true }
   })
 
   ipcMain.handle('tomes:updateRecentPath', async (_, { projectId, primaryPath }) => {
@@ -417,8 +561,12 @@ function registerIpcHandlers(): void {
     setNavigationState(state)
     const senderId = event.sender.id
     for (const win of BrowserWindow.getAllWindows()) {
-      if (!win.isDestroyed() && win.webContents.id !== senderId) {
+      if (win.isDestroyed()) continue
+      try {
+        if (win.webContents.isDestroyed() || win.webContents.id === senderId) continue
         win.webContents.send('sync:navigation', state)
+      } catch {
+        // Window tore down mid-broadcast.
       }
     }
     return { success: true }
@@ -593,7 +741,8 @@ function registerIpcHandlers(): void {
 }
 
 async function requestRendererFlush(): Promise<void> {
-  if (!mainWindow || mainWindow.isDestroyed()) return
+  const win = aliveWindow(mainWindow)
+  if (!win) return
 
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(resolve, 5000)
@@ -604,39 +753,51 @@ async function requestRendererFlush(): Promise<void> {
       return { success: true }
     })
 
-    mainWindow!.webContents.send('app:requestFlush')
+    sendToWindow(win, 'app:requestFlush')
   })
 }
 
 app.on('open-file', (event, path) => {
   event.preventDefault()
-  if (mainWindow?.webContents.isLoading()) {
-    pendingOpenPath = path
-  } else if (mainWindow) {
-    void openProjectFromPath(path)
-  } else {
+  if (!gotLock) return
+  try {
+    const win = aliveWindow(mainWindow)
+    if (win?.webContents.isLoading()) {
+      pendingOpenPath = path
+    } else if (win) {
+      void openProjectFromPath(path)
+    } else {
+      pendingOpenPath = path
+    }
+  } catch (err) {
+    console.error('[open-file]', err)
     pendingOpenPath = path
   }
 })
 
 app.on('before-quit', async (event) => {
+  if (!gotLock) return
   if (isQuitting || !isOpen()) return
 
   event.preventDefault()
   isQuitting = true
 
-  await requestRendererFlush()
-  const result = await saveProject()
-  mainWindow?.webContents.send('tomes:beforeQuit', {
-    unreachableBackupPaths: result.unreachableBackupPaths
-  })
+  try {
+    await requestRendererFlush()
+    const result = await saveProject()
+    sendToWindow(mainWindow, 'tomes:beforeQuit', {
+      unreachableBackupPaths: result.unreachableBackupPaths
+    })
 
-  if (result.unreachableBackupPaths.length > 0) {
-    isQuitting = false
-    return
+    if (result.unreachableBackupPaths.length > 0) {
+      isQuitting = false
+      return
+    }
+
+    closeProject()
+  } catch (err) {
+    console.error('[before-quit]', err)
   }
-
-  closeProject()
   app.quit()
 })
 
@@ -657,12 +818,26 @@ if (gotLock) {
     createWindow()
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+      try {
+        if (BrowserWindow.getAllWindows().length === 0 || !aliveWindow(mainWindow)) {
+          createWindow()
+        }
+      } catch (err) {
+        console.error('[activate]', err)
+      }
     })
   })
 
   app.on('window-all-closed', () => {
-    if (!isQuitting) closeProject()
+    try {
+      if (!isQuitting) closeProject()
+    } catch (err) {
+      console.error('[window-all-closed]', err)
+    }
     if (process.platform !== 'darwin') app.quit()
   })
 }
+
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err)
+})

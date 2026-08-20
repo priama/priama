@@ -15,7 +15,7 @@ interface ChildWindowRecord {
 const children = new Map<string, ChildWindowRecord>()
 let mainWindowRef: BrowserWindow | null = null
 
-export function setMainWindow(win: BrowserWindow): void {
+export function setMainWindow(win: BrowserWindow | null): void {
   mainWindowRef = win
 }
 
@@ -47,8 +47,12 @@ function defaultBounds(width: number, height: number): WindowBounds {
 
 export function broadcast(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
+    if (win.isDestroyed()) continue
+    try {
+      if (win.webContents.isDestroyed()) continue
       win.webContents.send(channel, payload)
+    } catch {
+      // Window tore down between the checks and send.
     }
   }
 }

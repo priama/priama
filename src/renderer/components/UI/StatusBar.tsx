@@ -3,6 +3,7 @@ import { Moon, Sun, Download, Save, BookOpen } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
 import { useProject } from '@/hooks/useProject'
+import { FocusModeButton } from '@/components/Editor/FocusModeButton'
 
 export function StatusBar(): React.JSX.Element {
   const {
@@ -45,6 +46,7 @@ export function StatusBar(): React.JSX.Element {
         )}
       </div>
       <div className="flex items-center gap-1">
+        <FocusModeButton />
         <Button
           variant="ghost"
           size="icon"

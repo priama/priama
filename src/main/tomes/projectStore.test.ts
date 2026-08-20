@@ -39,7 +39,7 @@ vi.mock('../config', () => ({
   updateRecentTitle: vi.fn().mockResolvedValue(undefined),
   getBackupLocations: vi.fn().mockResolvedValue([]),
   getConfig: vi.fn().mockResolvedValue({
-    preferences: { maxBackupsPerLocation: 10, theme: 'dark' },
+    preferences: { maxBackupsPerLocation: 10, theme: 'dark', focusMode: false, typewriterScrolling: 'focus', entityHighlights: 'hide-in-focus' },
     recentProjects: []
   })
 }))

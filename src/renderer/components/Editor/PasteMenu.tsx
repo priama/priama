@@ -24,7 +24,12 @@ export function PasteMenu({
       if (ref.current && !ref.current.contains(e.target as Node)) onClose()
     }
     const handleKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape' || (!e.metaKey && !e.ctrlKey && e.key.length === 1)) onClose()
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+        return
+      }
+      if (!e.metaKey && !e.ctrlKey && e.key.length === 1) onClose()
     }
     window.addEventListener('mousedown', handleClick)
     window.addEventListener('keydown', handleKey)

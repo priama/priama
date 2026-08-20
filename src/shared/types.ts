@@ -597,11 +597,24 @@ export interface BackupLocationStatus {
   label: string
 }
 
+export type TypewriterScrolling = 'off' | 'on' | 'focus'
+export type EntityHighlights = 'on' | 'off' | 'hide-in-focus'
+
 export interface PriamaPreferences {
   maxBackupsPerLocation: number
   theme: 'light' | 'dark'
+  focusMode: boolean
+  typewriterScrolling: TypewriterScrolling
+  entityHighlights: EntityHighlights
   defaultChapterStructure?: ChapterStructure
   skipChapterStructurePrompt?: boolean
+}
+
+export interface WritingMenuState {
+  focusMode: boolean
+  focusModeEnabled: boolean
+  typewriterScrolling: TypewriterScrolling
+  entityHighlights: EntityHighlights
 }
 
 export type ChapterStructure = 'simple' | 'scenes'

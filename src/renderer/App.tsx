@@ -18,10 +18,15 @@ import { useNavigationSync, useNavigationSyncPublisher } from '@/hooks/useNaviga
 import { useProjectUiPersistence } from '@/hooks/useProjectUiPersistence'
 import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
 import { applyOpenProjectResult } from '@/lib/applyOpenProject'
-import { useThemeSync } from '@/hooks/useThemeSync'
+import { usePreferencesSync } from '@/hooks/usePreferencesSync'
+import { useFocusMode, useFocusChromeActive } from '@/hooks/useFocusMode'
 import { isWorkspaceWindow } from '@/lib/hashParams'
 import { useSearchParams } from '@/lib/hashParams'
 import { SIDEBAR_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, RIGHT_PANEL_MAX_WIDTH } from '@shared/types'
+
+const FOCUS_TITLEBAR_INSET = 78
+const isMac =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
 export function AppLayout(): React.JSX.Element {
   const {
@@ -46,9 +51,12 @@ export function AppLayout(): React.JSX.Element {
   const [secondaryHydrated, setSecondaryHydrated] = useState(!isSecondary)
 
   useSyncFromMain()
-  useThemeSync()
+  usePreferencesSync()
+  useFocusMode()
   useNavigationSync()
   useNavigationSyncPublisher(isProjectOpen && !isSecondary)
+
+  const focusChrome = useFocusChromeActive()
 
   useEffect(() => {
     if (!isSecondary) return
@@ -144,18 +152,31 @@ export function AppLayout(): React.JSX.Element {
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <div className="flex flex-1 overflow-hidden">
         <ErrorBoundary region="Sidebar">
-          <Sidebar />
+          <div className={focusChrome ? 'hidden' : 'contents'}>
+            <Sidebar />
+          </div>
         </ErrorBoundary>
         <main className="drag-region flex flex-1 flex-col overflow-hidden bg-background">
+          {focusChrome && isMac && (
+            <div
+              className="drag-region h-9 shrink-0"
+              style={{ paddingLeft: FOCUS_TITLEBAR_INSET }}
+              aria-hidden
+            />
+          )}
           <ErrorBoundary region="Editor" fallbackClassName="flex-1">
             <EditorPane />
           </ErrorBoundary>
         </main>
         <ErrorBoundary region="Details Panel">
-          <EntityPanel />
+          <div className={focusChrome ? 'hidden' : 'contents'}>
+            <EntityPanel />
+          </div>
         </ErrorBoundary>
       </div>
-      <StatusBar />
+      <div className={focusChrome ? 'hidden' : 'contents'}>
+        <StatusBar />
+      </div>
       <ExportDialog open={showExportDialog} onOpenChange={setShowExportDialog} />
       <BookSettingsModal open={showBookSettingsModal} onOpenChange={setShowBookSettingsModal} />
       <Toaster />

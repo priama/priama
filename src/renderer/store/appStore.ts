@@ -1,5 +1,13 @@
 import { create } from 'zustand'
-import type { CategoryDefinition, ContainerViewMode, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
+import type {
+  CategoryDefinition,
+  ContainerViewMode,
+  EntityHighlights,
+  ProjectMeta,
+  TreeNode,
+  TypewriterScrolling,
+  WikiEntityType
+} from '@shared/types'
 import { DEFAULT_SECTION_ORDER, DEFAULT_EXPANDED_SECTIONS, migrateExpandedSections, migrateSectionOrder, SIDEBAR_MAX_WIDTH } from '@shared/types'
 import { isValidContainerId, pruneContainerNavigation } from '@shared/projectUiState'
 import type { RenameSession, RenameSurface, RenamePhase } from '@/lib/renameSession'
@@ -31,6 +39,9 @@ interface AppState {
   selectedEntryCategoryId: string | null
 
   theme: 'light' | 'dark'
+  focusMode: boolean
+  typewriterScrolling: TypewriterScrolling
+  entityHighlights: EntityHighlights
   sidebarWidth: number
   rightPanelWidth: number
   rightPanelOpen: boolean
@@ -74,6 +85,22 @@ interface AppState {
   selectEntry: (id: string | null, categoryId: string | null) => void
   setTheme: (theme: 'light' | 'dark', options?: { persist?: boolean }) => void
   toggleTheme: () => void
+  setFocusMode: (focusMode: boolean, options?: { persist?: boolean }) => void
+  toggleFocusMode: () => void
+  setTypewriterScrolling: (
+    typewriterScrolling: TypewriterScrolling,
+    options?: { persist?: boolean }
+  ) => void
+  setEntityHighlights: (
+    entityHighlights: EntityHighlights,
+    options?: { persist?: boolean }
+  ) => void
+  applyWritingPreferences: (prefs: {
+    theme?: 'light' | 'dark'
+    focusMode?: boolean
+    typewriterScrolling?: TypewriterScrolling
+    entityHighlights?: EntityHighlights
+  }) => void
   setRightPanelOpen: (open: boolean) => void
   setShowNewProjectModal: (show: boolean) => void
   setShowExportDialog: (show: boolean) => void
@@ -138,6 +165,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   containerHistoryIndex: -1,
 
   theme: 'dark',
+  focusMode: false,
+  typewriterScrolling: 'focus' as TypewriterScrolling,
+  entityHighlights: 'hide-in-focus' as EntityHighlights,
   sidebarWidth: SIDEBAR_MAX_WIDTH,
   rightPanelWidth: 320,
   rightPanelOpen: true,
@@ -361,6 +391,48 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleTheme: () => {
     const next = get().theme === 'dark' ? 'light' : 'dark'
     get().setTheme(next)
+  },
+  setFocusMode: (focusMode, options) => {
+    document.documentElement.dataset.focusMode = focusMode ? 'true' : 'false'
+    set({ focusMode })
+    if (options?.persist !== false) {
+      void window.electronAPI.tomes.updatePreferences({ focusMode })
+    }
+  },
+  toggleFocusMode: () => {
+    get().setFocusMode(!get().focusMode)
+  },
+  setTypewriterScrolling: (typewriterScrolling, options) => {
+    set({ typewriterScrolling })
+    if (options?.persist !== false) {
+      void window.electronAPI.tomes.updatePreferences({ typewriterScrolling })
+    }
+  },
+  setEntityHighlights: (entityHighlights, options) => {
+    document.documentElement.dataset.entityHighlights = entityHighlights
+    set({ entityHighlights })
+    if (options?.persist !== false) {
+      void window.electronAPI.tomes.updatePreferences({ entityHighlights })
+    }
+  },
+  applyWritingPreferences: (prefs) => {
+    if (prefs.theme !== undefined) {
+      document.documentElement.classList.toggle('dark', prefs.theme === 'dark')
+    }
+    if (prefs.focusMode !== undefined) {
+      document.documentElement.dataset.focusMode = prefs.focusMode ? 'true' : 'false'
+    }
+    if (prefs.entityHighlights !== undefined) {
+      document.documentElement.dataset.entityHighlights = prefs.entityHighlights
+    }
+    set({
+      ...(prefs.theme !== undefined ? { theme: prefs.theme } : {}),
+      ...(prefs.focusMode !== undefined ? { focusMode: prefs.focusMode } : {}),
+      ...(prefs.typewriterScrolling !== undefined
+        ? { typewriterScrolling: prefs.typewriterScrolling }
+        : {}),
+      ...(prefs.entityHighlights !== undefined ? { entityHighlights: prefs.entityHighlights } : {})
+    })
   },
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setShowNewProjectModal: (show) => set({ showNewProjectModal: show }),

@@ -228,6 +228,33 @@
   @apply bg-primary/20 text-primary hover:bg-primary/30;
 }
 
+/* Hide entity paint when highlights are off or hidden in focus mode */
+html[data-entity-highlights='off'] .entity-name-ref,
+html[data-entity-highlights='off'] .entity-mention,
+html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-name-ref,
+html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-mention {
+  text-decoration: none;
+  background: transparent;
+  color: inherit;
+  cursor: text;
+  padding: 0;
+  border-radius: 0;
+}
+
+html[data-entity-highlights='off'] .entity-name-ref:hover,
+html[data-entity-highlights='off'] .entity-mention:hover,
+html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-name-ref:hover,
+html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-mention:hover {
+  text-decoration: none;
+  background: transparent;
+}
+
+/* Typewriter end-of-document padding while the plugin is active */
+.prose-editor.typewriter-padding {
+  padding-top: 45vh;
+  padding-bottom: 55vh;
+}
+
 /* macOS title bar drag region */
 .drag-region {
   -webkit-app-region: drag;

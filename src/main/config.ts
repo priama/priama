@@ -12,7 +12,10 @@ function getConfigPath(): string {
 function defaultPreferences(): PriamaPreferences {
   return {
     maxBackupsPerLocation: 10,
-    theme: 'dark'
+    theme: 'dark',
+    focusMode: false,
+    typewriterScrolling: 'focus',
+    entityHighlights: 'hide-in-focus'
   }
 }
 
