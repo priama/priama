@@ -19,6 +19,9 @@ interface SearchBarProps {
   onClose: () => void
   defaultShowReplace?: boolean
   focusKey?: number
+  /** Prefill from project-find handoff. */
+  initialTerm?: string
+  initialCaseSensitive?: boolean
 }
 
 /** Force decoration refresh. Never focuses the editor — safe while typing in the search bar. */
@@ -45,11 +48,13 @@ export function SearchBar({
   editor,
   onClose,
   defaultShowReplace = false,
-  focusKey = 0
+  focusKey = 0,
+  initialTerm = '',
+  initialCaseSensitive = false
 }: SearchBarProps): React.JSX.Element {
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState(initialTerm)
   const [replaceTerm, setReplaceTerm] = useState('')
-  const [caseSensitive, setCaseSensitive] = useState(false)
+  const [caseSensitive, setCaseSensitive] = useState(initialCaseSensitive)
   const [showReplace, setShowReplace] = useState(defaultShowReplace)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const replaceInputRef = useRef<HTMLInputElement>(null)
@@ -83,6 +88,14 @@ export function SearchBar({
     editor.commands.setCaseSensitive(caseSensitive)
     refreshSearch(editor)
   }, [caseSensitive, editor])
+
+  // After project-find handoff, scroll the first match into view once results exist.
+  useEffect(() => {
+    if (!initialTerm) return
+    const storage = editor.storage.searchAndReplace as SearchAndReplaceStorage
+    if (storage.results.length === 0) return
+    scrollToActiveMatch(editor)
+  }, [editor, initialTerm, searchTerm])
 
   useEffect(() => {
     return () => {

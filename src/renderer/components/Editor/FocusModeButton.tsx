@@ -9,7 +9,7 @@ const isMac =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
 function focusShortcutLabel(): string {
-  return isMac ? '⌘⇧F' : 'Ctrl+Shift+F'
+  return isMac ? '⌥⌘F' : 'Alt+Ctrl+F'
 }
 
 interface FocusModeButtonProps {

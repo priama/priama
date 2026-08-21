@@ -24,6 +24,8 @@ import { applyOpenProjectResult } from '@/lib/applyOpenProject'
 import { usePreferencesSync } from '@/hooks/usePreferencesSync'
 import { useFocusMode, useFocusChromeActive } from '@/hooks/useFocusMode'
 import { useEditorAppearance } from '@/hooks/useEditorAppearance'
+import { useProjectFind } from '@/hooks/useProjectFind'
+import { ProjectFindOverlay } from '@/components/Search/ProjectFindOverlay'
 import { isWorkspaceWindow } from '@/lib/hashParams'
 import { useSearchParams } from '@/lib/hashParams'
 import { SIDEBAR_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, RIGHT_PANEL_MAX_WIDTH } from '@shared/types'
@@ -63,6 +65,7 @@ export function AppLayout(): React.JSX.Element {
   useSyncFromMain()
   usePreferencesSync()
   useFocusMode()
+  useProjectFind()
   useEditorAppearance()
   useNavigationSync()
   useNavigationSyncPublisher(isProjectOpen && !isSecondary)
@@ -201,6 +204,7 @@ export function AppLayout(): React.JSX.Element {
         open={showEditorAppearanceModal}
         onOpenChange={setShowEditorAppearanceModal}
       />
+      <ProjectFindOverlay />
       {showBackupsModal ? (
         <ErrorBoundary region="Backups">
           <BackupsModal open={showBackupsModal} onOpenChange={setShowBackupsModal} />

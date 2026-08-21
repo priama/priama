@@ -72,6 +72,11 @@ interface AppState {
 
   renameSession: RenameSession | null
 
+  /** Session-only: Spotlight Find in Project overlay open. Not persisted. */
+  projectFindOpen: boolean
+  /** Session-only: open in-doc SearchBar after navigating to a project-find hit. */
+  pendingDocumentSearch: { nodeId: string; term: string; caseSensitive: boolean } | null
+
   setProject: (path: string, meta: ProjectMeta, nodes?: TreeNode[]) => void
   closeProject: () => void
   setProjectMeta: (meta: ProjectMeta) => void
@@ -137,6 +142,11 @@ interface AppState {
   setSidebarWidth: (width: number) => void
   setRightPanelWidth: (width: number) => void
   applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
+
+  setProjectFindOpen: (open: boolean) => void
+  setPendingDocumentSearch: (
+    pending: { nodeId: string; term: string; caseSensitive: boolean } | null
+  ) => void
 
   startRenameSession: (params: {
     nodeId: string
@@ -211,6 +221,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   renameSession: null,
 
+  projectFindOpen: false,
+  pendingDocumentSearch: null,
+
   setProject: (path, meta, nodes) =>
     set((s) => ({
       projectPath: path,
@@ -253,7 +266,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       renameSession: null,
       containerHistory: [],
       containerHistoryIndex: -1,
-      containerViewModes: {}
+      containerViewModes: {},
+      projectFindOpen: false,
+      pendingDocumentSearch: null
     }),
 
   setProjectMeta: (meta) => set({ projectMeta: meta }),
@@ -530,6 +545,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowBackupsModal: (show) => set({ showBackupsModal: show }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
+
+  setProjectFindOpen: (open) => set({ projectFindOpen: open }),
+  setPendingDocumentSearch: (pending) => set({ pendingDocumentSearch: pending }),
 
   applyNavigationSync: (nav) =>
     set((s) => ({

@@ -354,6 +354,12 @@ function buildMenu(): void {
         { role: 'selectAll' },
         { type: 'separator' },
         {
+          label: 'Find in Project',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => sendToFocusedWindow('menu:findInProject')
+        },
+        { type: 'separator' },
+        {
           id: 'split-document',
           label: 'Split Document',
           accelerator: 'CmdOrCtrl+\\',
@@ -376,7 +382,7 @@ function buildMenu(): void {
           id: 'focus-mode',
           label: 'Focus Mode',
           type: 'checkbox',
-          accelerator: 'CmdOrCtrl+Shift+F',
+          accelerator: 'Alt+CmdOrCtrl+F',
           checked: writingMenuState.focusMode,
           enabled: writingMenuState.focusModeEnabled,
           click: () => sendToFocusedWindow('menu:toggleFocusMode')

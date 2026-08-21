@@ -95,11 +95,20 @@ function highlightsAreVisible(): boolean {
 }
 
 export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element {
-  const { nodes, categories, updateNodeInStore, setSelectedEntity } = useAppStore()
+  const {
+    nodes,
+    categories,
+    updateNodeInStore,
+    setSelectedEntity,
+    pendingDocumentSearch,
+    setPendingDocumentSearch
+  } = useAppStore()
   const focusChrome = useFocusChromeActive()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchOpenWithReplace, setSearchOpenWithReplace] = useState(false)
   const [searchFocusKey, setSearchFocusKey] = useState(0)
+  const [searchInitialTerm, setSearchInitialTerm] = useState('')
+  const [searchInitialCase, setSearchInitialCase] = useState(false)
   const [pasteMenu, setPasteMenu] = useState<{
     x: number
     y: number
@@ -311,9 +320,27 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     }
   }, [])
 
+  // Close in-doc search on document change unless a project-find handoff targets this node.
   useEffect(() => {
+    const pending = useAppStore.getState().pendingDocumentSearch
+    if (pending && node && pending.nodeId === node.id) return
     setSearchOpen(false)
+    setSearchInitialTerm('')
+    setSearchInitialCase(false)
   }, [node?.id])
+
+  // Consume project-find handoff after the target document is mounted.
+  useEffect(() => {
+    if (!node || !editor || !pendingDocumentSearch) return
+    if (pendingDocumentSearch.nodeId !== node.id) return
+
+    setSearchOpenWithReplace(false)
+    setSearchInitialTerm(pendingDocumentSearch.term)
+    setSearchInitialCase(pendingDocumentSearch.caseSensitive)
+    setSearchOpen(true)
+    setSearchFocusKey((k) => k + 1)
+    setPendingDocumentSearch(null)
+  }, [node?.id, editor, pendingDocumentSearch, setPendingDocumentSearch])
 
   useEffect(() => {
     if (!editor) return
@@ -321,6 +348,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     const handler = (e: KeyboardEvent): void => {
       const mod = e.metaKey || e.ctrlKey
       if (!mod || e.shiftKey) return
+      if (useAppStore.getState().projectFindOpen) return
 
       if (e.key.toLowerCase() === 'f') {
         e.preventDefault()
@@ -328,6 +356,8 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           setSearchFocusKey((k) => k + 1)
         } else {
           setSearchOpenWithReplace(false)
+          setSearchInitialTerm('')
+          setSearchInitialCase(false)
           setSearchOpen(true)
         }
       }
@@ -338,6 +368,8 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           setSearchFocusKey((k) => k + 1)
         } else {
           setSearchOpenWithReplace(true)
+          setSearchInitialTerm('')
+          setSearchInitialCase(false)
           setSearchOpen(true)
         }
       }
@@ -349,6 +381,8 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
 
   const handleCloseSearch = (): void => {
     setSearchOpen(false)
+    setSearchInitialTerm('')
+    setSearchInitialCase(false)
     if (editor) {
       editor.commands.setSearchTerm('')
       editor.commands.setReplaceTerm('')
@@ -361,6 +395,8 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       setSearchFocusKey((k) => k + 1)
     } else {
       setSearchOpenWithReplace(false)
+      setSearchInitialTerm('')
+      setSearchInitialCase(false)
       setSearchOpen(true)
     }
   }
@@ -490,11 +526,13 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       )}
       {searchOpen && editor && (
         <SearchBar
-          key={searchOpenWithReplace ? 'replace' : 'search'}
+          key={`${searchOpenWithReplace ? 'replace' : 'search'}:${searchInitialTerm}:${searchInitialCase}`}
           editor={editor}
           onClose={handleCloseSearch}
           defaultShowReplace={searchOpenWithReplace}
           focusKey={searchFocusKey}
+          initialTerm={searchInitialTerm}
+          initialCaseSensitive={searchInitialCase}
         />
       )}
       <div className="editor-scroll relative flex-1 overflow-y-auto px-8 py-6">
