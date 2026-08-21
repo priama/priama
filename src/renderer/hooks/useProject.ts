@@ -53,6 +53,7 @@ export function useProject(): {
       if (result.success) {
         setLastSaved(result.lastSaved)
       }
+      // Queued zip warnings arrive via backup:result. Force-save may still return them.
       if (result.backupWarnings?.length) {
         for (const w of result.backupWarnings) {
           addToast({
@@ -62,10 +63,8 @@ export function useProject(): {
           })
         }
       }
-      if (result.unreachableBackupPaths?.length) {
+      if (result.unreachableBackupPaths !== undefined) {
         setBackupWarningCount(result.unreachableBackupPaths.length)
-      } else {
-        setBackupWarningCount(0)
       }
     },
     [setLastSaved, addToast, setBackupWarningCount]
@@ -123,7 +122,7 @@ export function useProject(): {
   }, [openProjectAtPath])
 
   const saveProject = useCallback(async () => {
-    const result = await flushAndSaveProject()
+    const result = await flushAndSaveProject('explicit')
     applySaveResult(result)
   }, [applySaveResult])
 
@@ -154,7 +153,7 @@ export function useProject(): {
     useHistoryStore.getState().clear()
 
     try {
-      const result = await window.electronAPI.tomes.saveProject()
+      const result = await window.electronAPI.tomes.saveProject('force')
       applySaveResult(result)
     } catch (err) {
       console.error('Save failed on close:', err)

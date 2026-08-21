@@ -33,7 +33,9 @@ import {
   updateBookSettings,
   updateCategories,
   importCoverImage,
-  deleteProject
+  deleteProject,
+  createManualBackup,
+  writeProjectManifest
 } from './tomes/projectStore'
 import { validateTomesFile } from './tomes/validate'
 import {
@@ -42,11 +44,18 @@ import {
   showSelectImageDialog,
   showSaveExportDialog
 } from './fileSystem'
-import { checkBackupLocations, listLocalBackups } from './tomes/backup'
+import {
+  checkBackupLocations,
+  getBackupStatus,
+  listLocalBackups,
+  restoreProjectFromBackup,
+  toBackupResultPayload
+} from './tomes/backup'
 import {
   getConfig,
   removeFromRecent,
   setBackupLocations,
+  getBackupLocations,
   updatePreferences,
   updateRecentPrimaryPath,
   updateWindowLayout,
@@ -303,6 +312,10 @@ function buildMenu(): void {
           click: () => sendToWindow(mainWindow, 'menu:save')
         },
         {
+          label: 'Backups…',
+          click: () => sendToWindow(mainWindow, 'menu:backups')
+        },
+        {
           label: 'Export…',
           accelerator: 'CmdOrCtrl+Shift+E',
           click: () => sendToWindow(mainWindow, 'menu:export')
@@ -492,6 +505,10 @@ function buildMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
+function broadcastBackupResult(payload: import('@shared/types').BackupResultPayload): void {
+  broadcast('backup:result', payload)
+}
+
 function registerIpcHandlers(): void {
   ipcMain.handle('tomes:createProject', async (_, input: CreateProjectInput) => {
     return createProject(input)
@@ -501,9 +518,18 @@ function registerIpcHandlers(): void {
     return openProject(path)
   })
 
-  ipcMain.handle('tomes:saveProject', async () => {
-    return saveProject()
-  })
+  ipcMain.handle(
+    'tomes:saveProject',
+    async (
+      _,
+      args?: { backup?: 'autosave' | 'explicit' | 'force' | 'none' }
+    ) => {
+      return saveProject({
+        backup: args?.backup ?? 'autosave',
+        onBackupResult: broadcastBackupResult
+      })
+    }
+  )
 
   ipcMain.handle('tomes:getRecentProjects', async () => {
     return getRecentProjectsWithStatus()
@@ -768,6 +794,59 @@ function registerIpcHandlers(): void {
     return listLocalBackups(root)
   })
 
+  ipcMain.handle('backup:status', async () => {
+    const root = getProjectRootPath()
+    const meta = getProjectMeta()
+    if (!root || !meta) return null
+    return getBackupStatus(root, meta.id)
+  })
+
+  ipcMain.handle('backup:create', async (_, { name }: { name?: string }) => {
+    const result = await createManualBackup(name)
+    const payload = toBackupResultPayload(result)
+    broadcastBackupResult(payload)
+    return payload
+  })
+
+  ipcMain.handle('backup:restore', async (_, { path: zipPath }: { path: string }) => {
+    const root = getProjectRootPath()
+    const meta = getProjectMeta()
+    const tomes = getProjectPath()
+    if (!root || !meta || !tomes) {
+      return { success: false, message: 'No project open' }
+    }
+
+    const result = await restoreProjectFromBackup({
+      projectRoot: root,
+      backupZipPath: zipPath,
+      projectId: meta.id,
+      writeManifest: writeProjectManifest,
+      getExternalDestinations: () => getBackupLocations(meta.id),
+      beforeSwap: async () => {
+        closeAllChildren()
+        await requestRendererRestoreReady()
+        closeProject()
+        resetNavigationState()
+      }
+    })
+
+    if (!result.success) {
+      return result
+    }
+
+    try {
+      const opened = await openProject(tomes)
+      sendToWindow(mainWindow, 'tomes:projectOpened', opened)
+      broadcastSync()
+      return { success: true }
+    } catch (err) {
+      return {
+        success: false,
+        message: err instanceof Error ? err.message : 'Could not reopen the project after restore'
+      }
+    }
+  })
+
   ipcMain.handle('tomes:forceQuit', async () => {
     isQuitting = true
     closeProject()
@@ -819,6 +898,23 @@ async function requestRendererFlush(): Promise<void> {
   })
 }
 
+async function requestRendererRestoreReady(): Promise<void> {
+  const win = aliveWindow(mainWindow)
+  if (!win) return
+
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(resolve, 5000)
+
+    ipcMain.handleOnce('app:restoreReady', async () => {
+      clearTimeout(timeout)
+      resolve()
+      return { success: true }
+    })
+
+    broadcast('backup:willRestore', {})
+  })
+}
+
 app.on('open-file', (event, path) => {
   event.preventDefault()
   if (!gotLock) return
@@ -846,12 +942,15 @@ app.on('before-quit', async (event) => {
 
   try {
     await requestRendererFlush()
-    const result = await saveProject()
+    const result = await saveProject({
+      backup: 'force',
+      onBackupResult: broadcastBackupResult
+    })
     sendToWindow(mainWindow, 'tomes:beforeQuit', {
-      unreachableBackupPaths: result.unreachableBackupPaths
+      unreachableBackupPaths: result.unreachableBackupPaths ?? []
     })
 
-    if (result.unreachableBackupPaths.length > 0) {
+    if ((result.unreachableBackupPaths?.length ?? 0) > 0) {
       isQuitting = false
       return
     }

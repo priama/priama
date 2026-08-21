@@ -329,8 +329,9 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
             <DialogHeader>
               <DialogTitle>Backup Locations</DialogTitle>
               <DialogDescription>
-                Priama will automatically copy your project here every time you save. You can add up
-                to 5 locations.
+                Optional: copy zip backups to another drive or folder. Local zips always live in the
+                project&apos;s backups folder. You can add up to 5 locations and manage them later
+                from File → Backups.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-2">

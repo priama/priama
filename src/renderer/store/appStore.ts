@@ -36,6 +36,7 @@ interface AppState {
   lastSaved: string | null
   isDirty: boolean
   backupWarningCount: number
+  lastBackupAt: string | null
 
   categories: CategoryDefinition[]
   nodes: TreeNode[]
@@ -64,6 +65,7 @@ interface AppState {
   showExportDialog: boolean
   showBookSettingsModal: boolean
   showEditorAppearanceModal: boolean
+  showBackupsModal: boolean
 
   containerHistory: string[]
   containerHistoryIndex: number
@@ -76,6 +78,8 @@ interface AppState {
   setLastSaved: (timestamp: string) => void
   setDirty: (dirty: boolean) => void
   setBackupWarningCount: (count: number) => void
+  setLastBackupAt: (timestamp: string | null) => void
+  setShowBackupsModal: (show: boolean) => void
 
   setCategories: (categories: CategoryDefinition[]) => void
   updateCategories: (categories: CategoryDefinition[]) => Promise<void>
@@ -172,6 +176,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   lastSaved: null,
   isDirty: false,
   backupWarningCount: 0,
+  lastBackupAt: null,
 
   categories: [],
   nodes: [],
@@ -202,6 +207,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   showExportDialog: false,
   showBookSettingsModal: false,
   showEditorAppearanceModal: false,
+  showBackupsModal: false,
 
   renameSession: null,
 
@@ -212,6 +218,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       projectMeta: meta,
       isProjectOpen: true,
       isDirty: false,
+      backupWarningCount: 0,
+      lastBackupAt: null,
+      showBackupsModal: false,
       categories: meta.categories ?? [],
       ...(nodes
         ? {
@@ -239,6 +248,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       isDirty: false,
       lastSaved: null,
       backupWarningCount: 0,
+      lastBackupAt: null,
+      showBackupsModal: false,
       renameSession: null,
       containerHistory: [],
       containerHistoryIndex: -1,
@@ -249,6 +260,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLastSaved: (timestamp) => set({ lastSaved: timestamp, isDirty: false }),
   setDirty: (dirty) => set({ isDirty: dirty }),
   setBackupWarningCount: (count) => set({ backupWarningCount: count }),
+  setLastBackupAt: (timestamp) => set({ lastBackupAt: timestamp }),
 
   setCategories: (categories) => set({ categories }),
 
@@ -515,6 +527,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowExportDialog: (show) => set({ showExportDialog: show }),
   setShowBookSettingsModal: (show) => set({ showBookSettingsModal: show }),
   setShowEditorAppearanceModal: (show) => set({ showEditorAppearanceModal: show }),
+  setShowBackupsModal: (show) => set({ showBackupsModal: show }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
 

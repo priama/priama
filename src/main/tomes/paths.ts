@@ -92,7 +92,26 @@ export function getProjectFolderName(projectRoot: string): string {
   return basename(projectRoot)
 }
 
+/** UTC ISO-ish stamp used in backup zip filenames: `2026-08-21T08-12-00`. */
+export function formatBackupIsoStamp(date = new Date()): string {
+  return date.toISOString().slice(0, 19).replace(/:/g, '-')
+}
+
 export function formatBackupZipName(date = new Date()): string {
-  const iso = date.toISOString().slice(0, 19)
-  return iso.replace(/:/g, '-') + '.zip'
+  return formatBackupIsoStamp(date) + '.zip'
+}
+
+export function formatNamedBackupZipName(slug: string, date = new Date()): string {
+  const safe = slug
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+  const base = formatBackupIsoStamp(date)
+  return safe ? `${base}__${safe}.zip` : `${base}.zip`
+}
+
+export function formatPreRestoreBackupZipName(date = new Date()): string {
+  return `${formatBackupIsoStamp(date)}__before-restore.zip`
 }

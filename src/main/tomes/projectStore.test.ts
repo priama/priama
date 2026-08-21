@@ -48,9 +48,20 @@ vi.mock('./backup', () => ({
   createProjectBackup: vi.fn().mockResolvedValue({
     localBackupPath: '/tmp/fake.zip',
     warnings: [],
-    unreachablePaths: []
+    unreachablePaths: [],
+    kind: 'auto'
   }),
-  restoreProjectTomesFromLatestBackup: vi.fn().mockResolvedValue(false)
+  createAwaitedBackup: vi.fn().mockResolvedValue({
+    localBackupPath: '/tmp/fake.zip',
+    warnings: [],
+    unreachablePaths: [],
+    kind: 'auto'
+  }),
+  queueAutomaticBackupIfNeeded: vi.fn().mockResolvedValue(null),
+  toBackupResultPayload: vi.fn((r: { localBackupPath?: string; warnings: unknown[]; unreachablePaths: string[]; kind: string }) => r),
+  restoreProjectTomesFromLatestBackup: vi.fn().mockResolvedValue(false),
+  AUTOSAVE_BACKUP_GATE_MS: 15 * 60 * 1000,
+  EXPLICIT_SAVE_BACKUP_GATE_MS: 60 * 1000
 }))
 
 let testDir: string
@@ -781,7 +792,14 @@ describe('getEntityNodes', () => {
 describe('saveProject', () => {
   it('returns success with lastSaved timestamp', async () => {
     await createProject(makeInput())
-    const result = await saveProject()
+    const result = await saveProject({ backup: 'none' })
+    expect(result.success).toBe(true)
+    expect(result.lastSaved).toBeTruthy()
+  })
+
+  it('returns success without requiring a zip', async () => {
+    await createProject(makeInput())
+    const result = await saveProject({ backup: 'autosave' })
     expect(result.success).toBe(true)
     expect(result.lastSaved).toBeTruthy()
   })

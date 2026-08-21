@@ -9,28 +9,6 @@ import {
   hasUnpersistedChanges,
   resetPersistenceState
 } from '@/lib/contentPersistence'
-import type { SaveResult } from '@shared/types'
-
-function applySaveResult(
-  result: SaveResult,
-  setLastSaved: (timestamp: string) => void,
-  setBackupWarningCount: (count: number) => void,
-  addToast: (input: { title: string; description?: string; variant?: 'warning' }) => void
-): void {
-  if (result.success) {
-    setLastSaved(result.lastSaved)
-  }
-  if (result.backupWarnings?.length) {
-    for (const w of result.backupWarnings) {
-      addToast({
-        title: w.title,
-        description: w.message,
-        variant: 'warning'
-      })
-    }
-  }
-  setBackupWarningCount(result.unreachableBackupPaths?.length ?? 0)
-}
 
 export function useContentPersistence(enabled: boolean): {
   saveProject: () => Promise<void>
@@ -39,19 +17,30 @@ export function useContentPersistence(enabled: boolean): {
   const selectedEntityId = useAppStore((s) => s.selectedEntityId)
   const projectId = useAppStore((s) => s.projectId)
   const setLastSaved = useAppStore((s) => s.setLastSaved)
-  const setBackupWarningCount = useAppStore((s) => s.setBackupWarningCount)
   const addToast = useToastStore((s) => s.addToast)
   const prevNodeIdRef = useRef<string | null>(null)
   const prevEntityIdRef = useRef<string | null>(null)
 
   const saveProject = useCallback(async () => {
     try {
-      const result = await flushAndSaveProject()
-      applySaveResult(result, setLastSaved, setBackupWarningCount, addToast)
+      const result = await flushAndSaveProject('explicit')
+      if (result.success) {
+        setLastSaved(result.lastSaved)
+      }
+      // Backup warnings arrive via backup:result for queued zips; awaited paths also broadcast.
+      if (result.backupWarnings?.length) {
+        for (const w of result.backupWarnings) {
+          addToast({
+            title: w.title,
+            description: w.message,
+            variant: 'warning'
+          })
+        }
+      }
     } catch (err) {
       console.error('Save failed:', err)
     }
-  }, [setLastSaved, setBackupWarningCount, addToast])
+  }, [setLastSaved, addToast])
 
   useEffect(() => {
     resetPersistenceState()
@@ -93,11 +82,13 @@ export function useContentPersistence(enabled: boolean): {
 
     const timer = setInterval(() => {
       if (!hasUnpersistedChanges()) return
-      void saveProject()
+      void flushAndSaveProject('autosave').then((result) => {
+        if (result.success) setLastSaved(result.lastSaved)
+      })
     }, AUTOSAVE_INTERVAL_MS)
 
     return () => clearInterval(timer)
-  }, [enabled, saveProject])
+  }, [enabled, setLastSaved])
 
   useEffect(() => {
     if (!enabled) return

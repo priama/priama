@@ -37,6 +37,11 @@ export class ErrorBoundary extends Component<Props, State> {
         <p className="text-sm text-muted-foreground">
           Something went wrong in {this.props.region}
         </p>
+        {this.state.error.message ? (
+          <p className="max-w-md break-words text-center text-xs text-muted-foreground/80">
+            {this.state.error.message}
+          </p>
+        ) : null}
         <button
           type="button"
           onClick={this.handleRetry}

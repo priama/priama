@@ -10,11 +10,13 @@ import { BookSettingsModal } from '@/components/Settings/BookSettingsModal'
 import { EditorAppearanceModal } from '@/components/Settings/EditorAppearanceModal'
 import { RecentProjectsScreen } from '@/components/Project/RecentProjectsScreen'
 import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
+import { BackupsModal } from '@/components/Project/BackupsModal'
 import { Toaster } from '@/components/UI/toast'
 import { useProject } from '@/hooks/useProject'
 import { useStructuralUndoShortcuts } from '@/hooks/useStructuralUndoShortcuts'
 import { useHistoryStore } from '@/store/historyStore'
 import { useContentPersistence } from '@/hooks/useContentPersistence'
+import { useBackupEvents, useBackupStatusHydration } from '@/hooks/useBackupEvents'
 import { useNavigationSync, useNavigationSyncPublisher } from '@/hooks/useNavigationSync'
 import { useProjectUiPersistence } from '@/hooks/useProjectUiPersistence'
 import { useSyncFromMain, hydrateFromMain } from '@/hooks/useSync'
@@ -40,6 +42,8 @@ export function AppLayout(): React.JSX.Element {
     setShowBookSettingsModal,
     showEditorAppearanceModal,
     setShowEditorAppearanceModal,
+    showBackupsModal,
+    setShowBackupsModal,
     setSidebarWidth,
     setRightPanelWidth,
     setSelectedNodeId,
@@ -49,6 +53,8 @@ export function AppLayout(): React.JSX.Element {
   const { openProject, closeProject } = useProject()
   useStructuralUndoShortcuts()
   useContentPersistence(isProjectOpen && !isSecondary)
+  useBackupEvents(!isSecondary)
+  useBackupStatusHydration(isProjectOpen && !isSecondary)
   useProjectUiPersistence(isProjectOpen && !isSecondary)
 
   const [quitWarningPaths, setQuitWarningPaths] = useState<string[]>([])
@@ -93,6 +99,9 @@ export function AppLayout(): React.JSX.Element {
     const unsubExport = window.electronAPI.on('menu:export', () => {
       if (isProjectOpen && !isSecondary) setShowExportDialog(true)
     })
+    const unsubBackups = window.electronAPI.on('menu:backups', () => {
+      if (isProjectOpen && !isSecondary) setShowBackupsModal(true)
+    })
     const unsubCloseProject = window.electronAPI.on('menu:closeProject', () => {
       void closeProject()
     })
@@ -122,6 +131,7 @@ export function AppLayout(): React.JSX.Element {
       unsubOpen()
       unsubNew()
       unsubExport()
+      unsubBackups()
       unsubCloseProject()
       unsubDevicePreview()
       unsubOpened()
@@ -133,6 +143,7 @@ export function AppLayout(): React.JSX.Element {
     isSecondary,
     setShowNewProjectModal,
     setShowExportDialog,
+    setShowBackupsModal,
     isProjectOpen
   ])
 
@@ -180,7 +191,9 @@ export function AppLayout(): React.JSX.Element {
         </ErrorBoundary>
       </div>
       <div className={focusChrome ? 'hidden' : 'contents'}>
-        <StatusBar />
+        <ErrorBoundary region="Status Bar">
+          <StatusBar />
+        </ErrorBoundary>
       </div>
       <ExportDialog open={showExportDialog} onOpenChange={setShowExportDialog} />
       <BookSettingsModal open={showBookSettingsModal} onOpenChange={setShowBookSettingsModal} />
@@ -188,6 +201,11 @@ export function AppLayout(): React.JSX.Element {
         open={showEditorAppearanceModal}
         onOpenChange={setShowEditorAppearanceModal}
       />
+      {showBackupsModal ? (
+        <ErrorBoundary region="Backups">
+          <BackupsModal open={showBackupsModal} onOpenChange={setShowBackupsModal} />
+        </ErrorBoundary>
+      ) : null}
       <Toaster />
       {!isSecondary && (
         <QuitWarningModal

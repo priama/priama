@@ -16,5 +16,8 @@ export async function applyOpenProjectResult(result: OpenProjectResult): Promise
   resolveProjectUiOnOpen(result.uiState, result.nodes, categories)
   await publishNavigationSyncAsync()
   markUiRestoreComplete()
-  useAppStore.getState().setLastSaved(result.meta.updatedAt)
+  const savedAt = result.meta.updatedAt
+  if (savedAt && !Number.isNaN(Date.parse(savedAt))) {
+    useAppStore.getState().setLastSaved(savedAt)
+  }
 }

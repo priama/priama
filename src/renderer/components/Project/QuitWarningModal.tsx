@@ -37,7 +37,7 @@ export function QuitWarningModal({
               </ul>
               <p className="text-sm text-muted-foreground">
                 Your project is saved at its primary location. Connect the missing drives and
-                re-open Priama to sync backups.
+                re-open Priama so the next backup can copy there.
               </p>
             </div>
           </DialogDescription>

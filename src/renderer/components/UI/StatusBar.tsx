@@ -5,6 +5,17 @@ import { Button } from '@/components/UI/button'
 import { useProject } from '@/hooks/useProject'
 import { FocusModeButton } from '@/components/Editor/FocusModeButton'
 
+function safeRelativeTime(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const ms = Date.parse(iso)
+  if (Number.isNaN(ms)) return null
+  try {
+    return formatDistanceToNow(new Date(ms), { addSuffix: true })
+  } catch {
+    return null
+  }
+}
+
 export function StatusBar(): React.JSX.Element {
   const {
     lastSaved,
@@ -13,20 +24,27 @@ export function StatusBar(): React.JSX.Element {
     toggleTheme,
     projectMeta,
     backupWarningCount,
-    setShowExportDialog
+    lastBackupAt,
+    setShowExportDialog,
+    setShowBackupsModal
   } = useAppStore()
   const { saveProject } = useProject()
 
+  const savedRelative = safeRelativeTime(lastSaved)
+  const backupRelative = safeRelativeTime(lastBackupAt)
+
   const savedLabel = isDirty
     ? 'Unsaved changes'
-    : lastSaved
-      ? `Last saved: ${formatDistanceToNow(new Date(lastSaved), { addSuffix: true })}`
+    : savedRelative
+      ? `Last saved: ${savedRelative}`
       : 'Ready'
 
   const backupLabel =
     backupWarningCount > 0
       ? `Backup warning: ${backupWarningCount} location${backupWarningCount === 1 ? '' : 's'} unavailable`
-      : 'All backups synced'
+      : backupRelative
+        ? `Last backup: ${backupRelative}`
+        : 'No backups yet'
 
   const openDevicePreview = (): void => {
     void window.electronAPI.windows.openDevicePreview({ scope: 'manuscript' })
@@ -37,7 +55,14 @@ export function StatusBar(): React.JSX.Element {
       <div className="flex items-center gap-3">
         <span>{savedLabel}</span>
         <span className="text-border">|</span>
-        <span className={backupWarningCount > 0 ? 'text-amber-500' : ''}>{backupLabel}</span>
+        <button
+          type="button"
+          className={`hover:underline ${backupWarningCount > 0 ? 'text-amber-500' : ''}`}
+          onClick={() => setShowBackupsModal?.(true)}
+          title="Open Backups"
+        >
+          {backupLabel}
+        </button>
         {projectMeta && (
           <>
             <span className="text-border">|</span>

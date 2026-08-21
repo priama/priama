@@ -146,9 +146,11 @@ export async function flushAllDirty(): Promise<void> {
   }
 }
 
-export async function flushAndSaveProject(): Promise<SaveResult> {
+export async function flushAndSaveProject(
+  backup: 'autosave' | 'explicit' | 'force' = 'autosave'
+): Promise<SaveResult> {
   await flushAllDirty()
-  return window.electronAPI.tomes.saveProject()
+  return window.electronAPI.tomes.saveProject(backup)
 }
 
 /** Test helpers — not for production UI. */

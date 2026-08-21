@@ -3,6 +3,7 @@ import fse from 'fs-extra'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   BackupWarning,
+  BackupResultPayload,
   BookSettings,
   CategoryDefinition,
   CreateProjectInput,
@@ -12,6 +13,7 @@ import type {
   OpenProjectResult,
   ProjectMeta,
   ProjectUiState,
+  SaveResult,
   SpellCheckLang,
   TomesIndexEntry,
   TomesManifest,
@@ -64,7 +66,14 @@ import {
   getConfig,
   updateRecentTitle
 } from '../config'
-import { createProjectBackup } from './backup'
+import {
+  AUTOSAVE_BACKUP_GATE_MS,
+  EXPLICIT_SAVE_BACKUP_GATE_MS,
+  createAwaitedBackup,
+  queueAutomaticBackupIfNeeded,
+  toBackupResultPayload,
+  type BackupResult
+} from './backup'
 
 let projectRoot: string | null = null
 let tomesPath: string | null = null
@@ -602,7 +611,7 @@ export async function deleteProject(primaryPath: string): Promise<{ wasOpen: boo
     currentRoot !== null && resolve(currentRoot) === normalizedTarget
 
   if (wasOpen) {
-    await saveProject()
+    await saveProject({ backup: 'force' })
     closeProject()
   }
 
@@ -1110,30 +1119,90 @@ export async function updateProjectMeta(updates: {
   return getProjectMeta()!
 }
 
-export async function saveProject(): Promise<{
-  success: boolean
-  lastSaved: string
-  backupPath?: string
-  backupWarnings: BackupWarning[]
-  unreachableBackupPaths: string[]
-}> {
+export type SaveBackupMode = 'autosave' | 'explicit' | 'force' | 'none'
+
+export interface SaveProjectOptions {
+  /** How to zip after writing the manifest. Default: autosave gate. */
+  backup?: SaveBackupMode
+  /** Called when a queued/awaited zip finishes (for backup:result broadcast). */
+  onBackupResult?: (payload: BackupResultPayload) => void
+}
+
+function emitBackupResult(
+  result: BackupResult,
+  onBackupResult?: (payload: BackupResultPayload) => void
+): void {
+  onBackupResult?.(toBackupResultPayload(result))
+}
+
+export async function saveProject(options?: SaveProjectOptions): Promise<SaveResult> {
   if (!manifest || !projectRoot || !tomesPath) {
     return { success: false, lastSaved: '', backupWarnings: [], unreachableBackupPaths: [] }
   }
 
   await writeManifest()
   const lastSaved = manifest.lastSavedAt
+  const mode: SaveBackupMode = options?.backup ?? 'autosave'
+  const onBackupResult = options?.onBackupResult
+
+  if (mode === 'none') {
+    return { success: true, lastSaved }
+  }
 
   const externalDests = await getBackupLocations(manifest.id)
-  const backupResult = await createProjectBackup(projectRoot, externalDests)
+  const root = projectRoot
+
+  if (mode === 'force') {
+    const backupResult = await createAwaitedBackup(root, externalDests, { kind: 'auto' })
+    emitBackupResult(backupResult, onBackupResult)
+    return {
+      success: true,
+      lastSaved,
+      backupPath: backupResult.localBackupPath,
+      backupWarnings: backupResult.warnings,
+      unreachableBackupPaths: backupResult.unreachablePaths
+    }
+  }
+
+  const gateMs = mode === 'explicit' ? EXPLICIT_SAVE_BACKUP_GATE_MS : AUTOSAVE_BACKUP_GATE_MS
+  const queued = await queueAutomaticBackupIfNeeded(root, externalDests, gateMs, (result) => {
+    emitBackupResult(result, onBackupResult)
+  })
+
+  if (!queued) {
+    return { success: true, lastSaved }
+  }
 
   return {
     success: true,
     lastSaved,
-    backupPath: backupResult.localBackupPath,
-    backupWarnings: backupResult.warnings,
-    unreachableBackupPaths: backupResult.unreachablePaths
+    backupPending: true
   }
+}
+
+/** Named or manual backup from the Backups screen. Always awaits. */
+export async function createManualBackup(name?: string): Promise<BackupResult> {
+  if (!manifest || !projectRoot) {
+    return {
+      warnings: [
+        {
+          path: '',
+          title: "Couldn't create backup",
+          message: 'No project is open.'
+        }
+      ],
+      unreachablePaths: [],
+      kind: name?.trim() ? 'named' : 'auto'
+    }
+  }
+  await writeManifest()
+  const externalDests = await getBackupLocations(manifest.id)
+  const kind = name?.trim() ? 'named' : 'auto'
+  return createAwaitedBackup(projectRoot, externalDests, { kind, name })
+}
+
+export async function writeProjectManifest(): Promise<void> {
+  await writeManifest()
 }
 
 export async function getRecentProjectsWithStatus(): Promise<

@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   BackupLocationStatus,
+  BackupRecord,
+  BackupResultPayload,
+  BackupStatus,
   BookSettings,
   CategoryDefinition,
   ChapterStructure,
@@ -34,7 +37,7 @@ export interface ElectronAPI {
   tomes: {
     createProject: (input: CreateProjectInput) => Promise<{ path: string; meta: ProjectMeta; projectRoot: string }>
     openProject: (path: string) => Promise<OpenProjectResult>
-    saveProject: () => Promise<SaveResult>
+    saveProject: (backup?: 'autosave' | 'explicit' | 'force' | 'none') => Promise<SaveResult>
     closeProject: () => Promise<{ success: boolean }>
     getProjectInfo: () => Promise<{ path: string; meta: ProjectMeta } | null>
     getRecentProjects: () => Promise<RecentProjectWithStatus[]>
@@ -103,7 +106,10 @@ export interface ElectronAPI {
     deleteEntityImage: (relativePath: string) => Promise<void>
   }
   backup: {
-    list: () => Promise<{ path: string; createdAt: string }[]>
+    list: () => Promise<BackupRecord[]>
+    status: () => Promise<BackupStatus | null>
+    create: (name?: string) => Promise<BackupResultPayload>
+    restore: (path: string) => Promise<{ success: boolean; message?: string }>
   }
   export: {
     document: (options: ExportOptions) => Promise<{ success: boolean; message?: string; path?: string }>
@@ -117,6 +123,7 @@ export interface ElectronAPI {
   }
   app: {
     notifyFlushComplete: () => Promise<{ success: boolean }>
+    notifyRestoreReady: () => Promise<{ success: boolean }>
     setWritingMenuState: (state: WritingMenuState) => Promise<{ success: boolean }>
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void
@@ -126,7 +133,7 @@ const api: ElectronAPI = {
   tomes: {
     createProject: (input) => ipcRenderer.invoke('tomes:createProject', input),
     openProject: (path) => ipcRenderer.invoke('tomes:openProject', { path }),
-    saveProject: () => ipcRenderer.invoke('tomes:saveProject'),
+    saveProject: (backup) => ipcRenderer.invoke('tomes:saveProject', { backup }),
     closeProject: () => ipcRenderer.invoke('tomes:closeProject'),
     getProjectInfo: () => ipcRenderer.invoke('tomes:getProjectInfo'),
     getRecentProjects: () => ipcRenderer.invoke('tomes:getRecentProjects'),
@@ -191,7 +198,10 @@ const api: ElectronAPI = {
       ipcRenderer.invoke('entity:deleteEntityImage', { relativePath })
   },
   backup: {
-    list: () => ipcRenderer.invoke('backup:list')
+    list: () => ipcRenderer.invoke('backup:list'),
+    status: () => ipcRenderer.invoke('backup:status'),
+    create: (name) => ipcRenderer.invoke('backup:create', { name }),
+    restore: (path) => ipcRenderer.invoke('backup:restore', { path })
   },
   export: {
     document: (options) => ipcRenderer.invoke('export:document', options)
@@ -205,6 +215,7 @@ const api: ElectronAPI = {
   },
   app: {
     notifyFlushComplete: () => ipcRenderer.invoke('app:flushComplete'),
+    notifyRestoreReady: () => ipcRenderer.invoke('app:restoreReady'),
     setWritingMenuState: (state) => ipcRenderer.invoke('app:setWritingMenuState', state)
   },
   on: (channel, callback) => {

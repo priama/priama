@@ -561,9 +561,43 @@ export interface BackupWarning {
   message: string
 }
 
+export type BackupKind = 'auto' | 'named' | 'pre-restore'
+
+export interface BackupRecord {
+  path: string
+  fileName: string
+  /** ISO timestamp from the filename when parseable; otherwise mtime fallback. */
+  createdAt: string
+  sizeBytes: number
+  kind: BackupKind
+  /** Display name for named backups (from the slug after `__`). */
+  name?: string
+}
+
+export interface BackupDestinationStatus extends BackupLocationStatus {
+  lastSuccessfulCopyAt?: string
+}
+
+export interface BackupStatus {
+  local: BackupRecord[]
+  destinations: BackupDestinationStatus[]
+  lastLocalBackupAt: string | null
+  lastExternalCopyAt: string | null
+  inFlight: boolean
+}
+
+export interface BackupResultPayload {
+  localBackupPath?: string
+  warnings: BackupWarning[]
+  unreachablePaths: string[]
+  kind: BackupKind
+}
+
 export interface SaveResult {
   success: boolean
   lastSaved: string
+  /** True when an automatic zip was queued and will finish asynchronously. */
+  backupPending?: boolean
   backupPath?: string
   backupWarnings?: BackupWarning[]
   unreachableBackupPaths?: string[]
