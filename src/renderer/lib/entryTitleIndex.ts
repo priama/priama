@@ -1,6 +1,12 @@
 import { categoryOpensInRightPanel, findCategory } from '@shared/categoryView'
 import { resolveCategoryForNode } from '@shared/categoryNodeKind'
-import type { CategoryDefinition, TreeNode } from '@shared/types'
+import {
+  DEFAULT_CHARACTER_META,
+  parseMetadata,
+  type CategoryDefinition,
+  type CharacterMeta,
+  type TreeNode
+} from '@shared/types'
 import { isWikiEntityType } from '@/lib/treeUtils'
 
 const WORD_TOKEN_RE = /[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ']+/g
@@ -54,12 +60,35 @@ function qualifiesForIndex(
   return false
 }
 
+/** Title plus non-empty character aliases — phrases that should match this node. */
+export function phrasesForNode(node: TreeNode): string[] {
+  const phrases: string[] = []
+  const title = node.title.trim()
+  if (title) phrases.push(title)
+
+  if (node.type === 'character') {
+    const raw = parseMetadata<Partial<CharacterMeta>>(node.metadata, DEFAULT_CHARACTER_META)
+    const aliases = Array.isArray(raw.aliases) ? raw.aliases : DEFAULT_CHARACTER_META.aliases
+    const seen = new Set(phrases.map((p) => p.toLowerCase()))
+    for (const alias of aliases) {
+      const trimmed = String(alias).trim()
+      if (!trimmed) continue
+      const key = trimmed.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      phrases.push(trimmed)
+    }
+  }
+
+  return phrases
+}
+
 function titleTokens(title: string): string[] {
   return title.trim().split(/\s+/).filter(Boolean).map((t) => t.toLowerCase())
 }
 
-function addToTrie(root: TrieNode, entry: IndexedEntry): void {
-  const tokens = titleTokens(entry.title)
+function addToTrie(root: TrieNode, phrase: string, entry: IndexedEntry): void {
+  const tokens = titleTokens(phrase)
   if (tokens.length === 0) return
 
   let node = root
@@ -82,12 +111,15 @@ export function buildEntryTitleIndex(
 
   for (const node of nodes) {
     if (!qualifiesForIndex(node, categories)) continue
-    addToTrie(root, {
+    const entry: IndexedEntry = {
       id: node.id,
       type: node.type,
       categoryId: resolveCategoryForNode(node),
       title: node.title
-    })
+    }
+    for (const phrase of phrasesForNode(node)) {
+      addToTrie(root, phrase, entry)
+    }
   }
 
   return { root }
@@ -154,7 +186,10 @@ export function panelEntryFingerprint(
 ): string {
   return nodes
     .filter((n) => qualifiesForIndex(n, categories))
-    .map((n) => `${n.id}:${n.title}:${n.deletedAt ?? ''}`)
+    .map((n) => {
+      const phrases = phrasesForNode(n).join(',')
+      return `${n.id}:${n.title}:${phrases}:${n.deletedAt ?? ''}`
+    })
     .sort()
     .join('|')
 }

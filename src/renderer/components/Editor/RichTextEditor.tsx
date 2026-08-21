@@ -38,14 +38,6 @@ import { useFocusChromeActive } from '@/hooks/useFocusMode'
 import { findCategory } from '@shared/categoryView'
 import type { TreeNode } from '@shared/types'
 
-import {
-  DEFAULT_CHARACTER_META,
-  DEFAULT_LOCATION_META,
-  DEFAULT_LORE_META,
-  parseMetadata
-} from '@shared/types'
-import type { CharacterMeta, LocationMeta, LoreMeta } from '@shared/types'
-
 function sanitizePastedHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT)
@@ -61,26 +53,6 @@ function sanitizePastedHtml(html: string): string {
 
 interface RichTextEditorProps {
   node: TreeNode | null
-}
-
-function buildEntityNames(nodes: TreeNode[]): Map<string, { id: string; type: string; name: string }> {
-  const map = new Map<string, { id: string; type: string; name: string }>()
-
-  for (const node of nodes) {
-    if (node.type === 'character') {
-      map.set(node.title.toLowerCase(), { id: node.id, type: 'character', name: node.title })
-      const meta = parseMetadata<CharacterMeta>(node.metadata, DEFAULT_CHARACTER_META)
-      for (const alias of meta.aliases) {
-        if (alias) map.set(alias.toLowerCase(), { id: node.id, type: 'character', name: node.title })
-      }
-    } else if (node.type === 'location') {
-      map.set(node.title.toLowerCase(), { id: node.id, type: 'location', name: node.title })
-    } else if (node.type === 'lore') {
-      map.set(node.title.toLowerCase(), { id: node.id, type: 'lore', name: node.title })
-    }
-  }
-
-  return map
 }
 
 function entityTypeLabel(
@@ -159,7 +131,6 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   )
   const prevEntryFingerprintRef = useRef(entryFingerprint)
 
-  const entityMap = useMemo(() => buildEntityNames(nodes), [nodes])
   const isEditable = isWritingSurfaceNode(node, categories)
 
   const editor = useEditor({

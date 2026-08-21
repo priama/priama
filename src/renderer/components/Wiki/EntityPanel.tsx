@@ -10,8 +10,10 @@ import { renderEntryPanel } from '@/components/Wiki/entryPanelRegistry'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
 import { ManuscriptPanel } from '@/components/Editor/ManuscriptPanel'
+import { AppearsInSection } from '@/components/Wiki/AppearsInSection'
 import { ensureNodeInStore } from '@/lib/categoryNavigation'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
+import { useManuscriptAppearances } from '@/hooks/useManuscriptAppearances'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { PanelNameField } from '@/components/Wiki/PanelNameField'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
@@ -227,6 +229,7 @@ export function EntityPanel(): React.JSX.Element | null {
     setRightPanelWidth,
     setSelectedEntity,
     selectEntry,
+    setSelectedNodeId,
     clearManuscriptInfo,
     updateNodeInStore,
     setDirty
@@ -245,6 +248,8 @@ export function EntityPanel(): React.JSX.Element | null {
   const activeId = wikiId ?? (manuscriptCandidate ? manuscriptCandidate.id : null)
   const isManuscriptPanel = !wikiId && !!manuscriptCandidate
   const wantsOpen = !!activeId && rightPanelOpen
+  const appearanceEntityId = wantsOpen && wikiId ? wikiId : null
+  const appearanceRows = useManuscriptAppearances(appearanceEntityId)
 
   const [mounted, setMounted] = useState(wantsOpen)
   const [expanded, setExpanded] = useState(wantsOpen)
@@ -583,6 +588,13 @@ export function EntityPanel(): React.JSX.Element | null {
                   <p className="text-sm text-muted-foreground">
                     Category not found. It may have been deleted.
                   </p>
+                )}
+                {appearanceEntityId && (
+                  <AppearsInSection
+                    className="mt-6 border-t border-border pt-4"
+                    rows={appearanceRows}
+                    onOpen={(nodeId) => setSelectedNodeId(nodeId)}
+                  />
                 )}
               </div>
             </ScrollArea>
