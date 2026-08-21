@@ -281,6 +281,11 @@ function SortableTreeItem({
     <TreeContextMenu
       variant={isFolderNode ? 'folder' : isWikiEntityType(node.type) ? 'wikiRow' : 'manuscript'}
       node={node}
+      onInfo={
+        node.type === 'chapter' || node.type === 'scene'
+          ? () => useAppStore.getState().openManuscriptInfo(node.id)
+          : undefined
+      }
       onRename={onRename}
       onMoveToTrash={onMoveToTrash}
       {...contextMenuActions}

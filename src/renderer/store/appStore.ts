@@ -49,6 +49,7 @@ interface AppState {
   selectedEntityType: WikiEntityType | null
   selectedEntryId: string | null
   selectedEntryCategoryId: string | null
+  manuscriptInfoNodeId: string | null
 
   theme: 'light' | 'dark'
   focusMode: boolean
@@ -97,6 +98,9 @@ interface AppState {
   setSelectedEntity: (id: string | null, type: WikiEntityType | null) => void
   /** Panel entry selection — preserves center view when opening/closing (same as wiki entities). */
   selectEntry: (id: string | null, categoryId: string | null) => void
+  /** Open manuscript Info panel for a chapter/scene without changing center selection. */
+  openManuscriptInfo: (nodeId: string) => void
+  clearManuscriptInfo: () => void
   setTheme: (theme: 'light' | 'dark', options?: { persist?: boolean }) => void
   toggleTheme: () => void
   setFocusMode: (focusMode: boolean, options?: { persist?: boolean }) => void
@@ -181,6 +185,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedEntityType: null,
   selectedEntryId: null,
   selectedEntryCategoryId: null,
+  manuscriptInfoNodeId: null,
 
   containerHistory: [],
   containerHistoryIndex: -1,
@@ -230,6 +235,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntityType: null,
       selectedEntryId: null,
       selectedEntryCategoryId: null,
+      manuscriptInfoNodeId: null,
       isDirty: false,
       lastSaved: null,
       backupWarningCount: 0,
@@ -292,11 +298,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...(s.selectedEntryId === id
         ? { selectedEntryId: null, selectedEntryCategoryId: null, rightPanelOpen: false }
         : {}),
+      ...(s.manuscriptInfoNodeId === id
+        ? { manuscriptInfoNodeId: null, rightPanelOpen: false }
+        : {}),
       renameSession: s.renameSession?.nodeId === id ? null : s.renameSession
     })),
   setSelectedNodeId: (id) => {
     const state = get()
-    const hasPanel = Boolean(state.selectedEntityId || state.selectedEntryId)
+    const hasPanel = Boolean(
+      state.selectedEntityId || state.selectedEntryId || state.manuscriptInfoNodeId
+    )
     const node = id ? state.nodes.find((n) => n.id === id) : null
     const isManuscriptFocus =
       id === null || node?.type === 'chapter' || node?.type === 'scene'
@@ -314,6 +325,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntityType: null,
       selectedEntryId: null,
       selectedEntryCategoryId: null,
+      manuscriptInfoNodeId: null,
       rightPanelOpen: false
     })
   },
@@ -389,6 +401,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntryCategoryId: categoryId,
       selectedEntityId: null,
       selectedEntityType: null,
+      manuscriptInfoNodeId: null,
       rightPanelOpen: reopenPanel
     })
   },
@@ -400,8 +413,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntityType: type,
       selectedEntryId: null,
       selectedEntryCategoryId: null,
+      manuscriptInfoNodeId: null,
       rightPanelOpen: reopenPanel
     })
+  },
+
+  openManuscriptInfo: (nodeId) => {
+    const node = get().nodes.find((n) => n.id === nodeId && !n.deletedAt)
+    if (!node || (node.type !== 'chapter' && node.type !== 'scene')) return
+    set({
+      manuscriptInfoNodeId: nodeId,
+      selectedEntityId: null,
+      selectedEntityType: null,
+      selectedEntryId: null,
+      selectedEntryCategoryId: null,
+      rightPanelOpen: true
+    })
+  },
+
+  clearManuscriptInfo: () => {
+    set({ manuscriptInfoNodeId: null, rightPanelOpen: false })
   },
 
   setTheme: (theme, options) => {
@@ -495,6 +526,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedEntityType: nav.selectedEntityType,
       selectedEntryId: nav.selectedEntryId ?? null,
       selectedEntryCategoryId: nav.selectedEntryCategoryId ?? null,
+      manuscriptInfoNodeId: nav.manuscriptInfoNodeId ?? null,
       expandedSections: migrateExpandedSections(nav.expandedSections),
       rightPanelOpen: nav.rightPanelOpen,
       sectionOrder: migrateSectionOrder(nav.sectionOrder, s.categories)

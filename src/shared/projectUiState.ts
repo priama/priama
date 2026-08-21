@@ -59,6 +59,7 @@ export function defaultProjectUiState(categories: CategoryDefinition[]): Project
     selectedEntityType: null,
     selectedEntryId: null,
     selectedEntryCategoryId: null,
+    manuscriptInfoNodeId: null,
     expandedSections,
     rightPanelOpen: false,
     containerViewModes: {}
@@ -122,6 +123,8 @@ export function normalizeProjectUiState(
     selectedEntryId: typeof raw.selectedEntryId === 'string' ? raw.selectedEntryId : null,
     selectedEntryCategoryId:
       typeof raw.selectedEntryCategoryId === 'string' ? raw.selectedEntryCategoryId : null,
+    manuscriptInfoNodeId:
+      typeof raw.manuscriptInfoNodeId === 'string' ? raw.manuscriptInfoNodeId : null,
     expandedSections: [
       ...(Array.isArray(raw.expandedSections)
         ? migrateExpandedSections(raw.expandedSections)
@@ -362,6 +365,20 @@ export function sanitizeProjectUiState(
     selectedEntryCategoryId = null
   }
 
+  let manuscriptInfoNodeId = ui.manuscriptInfoNodeId
+  if (manuscriptInfoNodeId) {
+    const node = nodes.find((n) => n.id === manuscriptInfoNodeId)
+    if (
+      !node ||
+      node.deletedAt ||
+      (node.type !== 'chapter' && node.type !== 'scene')
+    ) {
+      manuscriptInfoNodeId = null
+    }
+  } else {
+    manuscriptInfoNodeId = null
+  }
+
   let selectedContainerId = ui.selectedContainerId
   if (selectedContainerId && !isValidContainerId(selectedContainerId, nodes, categories)) {
     selectedContainerId = null
@@ -376,9 +393,10 @@ export function sanitizeProjectUiState(
     }
   )
 
-  const hasPanelSelection = Boolean(
+  const hasWikiPanelSelection = Boolean(
     (selectedEntityId && selectedEntityType) || (selectedEntryId && selectedEntryCategoryId)
   )
+  const hasPanelSelection = hasWikiPanelSelection || Boolean(manuscriptInfoNodeId)
   const rightPanelOpen = hasPanelSelection ? ui.rightPanelOpen : false
 
   if (!selectedNodeId && !selectedContainerId && !hasPanelSelection) {
@@ -400,6 +418,7 @@ export function sanitizeProjectUiState(
     selectedEntityType,
     selectedEntryId,
     selectedEntryCategoryId,
+    manuscriptInfoNodeId,
     expandedSections,
     rightPanelOpen,
     containerViewModes

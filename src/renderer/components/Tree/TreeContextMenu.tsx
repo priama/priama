@@ -1,5 +1,5 @@
 import * as ContextMenu from '@radix-ui/react-context-menu'
-import { ArrowRightLeft, FolderInput, Pencil, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, FolderInput, Info, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import type { TreeNode } from '@shared/types'
 
 type TreeMenuVariant = 'manuscript' | 'wiki' | 'folder' | 'trash' | 'wikiRow'
@@ -12,6 +12,7 @@ export interface MoveToFolder {
 interface TreeContextMenuProps {
   variant: TreeMenuVariant
   node?: TreeNode
+  onInfo?: () => void
   onRename?: () => void
   onMoveTo?: () => void
   moveToFolders?: MoveToFolder[]
@@ -32,6 +33,7 @@ interface TreeContextMenuProps {
 export function TreeContextMenu({
   variant,
   node,
+  onInfo,
   onRename,
   onMoveTo,
   moveToFolders,
@@ -79,6 +81,15 @@ export function TreeContextMenu({
             </>
           ) : (
             <>
+              {onInfo && (
+                <ContextMenu.Item
+                  className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                  onSelect={onInfo}
+                >
+                  <Info className="mr-2 h-3.5 w-3.5" />
+                  Info
+                </ContextMenu.Item>
+              )}
               {onRename && (
                 <ContextMenu.Item
                   className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"

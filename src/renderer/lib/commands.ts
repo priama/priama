@@ -10,6 +10,7 @@ import {
 } from '@/lib/splitMerge'
 import { getChildren, getScenes, isSimpleChapter } from '@/lib/treeUtils'
 import { requestRenameAfterCreate } from '@/lib/pendingRename'
+import { chapterMetaWithStructure, simpleChapterMetaFrom } from '@shared/manuscriptMeta'
 
 function syncNodes(nodes: TreeNode[]): void {
   useAppStore.getState().setNodes(nodes)
@@ -33,13 +34,16 @@ function clearSelectionForDeletedNode(createdId: string): void {
     selectedNodeId,
     selectedEntryId,
     selectedEntityId,
+    manuscriptInfoNodeId,
     setSelectedNodeId,
     selectEntry,
-    setSelectedEntity
+    setSelectedEntity,
+    clearManuscriptInfo
   } = useAppStore.getState()
   if (selectedNodeId === createdId) setSelectedNodeId(null)
   if (selectedEntryId === createdId) selectEntry(null, null)
   if (selectedEntityId === createdId) setSelectedEntity(null, null)
+  if (manuscriptInfoNodeId === createdId) clearManuscriptInfo()
 }
 
 export function makeCreateNodeCommand(params: {
@@ -323,7 +327,7 @@ export function makeSplitCommand(params: {
             keeper.parentId,
             'chapter',
             newTitle,
-            { metadata: JSON.stringify({ structure: 'simple' }) }
+            { metadata: simpleChapterMetaFrom() }
           )
         }
 
@@ -480,7 +484,7 @@ export function makeConvertScenesChapterToSimpleCommand(params: {
         const { setSelectedNodeId, selectContainer } = useAppStore.getState()
         await window.electronAPI.tree.update(params.chapterId, {
           content: params.joinedHtml,
-          metadata: JSON.stringify({ structure: 'simple' })
+          metadata: chapterMetaWithStructure(params.chapterOriginalMetadata, 'simple')
         })
         for (const sceneId of params.sceneIds) {
           await window.electronAPI.tree.moveToTrash(sceneId)
@@ -549,7 +553,7 @@ export function makeConvertSimpleToScenesChapterCommand(params: {
         if (!chapter) return
 
         await window.electronAPI.tree.update(params.chapterId, {
-          metadata: JSON.stringify({ structure: 'scenes' })
+          metadata: chapterMetaWithStructure(params.chapterOriginalMetadata, 'scenes')
         })
         const firstScene = await window.electronAPI.tree.create(
           params.chapterId,
@@ -612,7 +616,7 @@ export function makePromoteSceneToSimpleChapterCommand(params: {
           chapterParent?.parentId ?? null,
           'chapter',
           params.scene.title,
-          { metadata: JSON.stringify({ structure: 'simple' }) }
+          { metadata: simpleChapterMetaFrom(params.scene) }
         )
         createdChapterId = newChapter.id
         await window.electronAPI.tree.update(newChapter.id, { content: params.scene.content })

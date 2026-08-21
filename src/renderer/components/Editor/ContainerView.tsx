@@ -28,6 +28,13 @@ import { makeRenameCommand } from '@/lib/commands'
 import { useRenameInput } from '@/hooks/useRenameInput'
 import { TreeContextMenu, EmptyAreaContextMenu, type MoveToFolder } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
+import {
+  ManuscriptCardBody,
+  ManuscriptColorStrip,
+  isManuscriptPlanningNode,
+  manuscriptStatusLabel
+} from '@/components/Editor/ManuscriptCardBody'
+import { formatWordProgress, planningMetaFor, scenesChapterStats } from '@shared/manuscriptMeta'
 import type { ContainerViewMode, TreeNode } from '@shared/types'
 import {
   parseMetadata,
@@ -49,6 +56,13 @@ export type ListVariant =
 
 const LIST_GRID_COLS =
   'grid-cols-[minmax(0,2fr)_minmax(0,7rem)_9rem_9rem_minmax(0,1.5fr)_1.75rem]'
+
+const MANUSCRIPT_LIST_GRID_COLS =
+  'grid-cols-[minmax(0,2fr)_minmax(0,6rem)_minmax(0,7rem)_minmax(0,2fr)_1.75rem]'
+
+function isManuscriptListVariant(variant: ListVariant): boolean {
+  return variant === 'manuscript' || variant === 'chapterScenes'
+}
 
 interface ContainerViewProps {
   title: string
@@ -186,12 +200,18 @@ function listContentsSummary(
 function CardBody({
   node,
   allNodes,
-  sceneChapter
+  sceneChapter,
+  readOnly
 }: {
   node: TreeNode
   allNodes: TreeNode[]
   sceneChapter: boolean
+  readOnly?: boolean
 }): React.JSX.Element {
+  if (isManuscriptPlanningNode(node)) {
+    return <ManuscriptCardBody node={node} allNodes={allNodes} readOnly={readOnly} />
+  }
+
   if (sceneChapter) {
     return (
       <div className="mt-2 flex-1">
@@ -315,6 +335,11 @@ function wrapItemMenu(
     <TreeContextMenu
       variant={menuVariant}
       node={node}
+      onInfo={
+        node.type === 'chapter' || node.type === 'scene'
+          ? () => useAppStore.getState().openManuscriptInfo(node.id)
+          : undefined
+      }
       onRename={onRename}
       onMoveTo={node.type === 'scene' ? onMoveTo : undefined}
       moveToFolders={
@@ -378,20 +403,22 @@ function SortableCard(props: ItemMenuProps): React.JSX.Element {
 
   const folderNode = isFolder(node)
   const sceneChapter = isChapterFolder(node)
+  const manuscriptNode = isManuscriptPlanningNode(node)
 
   const card = (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        'no-drag group relative flex flex-col rounded-lg border bg-card p-4 shadow-sm transition-colors',
+        'no-drag group relative flex flex-col rounded-lg border bg-card shadow-sm transition-colors',
+        manuscriptNode ? 'p-4 pl-[18px]' : 'p-4',
         renaming ? 'cursor-default' : 'cursor-pointer',
         isSelected ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50 hover:bg-accent/30',
-        isDragging && 'opacity-50 z-10',
-        sceneChapter && 'border-dashed'
+        isDragging && 'opacity-50 z-10'
       )}
       onClick={renaming ? undefined : onSelect}
     >
+      {manuscriptNode && <ManuscriptColorStrip node={node} readOnly={readOnly} />}
       {!readOnly && !renaming && (
         <button
           type="button"
@@ -435,7 +462,9 @@ function SortableCard(props: ItemMenuProps): React.JSX.Element {
           <h3 className="font-medium leading-snug">{node.title}</h3>
         )}
       </div>
-      {!renaming && <CardBody node={node} allNodes={allNodes} sceneChapter={sceneChapter} />}
+      {!renaming && (
+        <CardBody node={node} allNodes={allNodes} sceneChapter={sceneChapter} readOnly={readOnly} />
+      )}
     </div>
   )
 
@@ -472,10 +501,27 @@ function SortableListRow(props: ItemMenuProps): React.JSX.Element {
 
   const folderNode = isFolder(node)
   const sceneChapter = isChapterFolder(node)
+  const manuscriptList = isManuscriptListVariant(listVariant)
+  const planning = isManuscriptPlanningNode(node) ? planningMetaFor(node) : null
   const contents = listContentsSummary(node, allNodes, sceneChapter)
   const typeCell = listTypeCell(node, listVariant)
   const created = formatRelativeDate(node.createdAt)
   const lastEdited = formatRelativeDate(node.updatedAt)
+
+  const wordLabel = (() => {
+    if (!planning) return contents || '—'
+    const unit = (n: number, g: number | null): string =>
+      n === 1 && g == null ? 'word' : 'words'
+    if (sceneChapter) {
+      const stats = scenesChapterStats(node, allNodes)
+      const progress = formatWordProgress(stats.wordCount, planning.wordGoal)
+      return `${stats.sceneCount} ${stats.sceneCount === 1 ? 'scene' : 'scenes'} · ${progress} ${unit(stats.wordCount, planning.wordGoal)}`
+    }
+    const words = countNodeWords(node)
+    return `${formatWordProgress(words, planning.wordGoal)} ${unit(words, planning.wordGoal)}`
+  })()
+
+  const gridCols = manuscriptList ? MANUSCRIPT_LIST_GRID_COLS : LIST_GRID_COLS
 
   const row = (
     <div
@@ -483,7 +529,7 @@ function SortableListRow(props: ItemMenuProps): React.JSX.Element {
       style={style}
       className={cn(
         'no-drag group grid items-center gap-3 border-b border-border px-3 py-2.5 text-sm transition-colors',
-        LIST_GRID_COLS,
+        gridCols,
         renaming ? 'cursor-default' : 'cursor-pointer',
         isSelected ? 'bg-accent/50' : 'hover:bg-accent/30',
         isDragging && 'opacity-50 z-10 bg-card'
@@ -491,6 +537,13 @@ function SortableListRow(props: ItemMenuProps): React.JSX.Element {
       onClick={renaming ? undefined : onSelect}
     >
       <div className="flex min-w-0 items-center gap-2">
+        {planning?.color && (
+          <span
+            className="h-4 w-1 shrink-0 rounded-full"
+            style={{ backgroundColor: planning.color }}
+            aria-hidden
+          />
+        )}
         {folderNode && <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
         {sessionRename.isEditing ? (
           <input
@@ -521,12 +574,29 @@ function SortableListRow(props: ItemMenuProps): React.JSX.Element {
           <span className="truncate font-medium">{node.title}</span>
         )}
       </div>
-      <span className="truncate text-muted-foreground" title={typeCell.title}>
-        {typeCell.text}
-      </span>
-      <span className="truncate text-muted-foreground">{created}</span>
-      <span className="truncate text-muted-foreground">{lastEdited}</span>
-      <span className="truncate text-muted-foreground">{contents || '—'}</span>
+      {manuscriptList ? (
+        <>
+          <span className="truncate text-muted-foreground">
+            {planning ? manuscriptStatusLabel(planning.status) : '—'}
+          </span>
+          <span className="truncate tabular-nums text-muted-foreground">{wordLabel}</span>
+          <span
+            className="truncate text-muted-foreground"
+            title={planning?.synopsis || undefined}
+          >
+            {planning?.synopsis.trim() || '—'}
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="truncate text-muted-foreground" title={typeCell.title}>
+            {typeCell.text}
+          </span>
+          <span className="truncate text-muted-foreground">{created}</span>
+          <span className="truncate text-muted-foreground">{lastEdited}</span>
+          <span className="truncate text-muted-foreground">{contents || '—'}</span>
+        </>
+      )}
       {!readOnly && !renaming ? (
         <button
           type="button"
@@ -674,22 +744,34 @@ export function ContainerView({
                 <div
                   className={cn(
                     'grid gap-3 border-b border-border bg-muted/40 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground',
-                    LIST_GRID_COLS
+                    isManuscriptListVariant(listVariant) ? MANUSCRIPT_LIST_GRID_COLS : LIST_GRID_COLS
                   )}
                 >
-                  <span>Name</span>
-                  <span>{listTypeColumnLabel(listVariant)}</span>
-                  <span>Created</span>
-                  <span>Last edited</span>
-                  <span>Contents</span>
-                  <span />
+                  {isManuscriptListVariant(listVariant) ? (
+                    <>
+                      <span>Name</span>
+                      <span>Status</span>
+                      <span>Words</span>
+                      <span>Synopsis</span>
+                      <span />
+                    </>
+                  ) : (
+                    <>
+                      <span>Name</span>
+                      <span>{listTypeColumnLabel(listVariant)}</span>
+                      <span>Created</span>
+                      <span>Last edited</span>
+                      <span>Contents</span>
+                      <span />
+                    </>
+                  )}
                 </div>
                 {items.map((node) => (
                   <SortableListRow key={node.id} {...itemProps(node)} />
                 ))}
               </div>
             ) : (
-              <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mx-auto grid max-w-[86rem] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {items.map((node) => (
                   <SortableCard key={node.id} {...itemProps(node)} />
                 ))}

@@ -27,6 +27,7 @@ function navigationChanged(
   if (state.selectedEntityType !== prev.selectedEntityType) return true
   if (state.selectedEntryId !== prev.selectedEntryId) return true
   if (state.selectedEntryCategoryId !== prev.selectedEntryCategoryId) return true
+  if (state.manuscriptInfoNodeId !== prev.manuscriptInfoNodeId) return true
   if (state.rightPanelOpen !== prev.rightPanelOpen) return true
   if (state.sectionOrder.length !== prev.sectionOrder.length) return true
   if (state.sectionOrder.some((v, i) => v !== prev.sectionOrder[i])) return true

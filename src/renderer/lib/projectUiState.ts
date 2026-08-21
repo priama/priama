@@ -31,6 +31,7 @@ export function captureProjectUiState(): ProjectUiState {
     selectedEntityType: s.selectedEntityType,
     selectedEntryId: s.selectedEntryId,
     selectedEntryCategoryId: s.selectedEntryCategoryId,
+    manuscriptInfoNodeId: s.manuscriptInfoNodeId,
     expandedSections: [...s.expandedSections],
     rightPanelOpen: s.rightPanelOpen,
     containerViewModes: { ...s.containerViewModes }
@@ -45,6 +46,7 @@ function toNavigationSyncState(ui: ProjectUiState): NavigationSyncState {
     selectedEntityType: ui.selectedEntityType,
     selectedEntryId: ui.selectedEntryId,
     selectedEntryCategoryId: ui.selectedEntryCategoryId,
+    manuscriptInfoNodeId: ui.manuscriptInfoNodeId,
     expandedSections: ui.expandedSections,
     rightPanelOpen: ui.rightPanelOpen,
     sectionOrder: ui.sectionOrder

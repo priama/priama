@@ -8,6 +8,7 @@ const DEFAULT: NavigationSyncState = {
   selectedContainerId: null,
   selectedEntityId: null,
   selectedEntityType: null,
+  manuscriptInfoNodeId: null,
   expandedSections: [...DEFAULT_EXPANDED],
   rightPanelOpen: true,
   sectionOrder: [...DEFAULT_SECTION_ORDER]

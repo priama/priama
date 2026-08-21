@@ -15,6 +15,7 @@ function navigationChanged(
   if (state.selectedEntityType !== prev.selectedEntityType) return true
   if (state.selectedEntryId !== prev.selectedEntryId) return true
   if (state.selectedEntryCategoryId !== prev.selectedEntryCategoryId) return true
+  if (state.manuscriptInfoNodeId !== prev.manuscriptInfoNodeId) return true
   if (state.rightPanelOpen !== prev.rightPanelOpen) return true
   if (state.sectionOrder.length !== prev.sectionOrder.length) return true
   if (state.sectionOrder.some((v, i) => v !== prev.sectionOrder[i])) return true
@@ -32,7 +33,8 @@ async function hydrateNavigationFromMain(): Promise<void> {
     current.selectedEntityId !== null ||
     current.selectedNodeId !== null ||
     current.selectedContainerId !== null ||
-    current.selectedEntryId !== null
+    current.selectedEntryId !== null ||
+    current.manuscriptInfoNodeId != null
 
   if (isProjectOpen || hasLocalSelection) {
     if (
@@ -41,6 +43,7 @@ async function hydrateNavigationFromMain(): Promise<void> {
       current.selectedContainerId !== nav.selectedContainerId ||
       (current.selectedEntryId ?? null) !== (nav.selectedEntryId ?? null) ||
       (current.selectedEntryCategoryId ?? null) !== (nav.selectedEntryCategoryId ?? null) ||
+      (current.manuscriptInfoNodeId ?? null) !== (nav.manuscriptInfoNodeId ?? null) ||
       current.rightPanelOpen !== nav.rightPanelOpen ||
       setsChanged(new Set(current.expandedSections), new Set(nav.expandedSections))
     ) {

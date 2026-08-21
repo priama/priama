@@ -30,6 +30,7 @@ import {
   DEFAULT_LORE_META,
   DEFAULT_NOTE_META,
   DEFAULT_CHAPTER_META,
+  DEFAULT_SCENE_META,
   DEFAULT_FOLDER_META,
   DEFAULT_SECTION_ORDER,
   TOMES_MAGIC,
@@ -167,6 +168,8 @@ function defaultMetadataForType(type: NodeType, scope?: FolderScope): string {
       return serializeMetadata(DEFAULT_NOTE_META)
     case 'chapter':
       return serializeMetadata(DEFAULT_CHAPTER_META)
+    case 'scene':
+      return serializeMetadata(DEFAULT_SCENE_META)
     default:
       return '{}'
   }
@@ -1200,7 +1203,7 @@ export async function createChapter(
 ): Promise<TreeNode> {
   const chapter = await createNode(parentId, 'chapter', 'New Chapter')
   const meta = { ...DEFAULT_CHAPTER_META, structure }
-  await updateNode(chapter.id, { metadata: JSON.stringify(meta) })
+  await updateNode(chapter.id, { metadata: serializeMetadata(meta) })
 
   if (structure === 'scenes') {
     await createNode(chapter.id, 'scene', 'New Scene')

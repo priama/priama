@@ -22,6 +22,7 @@ export function getNavigationSnapshot(): NavigationSyncState {
     selectedEntityType: s.selectedEntityType,
     selectedEntryId: s.selectedEntryId,
     selectedEntryCategoryId: s.selectedEntryCategoryId,
+    manuscriptInfoNodeId: s.manuscriptInfoNodeId,
     expandedSections: [...s.expandedSections],
     rightPanelOpen: s.rightPanelOpen,
     sectionOrder: [...s.sectionOrder]
@@ -36,6 +37,7 @@ function navigationEquals(a: NavigationSyncState, b: NavigationSyncState): boole
     a.selectedEntityType === b.selectedEntityType &&
     (a.selectedEntryId ?? null) === (b.selectedEntryId ?? null) &&
     (a.selectedEntryCategoryId ?? null) === (b.selectedEntryCategoryId ?? null) &&
+    (a.manuscriptInfoNodeId ?? null) === (b.manuscriptInfoNodeId ?? null) &&
     a.rightPanelOpen === b.rightPanelOpen &&
     a.expandedSections.length === b.expandedSections.length &&
     a.expandedSections.every((v, i) => v === b.expandedSections[i]) &&

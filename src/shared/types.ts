@@ -638,9 +638,22 @@ export interface WritingMenuState {
 
 export type ChapterStructure = 'simple' | 'scenes'
 
-export interface ChapterMeta {
+export type ManuscriptStatus = 'outline' | 'draft' | 'revise' | 'done'
+
+export const MANUSCRIPT_STATUSES: ManuscriptStatus[] = ['outline', 'draft', 'revise', 'done']
+
+export interface ManuscriptPlanningMeta {
+  synopsis: string
+  status: ManuscriptStatus | ''
+  color: string | null
+  wordGoal: number | null
+}
+
+export interface ChapterMeta extends ManuscriptPlanningMeta {
   structure: ChapterStructure
 }
+
+export type SceneMeta = ManuscriptPlanningMeta
 
 export type ContainerViewMode = 'cards' | 'list'
 
@@ -652,6 +665,8 @@ export interface ProjectUiState {
   selectedEntityType: WikiEntityType | null
   selectedEntryId: string | null
   selectedEntryCategoryId: string | null
+  /** Chapter/scene shown in the right Info panel — independent of center selection. */
+  manuscriptInfoNodeId: string | null
   expandedSections: string[]
   /** @deprecated Merged into expandedSections on load. Present only in legacy project files. */
   expandedFolders?: string[]
@@ -667,6 +682,7 @@ export interface NavigationSyncState {
   selectedEntityType: WikiEntityType | null
   selectedEntryId?: string | null
   selectedEntryCategoryId?: string | null
+  manuscriptInfoNodeId?: string | null
   expandedSections: string[]
   rightPanelOpen: boolean
   sectionOrder: string[]
@@ -1022,8 +1038,57 @@ export function normalizeNoteMeta(raw: Partial<NoteMeta> & Record<string, unknow
   return contentHeightPx !== undefined ? { tags, contentHeightPx } : { tags }
 }
 
+export const DEFAULT_PLANNING_META: ManuscriptPlanningMeta = {
+  synopsis: '',
+  status: '',
+  color: null,
+  wordGoal: null
+}
+
 export const DEFAULT_CHAPTER_META: ChapterMeta = {
+  ...DEFAULT_PLANNING_META,
   structure: 'scenes'
+}
+
+export const DEFAULT_SCENE_META: SceneMeta = {
+  ...DEFAULT_PLANNING_META
+}
+
+function normalizePlanningMeta(raw: Partial<ManuscriptPlanningMeta>): ManuscriptPlanningMeta {
+  const status =
+    typeof raw.status === 'string' && MANUSCRIPT_STATUSES.includes(raw.status as ManuscriptStatus)
+      ? (raw.status as ManuscriptStatus)
+      : ''
+
+  const color =
+    typeof raw.color === 'string' && COVER_COLORS.includes(raw.color) ? raw.color : null
+
+  let wordGoal: number | null = null
+  if (typeof raw.wordGoal === 'number' && Number.isFinite(raw.wordGoal) && raw.wordGoal > 0) {
+    wordGoal = Math.round(raw.wordGoal)
+  }
+
+  return {
+    synopsis: typeof raw.synopsis === 'string' ? raw.synopsis : '',
+    status,
+    color,
+    wordGoal
+  }
+}
+
+export function normalizeChapterMeta(raw: Partial<ChapterMeta>): ChapterMeta {
+  const structure =
+    raw.structure === 'simple' || raw.structure === 'scenes'
+      ? raw.structure
+      : DEFAULT_CHAPTER_META.structure
+  return {
+    ...normalizePlanningMeta(raw),
+    structure
+  }
+}
+
+export function normalizeSceneMeta(raw: Partial<SceneMeta>): SceneMeta {
+  return normalizePlanningMeta(raw)
 }
 
 export const DEFAULT_FOLDER_META: FolderMeta = {
@@ -1098,6 +1163,8 @@ export function parseMetadata<T>(raw: string, fallback: T): T {
   }
 }
 
-export function serializeMetadata(meta: EntityMeta): string {
+export function serializeMetadata(
+  meta: EntityMeta | ChapterMeta | SceneMeta | FolderMeta | ManuscriptPlanningMeta
+): string {
   return JSON.stringify(meta)
 }

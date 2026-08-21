@@ -9,6 +9,7 @@ import { CharacterPanel } from '@/components/Wiki/CharacterPanel'
 import { renderEntryPanel } from '@/components/Wiki/entryPanelRegistry'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
+import { ManuscriptPanel } from '@/components/Editor/ManuscriptPanel'
 import { ensureNodeInStore } from '@/lib/categoryNavigation'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
@@ -218,6 +219,7 @@ export function EntityPanel(): React.JSX.Element | null {
     selectedEntityType,
     selectedEntryId,
     selectedEntryCategoryId,
+    manuscriptInfoNodeId,
     categories,
     rightPanelWidth,
     rightPanelOpen,
@@ -225,11 +227,23 @@ export function EntityPanel(): React.JSX.Element | null {
     setRightPanelWidth,
     setSelectedEntity,
     selectEntry,
+    clearManuscriptInfo,
     updateNodeInStore,
     setDirty
   } = useAppStore()
 
-  const activeId = selectedEntryId ?? selectedEntityId
+  const wikiId = selectedEntryId ?? selectedEntityId
+  const manuscriptCandidate =
+    !wikiId && manuscriptInfoNodeId
+      ? (nodes.find(
+          (n) =>
+            n.id === manuscriptInfoNodeId &&
+            !n.deletedAt &&
+            (n.type === 'chapter' || n.type === 'scene')
+        ) ?? null)
+      : null
+  const activeId = wikiId ?? (manuscriptCandidate ? manuscriptCandidate.id : null)
+  const isManuscriptPanel = !wikiId && !!manuscriptCandidate
   const wantsOpen = !!activeId && rightPanelOpen
 
   const [mounted, setMounted] = useState(wantsOpen)
@@ -244,7 +258,9 @@ export function EntityPanel(): React.JSX.Element | null {
         nodeId: activeId,
         panelType: selectedEntryId
           ? 'entry'
-          : (selectedEntityType ?? prev?.panelType ?? 'entry'),
+          : isManuscriptPanel
+            ? (manuscriptCandidate?.type ?? 'chapter')
+            : (selectedEntityType ?? prev?.panelType ?? 'entry'),
         entryCategoryId: selectedEntryId ? (selectedEntryCategoryId ?? null) : null
       }
       if (
@@ -257,7 +273,14 @@ export function EntityPanel(): React.JSX.Element | null {
       }
       return next
     })
-  }, [activeId, selectedEntryId, selectedEntryCategoryId, selectedEntityType])
+  }, [
+    activeId,
+    selectedEntryId,
+    selectedEntryCategoryId,
+    selectedEntityType,
+    isManuscriptPanel,
+    manuscriptCandidate?.type
+  ])
 
   useEffect(() => {
     if (wantsOpen) {
@@ -286,7 +309,9 @@ export function EntityPanel(): React.JSX.Element | null {
   const resolvedPanelType = wantsOpen
     ? selectedEntryId
       ? 'entry'
-      : (selectedEntityType ?? node?.type ?? snapshot?.panelType ?? 'entry')
+      : isManuscriptPanel
+        ? (manuscriptCandidate?.type ?? 'chapter')
+        : (selectedEntityType ?? node?.type ?? snapshot?.panelType ?? 'entry')
     : (snapshot?.panelType ?? node?.type ?? 'entry')
 
   const resolvedEntryCategory =
@@ -408,6 +433,10 @@ export function EntityPanel(): React.JSX.Element | null {
   }
 
   const handleClose = (): void => {
+    if (isManuscriptPanel) {
+      clearManuscriptInfo()
+      return
+    }
     setRightPanelOpen(false)
     if (selectedEntryId) {
       selectEntry(null, null)
@@ -476,7 +505,9 @@ export function EntityPanel(): React.JSX.Element | null {
                 <h2 className="text-sm font-semibold capitalize">
                   {resolvedPanelType === 'entry'
                     ? (resolvedEntryCategory?.name ?? 'Entry')
-                    : resolvedPanelType}
+                    : resolvedPanelType === 'chapter' || resolvedPanelType === 'scene'
+                      ? 'Info'
+                      : resolvedPanelType}
                 </h2>
                 <p className="text-xs text-muted-foreground">{node.title}</p>
               </div>
@@ -495,6 +526,9 @@ export function EntityPanel(): React.JSX.Element | null {
 
             <ScrollArea className="flex-1">
               <div className="p-4">
+                {(resolvedPanelType === 'chapter' || resolvedPanelType === 'scene') && (
+                  <ManuscriptPanel key={node.id} node={node} />
+                )}
                 {resolvedPanelType === 'character' && (
                   <CharacterPanel
                     key={node.id}

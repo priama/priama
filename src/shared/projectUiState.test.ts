@@ -56,6 +56,7 @@ const baseUi: ProjectUiState = {
   selectedEntityType: null,
   selectedEntryId: null,
   selectedEntryCategoryId: null,
+  manuscriptInfoNodeId: null,
   expandedSections: ['manuscript'],
   rightPanelOpen: false,
   containerViewModes: {}
