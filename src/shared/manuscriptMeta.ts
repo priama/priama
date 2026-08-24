@@ -10,7 +10,8 @@ import {
 
 export type PlanningMeta = ChapterMeta | SceneMeta
 
-function countHtmlWords(html: string): number {
+/** Strip HTML tags and count whitespace-separated words (same as chapter cards). */
+export function countHtmlWords(html: string): number {
   const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
   if (!text) return 0
   return text.split(/\s+/).filter(Boolean).length
@@ -41,6 +42,28 @@ export function scenesChapterStats(
   )
   const wordCount = scenes.reduce((sum, s) => sum + countHtmlWords(s.content), 0)
   return { sceneCount: scenes.length, wordCount }
+}
+
+function isScenesChapter(node: TreeNode): boolean {
+  if (node.type !== 'chapter') return false
+  return normalizeChapterMeta(parseMetadata(node.metadata, DEFAULT_CHAPTER_META)).structure === 'scenes'
+}
+
+/**
+ * Word count for one chapter: scenes-folder sums live scenes only;
+ * simple chapter counts its own body. Never adds folder body + scenes.
+ */
+export function chapterWordCount(
+  chapter: TreeNode,
+  nodes: TreeNode[],
+  countContent: (node: TreeNode) => number = (n) => countHtmlWords(n.content)
+): number {
+  if (isScenesChapter(chapter)) {
+    return nodes
+      .filter((n) => !n.deletedAt && n.parentId === chapter.id && n.type === 'scene')
+      .reduce((sum, s) => sum + countContent(s), 0)
+  }
+  return countContent(chapter)
 }
 
 /** Merge `structure` into existing chapter metadata without wiping planning fields. */

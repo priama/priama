@@ -8,6 +8,7 @@ import type {
   WikiEntityType
 } from '@shared/types'
 import { DEFAULT_CHAPTER_META, DEFAULT_FOLDER_META, parseMetadata } from '@shared/types'
+import { countHtmlWords } from '@shared/manuscriptMeta'
 
 export function isSimpleChapter(node: TreeNode): boolean {
   const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
@@ -213,9 +214,7 @@ export function countNodeWords(node: TreeNode): number {
     if (!text) return 0
     return text.split(/\s+/).filter(Boolean).length
   }
-  const text = node.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-  if (!text) return 0
-  return text.split(/\s+/).filter(Boolean).length
+  return countHtmlWords(node.content)
 }
 
 export function getSceneChapters(nodes: TreeNode[]): TreeNode[] {

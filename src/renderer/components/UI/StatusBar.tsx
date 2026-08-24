@@ -3,6 +3,7 @@ import { Moon, Sun, Download, Save, BookOpen } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
 import { useProject } from '@/hooks/useProject'
+import { useManuscriptWordTotal } from '@/hooks/useManuscriptWordTotal'
 import { FocusModeButton } from '@/components/Editor/FocusModeButton'
 
 function safeRelativeTime(iso: string | null | undefined): string | null {
@@ -29,6 +30,7 @@ export function StatusBar(): React.JSX.Element {
     setShowBackupsModal
   } = useAppStore()
   const { saveProject } = useProject()
+  const manuscriptWords = useManuscriptWordTotal()
 
   const savedRelative = safeRelativeTime(lastSaved)
   const backupRelative = safeRelativeTime(lastBackupAt)
@@ -45,6 +47,10 @@ export function StatusBar(): React.JSX.Element {
       : backupRelative
         ? `Last backup: ${backupRelative}`
         : 'No backups yet'
+
+  const manuscriptWordsLabel = `${manuscriptWords.toLocaleString()} ${
+    manuscriptWords === 1 ? 'word' : 'words'
+  }`
 
   const openDevicePreview = (): void => {
     void window.electronAPI.windows.openDevicePreview({ scope: 'manuscript' })
@@ -67,6 +73,10 @@ export function StatusBar(): React.JSX.Element {
           <>
             <span className="text-border">|</span>
             <span>{projectMeta.title}</span>
+            <span className="text-border">|</span>
+            <span className="tabular-nums" title="Manuscript word count">
+              {manuscriptWordsLabel}
+            </span>
           </>
         )}
       </div>
