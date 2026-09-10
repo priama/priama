@@ -1,6 +1,6 @@
 {
   "name": "priama",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Local-first desktop writing application for authors",
   "main": "./out/main/index.js",
   "author": "priama",
@@ -102,9 +102,15 @@
       }
     ],
     "mac": {
+      "identity": null,
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "public.app-category.productivity",
       "extendInfo": {
@@ -129,10 +135,14 @@
         "portable"
       ]
     },
+    "dmg": {
+      "artifactName": "Priama-${version}-mac-${arch}.${ext}"
+    },
     "publish": {
       "provider": "github",
       "owner": "andyrpr",
-      "repo": "texteditor"
+      "repo": "texteditor",
+      "releaseType": "release"
     }
   }
 }
