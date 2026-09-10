@@ -6,30 +6,13 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  site:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
-
   mac:
     runs-on: macos-latest
     timeout-minutes: 75
@@ -64,6 +47,6 @@ jobs:
 
       - name: Build, package, and publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PRIAMA_RELEASE_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npm run dist:mac -- --publish always

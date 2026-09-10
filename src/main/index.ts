@@ -78,7 +78,9 @@ import {
 import { registerAssetScheme, registerAssetProtocol } from './assetProtocol'
 import { exportDocument } from './export'
 import { generatePreviewEpub } from './tomes/preview/generatePreviewEpub'
+import { checkForAppUpdate } from './appUpdate'
 import type {
+  AppUpdateStatus,
   BookSettings,
   CategoryDefinition,
   CreateProjectInput,
@@ -94,6 +96,11 @@ import type {
 let mainWindow: BrowserWindow | null = null
 let pendingOpenPath: string | null = null
 let isQuitting = false
+let appUpdateStatus: AppUpdateStatus = {
+  state: 'idle',
+  currentVersion: app.getVersion()
+}
+let appUpdateCheckPromise: Promise<AppUpdateStatus> | null = null
 
 let writingMenuState: WritingMenuState = {
   focusMode: false,
@@ -118,6 +125,53 @@ function sendToWindow(win: BrowserWindow | null | undefined, channel: string, ..
   const alive = aliveWindow(win)
   if (!alive) return
   alive.webContents.send(channel, ...args)
+}
+
+function publishAppUpdateStatus(): void {
+  try {
+    buildMenu()
+  } catch (err) {
+    console.error('[app-update-menu]', err)
+  }
+  broadcast('app:updateStatus', appUpdateStatus)
+}
+
+async function refreshAppUpdateStatus(): Promise<AppUpdateStatus> {
+  if (appUpdateCheckPromise) return appUpdateCheckPromise
+
+  const currentVersion = app.getVersion()
+  appUpdateStatus = {
+    state: 'checking',
+    currentVersion
+  }
+  publishAppUpdateStatus()
+
+  const checkPromise = checkForAppUpdate(currentVersion)
+    .then((status) => {
+      appUpdateStatus = status
+      publishAppUpdateStatus()
+      return status
+    })
+    .finally(() => {
+      appUpdateCheckPromise = null
+    })
+
+  appUpdateCheckPromise = checkPromise
+  return checkPromise
+}
+
+async function openLatestAppDownload(): Promise<{ success: boolean }> {
+  if (appUpdateStatus.state !== 'available' || !appUpdateStatus.downloadUrl) {
+    return { success: false }
+  }
+
+  try {
+    await shell.openExternal(appUpdateStatus.downloadUrl)
+    return { success: true }
+  } catch (err) {
+    console.error('[app-update-open]', err)
+    return { success: false }
+  }
 }
 
 const gotLock = app.requestSingleInstanceLock()
@@ -281,6 +335,23 @@ function buildMenu(): void {
           label: app.name,
           submenu: [
             { role: 'about' as const },
+            {
+              label: `Update to ${appUpdateStatus.latestVersion ?? 'Latest Version'}…`,
+              visible: appUpdateStatus.state === 'available',
+              click: () => {
+                void openLatestAppDownload()
+              }
+            },
+            {
+              label:
+                appUpdateStatus.state === 'checking'
+                  ? 'Checking for Updates…'
+                  : 'Check for Updates…',
+              enabled: appUpdateStatus.state !== 'checking',
+              click: () => {
+                void refreshAppUpdateStatus()
+              }
+            },
             { type: 'separator' as const },
             { role: 'services' as const },
             { type: 'separator' as const },
@@ -582,6 +653,14 @@ function registerIpcHandlers(): void {
   ipcMain.handle('app:setWritingMenuState', async (_, state: WritingMenuState) => {
     applyWritingMenuState(state)
     return { success: true }
+  })
+
+  ipcMain.handle('app:getUpdateStatus', async () => {
+    return appUpdateStatus
+  })
+
+  ipcMain.handle('app:openLatestDownload', async () => {
+    return openLatestAppDownload()
   })
 
   ipcMain.handle('tomes:updateRecentPath', async (_, { projectId, primaryPath }) => {
@@ -983,6 +1062,7 @@ if (gotLock) {
     registerIpcHandlers()
     buildMenu()
     createWindow()
+    void refreshAppUpdateStatus()
 
     app.on('activate', () => {
       try {

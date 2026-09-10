@@ -91,7 +91,14 @@
       "output": "release"
     },
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "!out/**/*.map",
+      "!.env*",
+      "!.cursor/**/*",
+      "!src/**/*",
+      "!docs/**/*",
+      "!**/*.tsbuildinfo",
+      "!.git/**/*"
     ],
     "fileAssociations": [
       {
@@ -107,7 +114,6 @@
         {
           "target": "dmg",
           "arch": [
-            "x64",
             "arm64"
           ]
         }
@@ -141,7 +147,7 @@
     "publish": {
       "provider": "github",
       "owner": "andyrpr",
-      "repo": "texteditor",
+      "repo": "priama",
       "releaseType": "release"
     }
   }

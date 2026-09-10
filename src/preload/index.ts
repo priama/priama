@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  AppUpdateStatus,
   BackupLocationStatus,
   BackupRecord,
   BackupResultPayload,
@@ -125,6 +126,8 @@ export interface ElectronAPI {
     notifyFlushComplete: () => Promise<{ success: boolean }>
     notifyRestoreReady: () => Promise<{ success: boolean }>
     setWritingMenuState: (state: WritingMenuState) => Promise<{ success: boolean }>
+    getUpdateStatus: () => Promise<AppUpdateStatus>
+    openLatestDownload: () => Promise<{ success: boolean }>
   }
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void
 }
@@ -216,7 +219,9 @@ const api: ElectronAPI = {
   app: {
     notifyFlushComplete: () => ipcRenderer.invoke('app:flushComplete'),
     notifyRestoreReady: () => ipcRenderer.invoke('app:restoreReady'),
-    setWritingMenuState: (state) => ipcRenderer.invoke('app:setWritingMenuState', state)
+    setWritingMenuState: (state) => ipcRenderer.invoke('app:setWritingMenuState', state),
+    getUpdateStatus: () => ipcRenderer.invoke('app:getUpdateStatus'),
+    openLatestDownload: () => ipcRenderer.invoke('app:openLatestDownload')
   },
   on: (channel, callback) => {
     const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args)

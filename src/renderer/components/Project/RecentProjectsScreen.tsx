@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FolderOpen, Heart, Plus } from 'lucide-react'
+import { Download, FolderOpen, Heart, Plus } from 'lucide-react'
 import { Button } from '@/components/UI/button'
 import {
   Dialog,
@@ -15,7 +15,7 @@ import { NewProjectModal } from '@/components/Project/NewProjectModal'
 import { DeleteProjectModal } from '@/components/Project/DeleteProjectModal'
 import { ProjectCard } from '@/components/Project/ProjectCard'
 import { useProject } from '@/hooks/useProject'
-import type { RecentProjectWithStatus } from '@shared/types'
+import type { AppUpdateStatus, RecentProjectWithStatus } from '@shared/types'
 
 import { useAppStore } from '@/store/appStore'
 
@@ -32,6 +32,7 @@ export function RecentProjectsScreen(): React.JSX.Element {
   const [deleteProject, setDeleteProject] = useState<RecentProjectWithStatus | null>(null)
   const [renameTitle, setRenameTitle] = useState('')
   const [renaming, setRenaming] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null)
 
   const loadRecents = async (): Promise<void> => {
     const projects = await window.electronAPI.tomes.getRecentProjects()
@@ -47,6 +48,22 @@ export function RecentProjectsScreen(): React.JSX.Element {
       void loadRecents()
     })
     return unsub
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const unsubscribe = window.electronAPI.on('app:updateStatus', (status) => {
+      if (active) setUpdateStatus(status as AppUpdateStatus)
+    })
+
+    void window.electronAPI.app.getUpdateStatus().then((status) => {
+      if (active) setUpdateStatus(status)
+    })
+
+    return () => {
+      active = false
+      unsubscribe()
+    }
   }, [])
 
   const handleOpen = async (project: RecentProjectWithStatus): Promise<void> => {
@@ -167,7 +184,18 @@ export function RecentProjectsScreen(): React.JSX.Element {
         </div>
       </main>
 
-      <div className="flex h-12 shrink-0 items-center justify-end pl-12 pr-10">
+      <div className="flex h-12 shrink-0 items-center justify-end gap-2 pl-12 pr-10">
+        {updateStatus?.state === 'available' && (
+          <button
+            type="button"
+            className="relative -top-0.5 inline-flex items-center gap-1.5 rounded-md border border-[var(--launch-hairline)] bg-transparent px-3 py-1.5 text-xs font-bold text-[var(--launch-ink-dim)] transition-[background,border-color,color,transform] duration-100 hover:border-[var(--launch-accent)] hover:text-[var(--launch-ink)] active:scale-[0.97]"
+            onClick={() => void window.electronAPI.app.openLatestDownload()}
+            title={`Download Priama ${updateStatus.latestVersion}`}
+          >
+            <Download className="h-[13px] w-[13px]" />
+            Update to {updateStatus.latestVersion}
+          </button>
+        )}
         <a
           href="https://github.com/sponsors/cigardev"
           target="_blank"

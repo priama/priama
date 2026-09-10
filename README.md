@@ -23,7 +23,7 @@ MyBook/
 
 ## Download
 
-macOS installers are on [GitHub Releases](https://github.com/andyrpr/texteditor/releases/latest). There is also a [download page](https://andyrpr.github.io/texteditor/).
+Apple Silicon installers are on [GitHub Releases](https://github.com/andyrpr/priama/releases/latest). There is also a [download page](https://andyrpr.github.io/priama/).
 
 Open the `.dmg`, drag Priama to Applications, then right-click the app and choose **Open** the first time. Builds are not Apple-signed yet.
 

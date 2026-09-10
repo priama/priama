@@ -748,6 +748,16 @@ export interface PriamaConfig {
   windowLayout?: WindowLayoutState
 }
 
+export type AppUpdateState = 'idle' | 'checking' | 'current' | 'available' | 'unavailable'
+
+export interface AppUpdateStatus {
+  state: AppUpdateState
+  currentVersion: string
+  latestVersion?: string
+  downloadUrl?: string
+  releaseUrl?: string
+}
+
 export interface CreateProjectInput {
   title: string
   author: string
