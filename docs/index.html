@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Priama — Download</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #111114;
+        --fg: #f2f2f3;
+        --muted: #a1a1aa;
+        --line: #2a2a30;
+        --btn: #ececef;
+        --btn-fg: #16161a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, 'Times New Roman', serif;
+        background: var(--bg);
+        color: var(--fg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 20px;
+      }
+      main {
+        width: min(520px, 100%);
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 2.4rem;
+        font-weight: 500;
+        letter-spacing: -0.03em;
+      }
+      p {
+        margin: 0 0 12px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .downloads {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin: 28px 0 24px;
+      }
+      a.btn {
+        display: block;
+        text-align: center;
+        text-decoration: none;
+        background: var(--btn);
+        color: var(--btn-fg);
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.95rem;
+      }
+      a.btn.secondary {
+        background: transparent;
+        color: var(--fg);
+        border: 1px solid var(--line);
+      }
+      .note {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+      .status {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        font-size: 0.85rem;
+        min-height: 1.2em;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Priama</h1>
+      <p>A local-first writing app for authors. Built for Apple Silicon Macs.</p>
+      <p class="status" id="status">Looking up the latest build…</p>
+      <div class="downloads" id="downloads">
+        <a class="btn" href="https://github.com/andyrpr/priama/releases/latest">
+          Download for Apple Silicon
+        </a>
+      </div>
+      <p class="note">
+        Open the <code>.dmg</code>, drag Priama to Applications, then right-click the
+        app and choose Open the first time. These builds are not Apple-signed yet.
+      </p>
+      <p class="note">
+        <a class="btn secondary" href="https://github.com/andyrpr/priama/releases">All releases</a>
+      </p>
+    </main>
+    <script>
+      const status = document.getElementById('status')
+      const downloads = document.getElementById('downloads')
+
+      fetch('https://api.github.com/repos/andyrpr/priama/releases/latest')
+        .then((response) => {
+          if (!response.ok) throw new Error('No published release yet')
+          return response.json()
+        })
+        .then((release) => {
+          const dmg = (release.assets || []).find(
+            (asset) => asset.name.endsWith('.dmg') && asset.name.includes('arm64')
+          )
+          status.textContent = release.tag_name ? 'Latest: ' + release.tag_name : ''
+          if (!dmg) return
+          downloads.innerHTML =
+            '<a class="btn" href="' +
+            dmg.browser_download_url +
+            '">Download for Apple Silicon</a>'
+        })
+        .catch(() => {
+          status.textContent = 'The first public build is being prepared.'
+        })
+    </script>
+  </body>
+</html>
