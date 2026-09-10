@@ -19,4 +19,22 @@ module.exports = async function afterPack(context) {
     ['--verify', '--deep', '--strict', '--verbose=2', appPath],
     { stdio: 'inherit' }
   )
+
+  const electronBinary = join(
+    appPath,
+    'Contents',
+    'MacOS',
+    context.packager.appInfo.productFilename
+  )
+  execFileSync(
+    electronBinary,
+    [
+      '-e',
+      "require('archiver'); require('archiver-utils'); require('zip-stream'); console.log('Packaged zip/backup dependencies resolved')"
+    ],
+    {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      stdio: 'inherit'
+    }
+  )
 }
