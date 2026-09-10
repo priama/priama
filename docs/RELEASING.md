@@ -20,4 +20,4 @@ Save it as an Actions repository secret named `PRIAMA_RELEASE_TOKEN` in the priv
 4. Create a tag matching the package version exactly, such as `v0.0.2`.
 5. Push the tag to `andyrpr/texteditor`.
 
-The private repository's Release workflow builds the unsigned Apple Silicon `.dmg` and publishes it as a GitHub Release in `andyrpr/priama`.
+The private repository's Release workflow builds an ad-hoc-signed Apple Silicon `.dmg` and publishes it as a GitHub Release in `andyrpr/priama`. The ad-hoc signature seals the bundle so macOS does not report it as damaged; until Developer ID signing and notarization are added, users must still approve Priama on first launch.

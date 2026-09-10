@@ -13,7 +13,7 @@
     "postinstall": "electron-builder install-app-deps || true",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac": "npm run build && node scripts/buildMac.cjs",
     "dist:win": "npm run build && electron-builder --win"
   },
   "dependencies": {
@@ -87,6 +87,7 @@
   "build": {
     "appId": "com.priama.app",
     "productName": "Priama",
+    "afterPack": "scripts/afterPackAdhocSign.cjs",
     "directories": {
       "output": "release"
     },
