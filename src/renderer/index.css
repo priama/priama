@@ -353,9 +353,10 @@ html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-men
   display: none;
 }
 
-/* Manuscript + expands into the chapter picker as one surface. */
+/* Manuscript + morphs into the chapter picker as one rectangle. */
 .chapter-picker-surface {
   position: fixed;
+  box-sizing: border-box;
   display: flex;
   align-items: flex-start;
   overflow: hidden;
@@ -364,30 +365,31 @@ html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-men
   box-shadow:
     0 0 0 1px hsl(var(--border)),
     0 10px 24px -8px rgb(0 0 0 / 0.35);
+  transition:
+    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .chapter-picker-body {
-  max-width: 0;
+  flex: 0 0 auto;
+  width: max-content;
   opacity: 0;
-  transition:
-    max-width 200ms ease-in-out,
-    opacity 160ms ease-in-out 40ms;
+  pointer-events: none;
+  transition: opacity 160ms cubic-bezier(0.22, 1, 0.36, 1) 80ms;
 }
 
-.chapter-picker-body-open {
-  max-width: min(18.5rem, calc(100vw - 3rem));
+.chapter-picker-body[data-expanded='true'] {
   opacity: 1;
+  pointer-events: auto;
 }
 
-.chapter-picker-body-closed {
-  max-width: 0;
+.chapter-picker-body[data-expanded='false'] {
   opacity: 0;
-  transition:
-    max-width 200ms ease-in-out,
-    opacity 120ms ease-in-out;
+  transition: opacity 100ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .chapter-picker-surface,
   .chapter-picker-body {
     transition: none;
   }
