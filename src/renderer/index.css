@@ -353,6 +353,83 @@ html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-men
   display: none;
 }
 
+/* Manuscript + chapter picker: unfold from the trigger, not from screen center. */
+@keyframes chapter-picker-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes chapter-picker-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes chapter-picker-shell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes chapter-picker-shell-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+
+@keyframes chapter-picker-cards-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Fade lives on the Radix content so close isn't cut off; scale is on the inner shell
+   so it doesn't fight Radix's position transform. */
+.chapter-picker-content {
+  animation: chapter-picker-fade-in 200ms ease-in-out;
+}
+
+.chapter-picker-content[data-state='closed'] {
+  animation: chapter-picker-fade-out 150ms ease-in-out;
+}
+
+.chapter-picker-shell {
+  transform-origin: left center;
+  animation: chapter-picker-shell-in 200ms ease-in-out;
+}
+
+.chapter-picker-content[data-state='closed'] .chapter-picker-shell {
+  animation: chapter-picker-shell-out 150ms ease-in-out;
+}
+
+.chapter-picker-cards {
+  animation: chapter-picker-cards-in 160ms ease-in-out 60ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chapter-picker-content,
+  .chapter-picker-content[data-state='closed'],
+  .chapter-picker-shell,
+  .chapter-picker-content[data-state='closed'] .chapter-picker-shell,
+  .chapter-picker-cards {
+    animation: none;
+  }
+}
+
 /* Launch screen — theme-aware palette (dark values match HTML mockup) */
 .launch-screen {
   --launch-bg: #fafaf9;

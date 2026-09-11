@@ -26,7 +26,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/UI/tooltip'
-import { ChapterStructureModal } from '@/components/Project/ChapterStructureModal'
+import { ChapterStructurePicker } from '@/components/Project/ChapterStructurePicker'
 import { CategoryManagerModal } from '@/components/Sidebar/CategoryManagerModal'
 import { SidebarTree } from '@/components/Sidebar/SidebarTree'
 import { UndoRedoButtons } from '@/components/Sidebar/UndoRedoButtons'
@@ -130,6 +130,7 @@ function SectionHeader({
   onToggle,
   onSelectContainer,
   onAdd,
+  addButton,
   addOnHover = false,
   dragHandleProps
 }: {
@@ -141,6 +142,7 @@ function SectionHeader({
   onToggle: () => void
   onSelectContainer?: () => void
   onAdd?: () => void
+  addButton?: React.ReactNode
   addOnHover?: boolean
   dragHandleProps?: DragHandleProps
 }): React.JSX.Element {
@@ -192,7 +194,7 @@ function SectionHeader({
           <GripVertical className="h-3.5 w-3.5" />
         </button>
       )}
-      {onAdd && (
+      {addButton ?? (onAdd && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onAdd() }}
@@ -200,7 +202,7 @@ function SectionHeader({
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
-      )}
+      ))}
     </div>
   )
 }
@@ -222,8 +224,6 @@ export function Sidebar(): React.JSX.Element {
     setSidebarWidth
   } = useAppStore()
 
-  const [showChapterModal, setShowChapterModal] = useState(false)
-  const [chapterParentId, setChapterParentId] = useState<string | null>(null)
   const [showTrashEmpty, setShowTrashEmpty] = useState(false)
   const [showCategoryManager, setShowCategoryManager] = useState(false)
 
@@ -268,15 +268,9 @@ export function Sidebar(): React.JSX.Element {
     }
   }
 
-  const handleAddChapterClick = (): void => {
-    setChapterParentId(null)
-    setShowChapterModal(true)
-  }
-
   const handleChapterStructure = async (structure: ChapterStructure): Promise<void> => {
-    setShowChapterModal(false)
     const chapterId = await useHistoryStore.getState().push(
-      makeCreateChapterCommand({ structure, parentId: chapterParentId })
+      makeCreateChapterCommand({ structure, parentId: null })
     )
     if (!chapterId) return
     const all = useAppStore.getState().nodes
@@ -427,14 +421,13 @@ export function Sidebar(): React.JSX.Element {
                     if (!expandedSections.has('manuscript')) toggleSection('manuscript')
                     selectContainer('manuscript')
                   }}
-                  onAdd={handleAddChapterClick}
+                  addButton={<ChapterStructurePicker onSelect={(s) => void handleChapterStructure(s)} />}
                 />
                 {!iconOnly && (
                   <SidebarSectionBody open={expandedSections.has('manuscript')}>
                     <SidebarTree
                       scope="manuscript"
                       parentId={null}
-                      disabled={showChapterModal}
                       menuActions={manuscriptMenuActions}
                       onAddScene={handleAddScene}
                     />
@@ -536,10 +529,6 @@ export function Sidebar(): React.JSX.Element {
           </div>
         </aside>
       </TooltipProvider>
-
-      {showChapterModal && (
-        <ChapterStructureModal open={showChapterModal} onOpenChange={setShowChapterModal} onSelect={(s) => void handleChapterStructure(s)} />
-      )}
 
       <CategoryManagerModal open={showCategoryManager} onOpenChange={setShowCategoryManager} />
 
