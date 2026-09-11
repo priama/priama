@@ -353,6 +353,14 @@ html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-men
   display: none;
 }
 
+/* Container cards keep a fixed width; extra cards wrap instead of stretching. */
+.container-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 18rem));
+  justify-content: start;
+  gap: 1rem;
+}
+
 /* Launch screen — theme-aware palette (dark values match HTML mockup) */
 .launch-screen {
   --launch-bg: #fafaf9;

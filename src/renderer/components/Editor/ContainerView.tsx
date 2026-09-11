@@ -410,7 +410,7 @@ function SortableCard(props: ItemMenuProps): React.JSX.Element {
       ref={setNodeRef}
       style={style}
       className={cn(
-        'no-drag group relative flex flex-col rounded-lg border bg-card shadow-sm transition-colors',
+        'no-drag group relative flex min-w-0 w-full flex-col rounded-lg border bg-card shadow-sm transition-colors',
         manuscriptNode ? 'p-4 pl-[18px]' : 'p-4',
         renaming ? 'cursor-default' : 'cursor-pointer',
         isSelected ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-primary/50 hover:bg-accent/30',
@@ -431,7 +431,7 @@ function SortableCard(props: ItemMenuProps): React.JSX.Element {
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </button>
       )}
-      <div className="flex items-start gap-2 pr-8">
+      <div className="flex min-w-0 items-start gap-2 pr-8">
         {folderNode && <Folder className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
         {sessionRename.isEditing ? (
           <input
@@ -459,7 +459,7 @@ function SortableCard(props: ItemMenuProps): React.JSX.Element {
             className="w-full rounded border border-input bg-background px-2 py-1 text-sm font-medium"
           />
         ) : (
-          <h3 className="font-medium leading-snug">{node.title}</h3>
+          <h3 className="min-w-0 font-medium leading-snug">{node.title}</h3>
         )}
       </div>
       {!renaming && (
@@ -771,7 +771,7 @@ export function ContainerView({
                 ))}
               </div>
             ) : (
-              <div className="mx-auto grid max-w-[86rem] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className="container-card-grid">
                 {items.map((node) => (
                   <SortableCard key={node.id} {...itemProps(node)} />
                 ))}
