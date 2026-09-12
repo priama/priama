@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell, dialog, nativeTheme } from 'electron'
 import { join } from 'path'
 import {
   createProject,
@@ -232,6 +232,10 @@ async function openProjectFromPath(tomesPath: string): Promise<void> {
       err instanceof Error ? err.message : 'Could not open project'
     )
   }
+}
+
+function applyNativeTheme(theme: 'light' | 'dark'): void {
+  nativeTheme.themeSource = theme
 }
 
 function createWindow(): void {
@@ -645,6 +649,7 @@ function registerIpcHandlers(): void {
     const prefs = await updatePreferences(updates)
     broadcast('preferences:changed', prefs)
     if (updates.theme) {
+      applyNativeTheme(prefs.theme)
       broadcast('theme:changed', { theme: prefs.theme })
     }
     return prefs
@@ -1048,7 +1053,7 @@ app.on('before-quit', async (event) => {
 })
 
 if (gotLock) {
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     if (process.platform === 'win32') {
       app.setAppUserModelId('com.priama.app')
     }
@@ -1061,6 +1066,7 @@ if (gotLock) {
     registerAssetProtocol()
     registerIpcHandlers()
     buildMenu()
+    applyNativeTheme((await getConfig()).preferences.theme)
     createWindow()
     void refreshAppUpdateStatus()
 
