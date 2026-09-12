@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import type {
   CategoryDefinition,
-  ContainerViewMode,
   EditorAppearance,
   EntityHighlights,
   EditorSizeStep,
@@ -44,7 +43,6 @@ interface AppState {
   selectedContainerId: string | null
   expandedSections: Set<string>
   sectionOrder: string[]
-  containerViewModes: Record<string, ContainerViewMode>
 
   selectedEntityId: string | null
   selectedEntityType: WikiEntityType | null
@@ -101,8 +99,6 @@ interface AppState {
   selectWikiEntity: (id: string | null, type: WikiEntityType | null) => void
   toggleSection: (section: string) => void
   setSectionOrder: (order: string[]) => void
-  setContainerViewMode: (containerId: string, mode: ContainerViewMode) => void
-  setContainerViewModes: (modes: Record<string, ContainerViewMode>) => void
 
   setSelectedEntity: (id: string | null, type: WikiEntityType | null) => void
   /** Panel entry selection — preserves center view when opening/closing (same as wiki entities). */
@@ -194,7 +190,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedContainerId: null,
   expandedSections: new Set(DEFAULT_EXPANDED_SECTIONS),
   sectionOrder: [...DEFAULT_SECTION_ORDER],
-  containerViewModes: {},
 
   selectedEntityId: null,
   selectedEntityType: null,
@@ -266,7 +261,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       renameSession: null,
       containerHistory: [],
       containerHistoryIndex: -1,
-      containerViewModes: {},
       projectFindOpen: false,
       pendingDocumentSearch: null
     }),
@@ -414,11 +408,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ expandedSections: expanded })
   },
   setSectionOrder: (order) => set({ sectionOrder: order }),
-  setContainerViewMode: (containerId, mode) =>
-    set((state) => ({
-      containerViewModes: { ...state.containerViewModes, [containerId]: mode }
-    })),
-  setContainerViewModes: (modes) => set({ containerViewModes: { ...modes } }),
 
   /** Panel entry selection — preserves center view like setSelectedEntity for wiki items. */
   selectEntry: (id, categoryId) => {
@@ -680,10 +669,3 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   clearPendingRename: () => set({ renameSession: null })
 }))
-
-export function getContainerViewMode(
-  state: Pick<AppState, 'containerViewModes'>,
-  containerId: string
-): ContainerViewMode {
-  return state.containerViewModes[containerId] ?? 'cards'
-}

@@ -33,8 +33,7 @@ export function captureProjectUiState(): ProjectUiState {
     selectedEntryCategoryId: s.selectedEntryCategoryId,
     manuscriptInfoNodeId: s.manuscriptInfoNodeId,
     expandedSections: [...s.expandedSections],
-    rightPanelOpen: s.rightPanelOpen,
-    containerViewModes: { ...s.containerViewModes }
+    rightPanelOpen: s.rightPanelOpen
   }
 }
 
@@ -61,7 +60,6 @@ function applyProjectUiState(
   const normalized = normalizeProjectUiState(ui, categories)
   const sanitized = sanitizeProjectUiState(normalized, nodes, categories)
   useAppStore.getState().applyNavigationSync(toNavigationSyncState(sanitized))
-  useAppStore.getState().setContainerViewModes(sanitized.containerViewModes)
   return sanitized
 }
 

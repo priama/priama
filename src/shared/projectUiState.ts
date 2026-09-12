@@ -1,7 +1,6 @@
 import type {
   CategoryDefinition,
   ChapterMeta,
-  ContainerViewMode,
   FolderMeta,
   FolderScope,
   ProjectUiState,
@@ -61,41 +60,8 @@ export function defaultProjectUiState(categories: CategoryDefinition[]): Project
     selectedEntryCategoryId: null,
     manuscriptInfoNodeId: null,
     expandedSections,
-    rightPanelOpen: false,
-    containerViewModes: {}
+    rightPanelOpen: false
   }
-}
-
-const CONTAINER_VIEW_MODES = new Set<ContainerViewMode>(['cards', 'list'])
-
-export function normalizeContainerViewModes(
-  raw: unknown
-): Record<string, ContainerViewMode> {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
-  const result: Record<string, ContainerViewMode> = {}
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof key === 'string' && typeof value === 'string' && CONTAINER_VIEW_MODES.has(value as ContainerViewMode)) {
-      result[key] = value as ContainerViewMode
-    }
-  }
-  return result
-}
-
-function isValidChapterViewModeKey(id: string, nodes: TreeNode[]): boolean {
-  if (!id.startsWith('chapter:')) return false
-  const chapterId = id.slice('chapter:'.length)
-  const node = nodes.find((n) => n.id === chapterId)
-  if (!node || node.deletedAt || node.type !== 'chapter') return false
-  const meta = parseMetadata<ChapterMeta>(node.metadata, DEFAULT_CHAPTER_META)
-  return meta.structure === 'scenes'
-}
-
-export function isValidContainerViewModeKey(
-  id: string,
-  nodes: TreeNode[],
-  categories: CategoryDefinition[]
-): boolean {
-  return isValidContainerId(id, nodes, categories) || isValidChapterViewModeKey(id, nodes)
 }
 
 export function normalizeProjectUiState(
@@ -108,7 +74,6 @@ export function normalizeProjectUiState(
 
   return {
     ...defaults,
-    ...raw,
     sectionOrder: Array.isArray(raw.sectionOrder)
       ? migrateSectionOrder(raw.sectionOrder, categories)
       : defaults.sectionOrder,
@@ -133,8 +98,7 @@ export function normalizeProjectUiState(
         ? raw.expandedFolders.filter((id): id is string => typeof id === 'string')
         : [])
     ],
-    rightPanelOpen: typeof raw.rightPanelOpen === 'boolean' ? raw.rightPanelOpen : false,
-    containerViewModes: normalizeContainerViewModes(raw.containerViewModes)
+    rightPanelOpen: typeof raw.rightPanelOpen === 'boolean' ? raw.rightPanelOpen : false
   }
 }
 
@@ -403,13 +367,6 @@ export function sanitizeProjectUiState(
     selectedNodeId = getFirstChapterNodeId(nodes)
   }
 
-  const containerViewModes: Record<string, ContainerViewMode> = {}
-  for (const [key, mode] of Object.entries(ui.containerViewModes ?? {})) {
-    if (isValidContainerViewModeKey(key, nodes, categories) && CONTAINER_VIEW_MODES.has(mode)) {
-      containerViewModes[key] = mode
-    }
-  }
-
   return {
     sectionOrder: migrateSectionOrder(ui.sectionOrder, categories),
     selectedNodeId,
@@ -420,7 +377,6 @@ export function sanitizeProjectUiState(
     selectedEntryCategoryId,
     manuscriptInfoNodeId,
     expandedSections,
-    rightPanelOpen,
-    containerViewModes
+    rightPanelOpen
   }
 }

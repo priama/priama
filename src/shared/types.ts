@@ -689,7 +689,6 @@ export interface ChapterMeta extends ManuscriptPlanningMeta {
 
 export type SceneMeta = ManuscriptPlanningMeta
 
-export type ContainerViewMode = 'cards' | 'list'
 
 export interface ProjectUiState {
   sectionOrder: string[]
@@ -705,8 +704,6 @@ export interface ProjectUiState {
   /** @deprecated Merged into expandedSections on load. Present only in legacy project files. */
   expandedFolders?: string[]
   rightPanelOpen: boolean
-  /** Per-container cards/list preference. Missing keys default to cards. */
-  containerViewModes: Record<string, ContainerViewMode>
 }
 
 export interface NavigationSyncState {
