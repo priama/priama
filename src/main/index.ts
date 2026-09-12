@@ -174,6 +174,13 @@ async function openLatestAppDownload(): Promise<{ success: boolean }> {
   }
 }
 
+// Packaged Priama.app and `npm run dev` otherwise share the same userData
+// (~/Library/Application Support/priama) and single-instance lock, so the
+// installed app steals the focus. Give unpackaged runs a separate profile.
+if (!app.isPackaged) {
+  app.setPath('userData', join(app.getPath('appData'), 'priama-dev'))
+}
+
 const gotLock = app.requestSingleInstanceLock()
 
 registerAssetScheme()
