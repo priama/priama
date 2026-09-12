@@ -174,6 +174,13 @@ async function openLatestAppDownload(): Promise<{ success: boolean }> {
   }
 }
 
+// Keep `npm run dev` / rundev.py off the installed app's single-instance lock
+// and userData. Must run before requestSingleInstanceLock().
+if (!app.isPackaged || process.env.PRIAMA_DEV === '1') {
+  app.setName('Priama Dev')
+  app.setPath('userData', join(app.getPath('appData'), 'priama-dev'))
+}
+
 const gotLock = app.requestSingleInstanceLock()
 
 registerAssetScheme()
