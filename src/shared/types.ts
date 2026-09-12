@@ -757,6 +757,20 @@ export interface AppUpdateStatus {
   releaseUrl?: string
 }
 
+export type ManuscriptSplitMode = 'heading1' | 'chapter-pattern' | 'single'
+
+export interface ManuscriptImportChapter {
+  title: string
+  html: string
+}
+
+export interface ParsedManuscriptFile {
+  html: string
+  suggestedTitle: string
+  suggestedAuthor: string
+  fileName: string
+}
+
 export interface CreateProjectInput {
   title: string
   author: string
@@ -765,6 +779,7 @@ export interface CreateProjectInput {
   backupLocations: string[]
   templateId: TemplateId
   categories: CategoryDefinition[]
+  importedChapters?: ManuscriptImportChapter[]
 }
 
 export interface TomesIndexEntry {

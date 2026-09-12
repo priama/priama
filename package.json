@@ -57,6 +57,7 @@
     "fs-extra": "^11.3.0",
     "image-size": "^1.2.0",
     "lucide-react": "^0.475.0",
+    "mammoth": "^1.12.2",
     "nspell": "^2.1.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -197,7 +197,7 @@ export function RecentProjectsScreen(): React.JSX.Element {
           </button>
         )}
         <a
-          href="https://github.com/sponsors/cigardev"
+          href="https://nowpayments.io/donation/renerebollo"
           target="_blank"
           rel="noreferrer"
           className="relative -top-0.5 inline-flex items-center gap-1.5 rounded-md bg-gradient-to-b from-[var(--launch-gold-top)] to-[var(--launch-gold)] px-3 py-1.5 text-xs font-bold text-[var(--launch-gold-text)] shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-[filter,transform] duration-100 hover:brightness-105 active:scale-[0.97]"

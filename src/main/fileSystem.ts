@@ -53,6 +53,21 @@ export async function showSelectImageDialog(window: BrowserWindow): Promise<stri
   return result.filePaths[0]
 }
 
+export async function showSelectDocxDialog(window: BrowserWindow): Promise<string | null> {
+  const parent = BrowserWindow.getFocusedWindow() ?? window
+  parent.focus()
+  app.focus({ steal: true })
+
+  const result = await dialog.showOpenDialog(parent, {
+    title: 'Import Manuscript',
+    filters: [{ name: 'Word Document', extensions: ['docx'] }],
+    properties: ['openFile']
+  })
+
+  if (result.canceled || result.filePaths.length === 0) return null
+  return result.filePaths[0]
+}
+
 const EXPORT_FILTERS: Record<'docx' | 'pdf' | 'epub', { name: string; extensions: string[] }> = {
   docx: { name: 'Word Document', extensions: ['docx'] },
   pdf: { name: 'PDF Document', extensions: ['pdf'] },

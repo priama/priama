@@ -143,6 +143,33 @@ describe('createProject', () => {
     await createProject(makeInput())
     expect(getAllNodes()).toHaveLength(0)
   })
+
+  it('seeds simple chapters from an imported manuscript', async () => {
+    const result = await createProject(
+      makeInput({
+        importedChapters: [
+          { title: 'Chapter 1', html: '<p>Once upon a time.</p>' },
+          { title: 'Chapter 2', html: '<p>The next day.</p>' }
+        ]
+      })
+    )
+
+    const nodes = getAllNodes()
+    expect(nodes).toHaveLength(2)
+    expect(nodes.map((n) => n.title)).toEqual(['Chapter 1', 'Chapter 2'])
+    expect(nodes[0].type).toBe('chapter')
+    expect(nodes[0].content).toBe('<p>Once upon a time.</p>')
+    expect(nodes[0].metadata).toContain('"structure":"simple"')
+    expect(result.meta.title).toBe('Test Project')
+    expect(await fse.pathExists(join(result.projectRoot, 'manuscript', 'chapter-01.txd'))).toBe(true)
+
+    closeProject()
+    await openProject(result.path)
+    const reopened = getAllNodes()
+    expect(reopened.map((n) => n.title)).toEqual(['Chapter 1', 'Chapter 2'])
+    expect(reopened[1].content).toBe('<p>The next day.</p>')
+    expect(getUiState().selectedNodeId).toBe(reopened[0].id)
+  })
 })
 
 describe('openProject / closeProject', () => {

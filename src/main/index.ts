@@ -42,6 +42,7 @@ import {
   showOpenTomesDialog,
   showChooseFolderDialog,
   showSelectImageDialog,
+  showSelectDocxDialog,
   showSaveExportDialog
 } from './fileSystem'
 import {
@@ -77,6 +78,7 @@ import {
 } from './navigationState'
 import { registerAssetScheme, registerAssetProtocol } from './assetProtocol'
 import { exportDocument } from './export'
+import { parseDocxFile } from './import/parseDocx'
 import { generatePreviewEpub } from './tomes/preview/generatePreviewEpub'
 import { checkForAppUpdate } from './appUpdate'
 import type {
@@ -826,6 +828,16 @@ function registerIpcHandlers(): void {
     const win = BrowserWindow.getFocusedWindow() ?? mainWindow
     if (!win) return null
     return showSelectImageDialog(win)
+  })
+
+  ipcMain.handle('dialog:selectDocx', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+    if (!win) return null
+    return showSelectDocxDialog(win)
+  })
+
+  ipcMain.handle('manuscript:parseDocx', async (_, { path }: { path: string }) => {
+    return parseDocxFile(path)
   })
 
   ipcMain.handle('tree:getAll', async () => {

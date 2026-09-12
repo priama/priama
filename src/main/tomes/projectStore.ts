@@ -7,6 +7,7 @@ import type {
   BookSettings,
   CategoryDefinition,
   CreateProjectInput,
+  ManuscriptImportChapter,
   FolderMeta,
   FolderScope,
   NodeType,
@@ -44,6 +45,7 @@ import {
   normalizeBookSettings
 } from '@shared/types'
 import { defaultProjectUiState, normalizeProjectUiState, sanitizeProjectUiState } from '@shared/projectUiState'
+import { simpleChapterMetaFrom } from '@shared/manuscriptMeta'
 import {
   getNodeDir,
   getTomesPath,
@@ -357,6 +359,53 @@ export function getProjectMeta(): ProjectMeta | null {
   }
 }
 
+async function seedImportedSimpleChapters(chapters: ManuscriptImportChapter[]): Promise<void> {
+  if (!manifest || !projectRoot) throw new Error('No project open')
+
+  const timestamp = now()
+  const metadata = simpleChapterMetaFrom()
+  let firstChapterId: string | null = null
+
+  for (let i = 0; i < chapters.length; i++) {
+    const draft = chapters[i]
+    const title = draft.title.trim() || `Chapter ${i + 1}`
+    const content = draft.html.trim() || '<p></p>'
+    const id = uuidv4()
+    const filename = generateFilename('chapter', i + 1)
+
+    if (!firstChapterId) firstChapterId = id
+
+    const node: TreeNode = {
+      id,
+      parentId: null,
+      type: 'chapter',
+      title,
+      sortOrder: i,
+      content,
+      metadata,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      originalParentId: null,
+      categoryId: null
+    }
+
+    manifest.index.chapters.push({
+      id,
+      filename,
+      title,
+      sortOrder: i
+    })
+
+    await writeTxdFile(getTxdPath(filename, 'chapter'), nodeToTxd(node))
+    nodeCache.set(id, node)
+  }
+
+  if (firstChapterId && manifest.uiState) {
+    manifest.uiState = { ...manifest.uiState, selectedNodeId: firstChapterId }
+  }
+}
+
 export async function createProject(input: CreateProjectInput): Promise<{
   path: string
   meta: ProjectMeta
@@ -413,6 +462,10 @@ export async function createProject(input: CreateProjectInput): Promise<{
   projectRoot = root
   tomesPath = tomes
   nodeCache.clear()
+
+  if (input.importedChapters && input.importedChapters.length > 0) {
+    await seedImportedSimpleChapters(input.importedChapters)
+  }
 
   await writeFileAtomic(tomes, JSON.stringify(manifest, null, 2))
 

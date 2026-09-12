@@ -16,6 +16,7 @@ import type {
   NavigationSyncState,
   NodeType,
   OpenProjectResult,
+  ParsedManuscriptFile,
   PriamaConfig,
   PriamaPreferences,
   ProjectMeta,
@@ -73,6 +74,10 @@ export interface ElectronAPI {
     openTomes: () => Promise<string | null>
     chooseFolder: (title?: string) => Promise<string | null>
     selectImage: () => Promise<string | null>
+    selectDocx: () => Promise<string | null>
+  }
+  manuscript: {
+    parseDocx: (path: string) => Promise<ParsedManuscriptFile>
   }
   tree: {
     getAll: () => Promise<TreeNode[]>
@@ -173,7 +178,11 @@ const api: ElectronAPI = {
   dialog: {
     openTomes: () => ipcRenderer.invoke('dialog:openTomes'),
     chooseFolder: (title) => ipcRenderer.invoke('dialog:chooseFolder', title),
-    selectImage: () => ipcRenderer.invoke('dialog:selectImage')
+    selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
+    selectDocx: () => ipcRenderer.invoke('dialog:selectDocx')
+  },
+  manuscript: {
+    parseDocx: (path) => ipcRenderer.invoke('manuscript:parseDocx', { path })
   },
   tree: {
     getAll: () => ipcRenderer.invoke('tree:getAll'),

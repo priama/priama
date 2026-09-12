@@ -30,8 +30,19 @@ import { cn } from '@/lib/utils'
 import { detectPathLabel } from '@shared/pathUtils'
 import { PROJECT_TEMPLATES } from '@shared/types'
 import { resolveCategoriesFromPresetIds } from '@shared/categoryPresets'
-import type { TemplateId, CategoryDefinition } from '@shared/types'
+import type {
+  CategoryDefinition,
+  ManuscriptSplitMode,
+  ParsedManuscriptFile,
+  TemplateId
+} from '@shared/types'
+import { splitManuscript, splitManuscriptAuto } from '@shared/import/splitManuscript'
 import { useProject } from '@/hooks/useProject'
+import { ProjectOriginStep } from '@/components/Project/ProjectOriginStep'
+import {
+  ImportPreviewStep,
+  type PreviewChapterRow
+} from '@/components/Project/ImportPreviewStep'
 
 const GENRES = ['Fantasy', 'Sci-Fi', 'Romance', 'Mystery', 'Horror', 'Other'] as const
 
@@ -47,6 +58,8 @@ const ICON_COMPONENTS: Record<string, React.ComponentType<{ className?: string }
   FileText
 }
 
+type WizardStep = 'origin' | 'preview' | 'details' | 'template' | 'location' | 'backups' | 'creating'
+
 interface NewProjectModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -57,15 +70,36 @@ interface BackupRow {
   path: string
 }
 
+function rowsFromParsed(
+  parsed: ParsedManuscriptFile,
+  mode?: ManuscriptSplitMode
+): { mode: ManuscriptSplitMode; rows: PreviewChapterRow[] } {
+  const result = mode ? splitManuscript(parsed.html, mode) : splitManuscriptAuto(parsed.html)
+  return {
+    mode: result.mode,
+    rows: result.chapters.map((chapter, index) => ({
+      ...chapter,
+      id: String(index),
+      included: chapter.title !== 'Front matter'
+    }))
+  }
+}
+
 export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): React.JSX.Element {
   const { createProjectFromInput } = useProject()
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState<WizardStep>('origin')
+  const [origin, setOrigin] = useState<'blank' | 'import'>('blank')
+  const [parsed, setParsed] = useState<ParsedManuscriptFile | null>(null)
+  const [splitMode, setSplitMode] = useState<ManuscriptSplitMode>('heading1')
+  const [detectedMode, setDetectedMode] = useState<ManuscriptSplitMode>('heading1')
+  const [previewRows, setPreviewRows] = useState<PreviewChapterRow[]>([])
   const [title, setTitle] = useState('')
   const [author, setAuthor] = useState('')
   const [genre, setGenre] = useState<string>('Fantasy')
   const [primaryDir, setPrimaryDir] = useState<string | null>(null)
   const [backupRows, setBackupRows] = useState<BackupRow[]>([])
   const [creating, setCreating] = useState(false)
+  const [parsing, setParsing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hiddenForPicker, setHiddenForPicker] = useState(false)
   const [pickingFolder, setPickingFolder] = useState(false)
@@ -73,32 +107,37 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const [selectedCategories, setSelectedCategories] = useState<CategoryDefinition[]>([])
 
   const reset = (): void => {
-    setStep(1)
+    setStep('origin')
+    setOrigin('blank')
+    setParsed(null)
+    setSplitMode('heading1')
+    setDetectedMode('heading1')
+    setPreviewRows([])
     setTitle('')
     setAuthor('')
     setGenre('Fantasy')
     setPrimaryDir(null)
     setBackupRows([])
     setCreating(false)
+    setParsing(false)
     setError(null)
     setSelectedTemplateId(null)
     setSelectedCategories([])
   }
 
   const handleClose = (value: boolean): void => {
-    if (!creating) {
+    if (!creating && !parsing) {
       if (!value) reset()
       onOpenChange(value)
     }
   }
 
-  const chooseFolder = async (title: string): Promise<string | null> => {
-    // Radix modal traps focus — hide it so the native folder picker appears on top
+  const chooseFolder = async (dialogTitle: string): Promise<string | null> => {
     setHiddenForPicker(true)
     setPickingFolder(true)
     await new Promise((resolve) => setTimeout(resolve, 100))
     try {
-      return await window.electronAPI.dialog.chooseFolder(title)
+      return await window.electronAPI.dialog.chooseFolder(dialogTitle)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not open folder picker')
       return null
@@ -106,6 +145,60 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
       setPickingFolder(false)
       setHiddenForPicker(false)
     }
+  }
+
+  const applyParsedFile = (next: ParsedManuscriptFile): void => {
+    const split = rowsFromParsed(next)
+    setParsed(next)
+    setDetectedMode(split.mode)
+    setSplitMode(split.mode)
+    setPreviewRows(split.rows)
+    if (next.suggestedTitle) setTitle(next.suggestedTitle)
+    if (next.suggestedAuthor) setAuthor(next.suggestedAuthor)
+  }
+
+  const pickDocx = async (): Promise<boolean> => {
+    setError(null)
+    setHiddenForPicker(true)
+    setPickingFolder(true)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    let filePath: string | null = null
+    try {
+      filePath = await window.electronAPI.dialog.selectDocx()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not open file picker')
+      setPickingFolder(false)
+      setHiddenForPicker(false)
+      return false
+    }
+    setPickingFolder(false)
+    setHiddenForPicker(false)
+    if (!filePath) return false
+
+    setParsing(true)
+    try {
+      const next = await window.electronAPI.manuscript.parseDocx(filePath)
+      applyParsedFile(next)
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not import that Word file')
+      return false
+    } finally {
+      setParsing(false)
+    }
+  }
+
+  const handleImport = async (): Promise<void> => {
+    setOrigin('import')
+    const ok = await pickDocx()
+    if (ok) setStep('preview')
+  }
+
+  const handleSplitModeChange = (mode: ManuscriptSplitMode): void => {
+    if (!parsed) return
+    const split = rowsFromParsed(parsed, mode)
+    setSplitMode(mode)
+    setPreviewRows(split.rows)
   }
 
   const pickPrimaryFolder = async (): Promise<void> => {
@@ -129,8 +222,20 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
 
   const handleCreate = async (): Promise<void> => {
     if (!primaryDir || !title.trim() || !author.trim() || !selectedTemplateId) return
+    const importedChapters =
+      origin === 'import'
+        ? previewRows.filter((row) => row.included).map(({ title: chapterTitle, html }) => ({
+            title: chapterTitle,
+            html
+          }))
+        : undefined
+    if (origin === 'import' && (!importedChapters || importedChapters.length === 0)) {
+      setError('Select at least one chapter to import')
+      setStep('preview')
+      return
+    }
     setCreating(true)
-    setStep(5)
+    setStep('creating')
     setError(null)
     try {
       await createProjectFromInput({
@@ -140,21 +245,54 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
         primaryParentDir: primaryDir,
         backupLocations: backupRows.map((r) => r.path),
         templateId: selectedTemplateId,
-        categories: selectedCategories
+        categories: selectedCategories,
+        importedChapters
       })
       reset()
       onOpenChange(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create project')
       setCreating(false)
-      setStep(4)
+      setStep('backups')
     }
   }
 
   return (
     <Dialog open={open && !hiddenForPicker} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg" onPointerDownOutside={(e) => creating && e.preventDefault()}>
-        {step === 1 && (
+      <DialogContent
+        className={step === 'preview' ? 'sm:max-w-xl' : 'sm:max-w-lg'}
+        onPointerDownOutside={(e) => (creating || parsing) && e.preventDefault()}
+      >
+        {step === 'origin' && (
+          <ProjectOriginStep error={error} parsing={parsing} onBlank={() => {
+            setOrigin('blank')
+            setError(null)
+            setStep('details')
+          }} onImport={() => void handleImport()} />
+        )}
+
+        {step === 'preview' && parsed && (
+          <ImportPreviewStep
+            fileName={parsed.fileName}
+            splitMode={splitMode}
+            detectedMode={detectedMode}
+            chapters={previewRows}
+            onSplitModeChange={handleSplitModeChange}
+            onToggleChapter={(id) => {
+              setPreviewRows((rows) =>
+                rows.map((row) => (row.id === id ? { ...row, included: !row.included } : row))
+              )
+            }}
+            onChooseDifferentFile={() => void handleImport()}
+            onBack={() => {
+              setError(null)
+              setStep('origin')
+            }}
+            onNext={() => setStep('details')}
+          />
+        )}
+
+        {step === 'details' && (
           <>
             <DialogHeader>
               <DialogTitle>New Book Project</DialogTitle>
@@ -196,15 +334,18 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
                 </select>
               </div>
             </div>
-            <DialogFooter>
-              <Button onClick={() => setStep(2)} disabled={!title.trim() || !author.trim()}>
+            <DialogFooter className="gap-2">
+              <Button variant="ghost" onClick={() => setStep(origin === 'import' ? 'preview' : 'origin')}>
+                Back
+              </Button>
+              <Button onClick={() => setStep('template')} disabled={!title.trim() || !author.trim()}>
                 Next
               </Button>
             </DialogFooter>
           </>
         )}
 
-        {step === 2 && (
+        {step === 'template' && (
           <>
             <DialogHeader>
               <DialogTitle>Choose a template</DialogTitle>
@@ -267,17 +408,17 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
             </div>
 
             <DialogFooter className="gap-2">
-              <Button variant="ghost" onClick={() => setStep(1)}>
+              <Button variant="ghost" onClick={() => setStep('details')}>
                 Back
               </Button>
-              <Button onClick={() => setStep(3)} disabled={selectedTemplateId === null}>
+              <Button onClick={() => setStep('location')} disabled={selectedTemplateId === null}>
                 Next
               </Button>
             </DialogFooter>
           </>
         )}
 
-        {step === 3 && (
+        {step === 'location' && (
           <>
             <DialogHeader>
               <DialogTitle>Primary Save Location</DialogTitle>
@@ -314,17 +455,17 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
               )}
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="ghost" onClick={() => setStep(2)}>
+              <Button variant="ghost" onClick={() => setStep('template')}>
                 Back
               </Button>
-              <Button onClick={() => setStep(4)} disabled={!primaryDir}>
+              <Button onClick={() => setStep('backups')} disabled={!primaryDir}>
                 Next
               </Button>
             </DialogFooter>
           </>
         )}
 
-        {step === 4 && (
+        {step === 'backups' && (
           <>
             <DialogHeader>
               <DialogTitle>Backup Locations</DialogTitle>
@@ -360,18 +501,20 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
             <DialogFooter className="gap-2">
-              <Button variant="ghost" onClick={() => setStep(3)}>
+              <Button variant="ghost" onClick={() => setStep('location')}>
                 Back
               </Button>
-              <Button onClick={handleCreate}>Continue</Button>
+              <Button onClick={() => void handleCreate()}>Continue</Button>
             </DialogFooter>
           </>
         )}
 
-        {step === 5 && (
+        {step === 'creating' && (
           <div className="flex flex-col items-center gap-4 py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Creating your project...</p>
+            <p className="text-sm text-muted-foreground">
+              {origin === 'import' ? 'Importing your manuscript...' : 'Creating your project...'}
+            </p>
           </div>
         )}
       </DialogContent>
