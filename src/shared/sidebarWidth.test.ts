@@ -4,7 +4,8 @@ import {
   SIDEBAR_EXPANDED_MIN_WIDTH,
   SIDEBAR_ICON_ONLY_THRESHOLD,
   SIDEBAR_MAX_WIDTH,
-  SIDEBAR_MIN_WIDTH
+  SIDEBAR_MIN_WIDTH,
+  sidebarWidthOnProjectOpen
 } from './types'
 
 describe('normalizeSidebarWidth', () => {
@@ -29,5 +30,19 @@ describe('normalizeSidebarWidth', () => {
   it('clamps oversized and invalid values', () => {
     expect(normalizeSidebarWidth(400)).toBe(SIDEBAR_MAX_WIDTH)
     expect(normalizeSidebarWidth(Number.NaN)).toBe(SIDEBAR_MAX_WIDTH)
+  })
+})
+
+describe('sidebarWidthOnProjectOpen', () => {
+  it('keeps an already expanded width', () => {
+    expect(sidebarWidthOnProjectOpen(260, SIDEBAR_MAX_WIDTH)).toBe(260)
+  })
+
+  it('restores the last expanded width when the rail is collapsed', () => {
+    expect(sidebarWidthOnProjectOpen(SIDEBAR_MIN_WIDTH, 260)).toBe(260)
+  })
+
+  it('falls back to the default expanded width', () => {
+    expect(sidebarWidthOnProjectOpen(SIDEBAR_MIN_WIDTH, SIDEBAR_MIN_WIDTH)).toBe(SIDEBAR_MAX_WIDTH)
   })
 })

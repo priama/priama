@@ -13,6 +13,7 @@ export async function applyOpenProjectResult(result: OpenProjectResult): Promise
   beginUiRestore()
   const categories = result.meta.categories ?? []
   useAppStore.getState().setProject(result.path, result.meta, result.nodes)
+  useAppStore.getState().expandSidebar()
   resolveProjectUiOnOpen(result.uiState, result.nodes, categories)
   await publishNavigationSyncAsync()
   markUiRestoreComplete()

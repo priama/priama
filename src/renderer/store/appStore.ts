@@ -19,6 +19,7 @@ import {
   SIDEBAR_EXPANDED_MIN_WIDTH,
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
+  sidebarWidthOnProjectOpen,
   stepEditorSize
 } from '@shared/types'
 import { isValidContainerId, pruneContainerNavigation } from '@shared/projectUiState'
@@ -141,6 +142,7 @@ interface AppState {
   setShowEditorAppearanceModal: (show: boolean) => void
   setSidebarWidth: (width: number) => void
   toggleSidebar: () => void
+  expandSidebar: () => void
   setRightPanelWidth: (width: number) => void
   applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
 
@@ -547,6 +549,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({
       sidebarWidth:
         s.sidebarWidth >= SIDEBAR_EXPANDED_MIN_WIDTH ? SIDEBAR_MIN_WIDTH : s.lastSidebarWidth
+    })),
+  expandSidebar: () =>
+    set((s) => ({
+      sidebarWidth: sidebarWidthOnProjectOpen(s.sidebarWidth, s.lastSidebarWidth)
     })),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
 

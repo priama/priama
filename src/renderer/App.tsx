@@ -28,7 +28,13 @@ import { useProjectFind } from '@/hooks/useProjectFind'
 import { ProjectFindOverlay } from '@/components/Search/ProjectFindOverlay'
 import { isWorkspaceWindow } from '@/lib/hashParams'
 import { useSearchParams } from '@/lib/hashParams'
-import { SIDEBAR_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, RIGHT_PANEL_MAX_WIDTH, normalizeSidebarWidth } from '@shared/types'
+import {
+  SIDEBAR_MAX_WIDTH,
+  RIGHT_PANEL_MIN_WIDTH,
+  RIGHT_PANEL_MAX_WIDTH,
+  normalizeSidebarWidth,
+  sidebarWidthOnProjectOpen
+} from '@shared/types'
 
 const FOCUS_TITLEBAR_INSET = 78
 const isMac =
@@ -85,7 +91,14 @@ export function AppLayout(): React.JSX.Element {
   useEffect(() => {
     if (isSecondary) return
     void window.electronAPI.windows.getLayout().then((layout) => {
-      setSidebarWidth(normalizeSidebarWidth(layout.sidebarWidth ?? SIDEBAR_MAX_WIDTH))
+      if (!useAppStore.getState().isProjectOpen) {
+        setSidebarWidth(
+          sidebarWidthOnProjectOpen(
+            normalizeSidebarWidth(layout.sidebarWidth ?? SIDEBAR_MAX_WIDTH),
+            SIDEBAR_MAX_WIDTH
+          )
+        )
+      }
       setRightPanelWidth(
         Math.min(
           RIGHT_PANEL_MAX_WIDTH,

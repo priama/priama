@@ -1169,6 +1169,16 @@ export function normalizeSidebarWidth(width: number): number {
   return Math.min(SIDEBAR_MAX_WIDTH, width)
 }
 
+/**
+ * Width to use when a project becomes the workspace. Collapsed icon-rail
+ * state is session-only; opening a project always shows the binder.
+ */
+export function sidebarWidthOnProjectOpen(current: number, lastExpanded: number): number {
+  if (current >= SIDEBAR_EXPANDED_MIN_WIDTH) return current
+  if (lastExpanded >= SIDEBAR_EXPANDED_MIN_WIDTH) return lastExpanded
+  return SIDEBAR_MAX_WIDTH
+}
+
 export const RIGHT_PANEL_MIN_WIDTH = 320
 export const RIGHT_PANEL_MAX_WIDTH = 640
 
