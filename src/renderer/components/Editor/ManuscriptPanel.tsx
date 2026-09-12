@@ -1,18 +1,15 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useState } from 'react'
 import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
 import { PanelNameField } from '@/components/Wiki/PanelNameField'
 import {
   ColorSwatchRow,
   DigitOnlyGoalInput,
-  MAX_SYNOPSIS_LINES,
-  clampSynopsisToLines,
-  persistPlanningMeta,
-  synopsisFitsInLines
+  persistPlanningMeta
 } from '@/components/Editor/ManuscriptCardBody'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { countNodeWords } from '@/lib/treeUtils'
 import { useAppStore } from '@/store/appStore'
-import { planningMetaFor } from '@shared/manuscriptMeta'
+import { SYNOPSIS_SOFT_CHAR_HINT, planningMetaFor } from '@shared/manuscriptMeta'
 import type { ChapterMeta, ManuscriptStatus, SceneMeta, TreeNode } from '@shared/types'
 import { MANUSCRIPT_STATUSES } from '@shared/types'
 import { cn } from '@/lib/utils'
@@ -58,8 +55,6 @@ export function ManuscriptPanel({ node }: { node: TreeNode }): React.JSX.Element
   })
 
   const [goalDraft, setGoalDraft] = useState(meta.wordGoal != null ? String(meta.wordGoal) : '')
-  const synopsisRef = useRef<HTMLTextAreaElement>(null)
-
   const persistTitle = useCallback(
     async (title: string): Promise<void> => {
       const trimmed = title.trim()
@@ -129,29 +124,20 @@ export function ManuscriptPanel({ node }: { node: TreeNode }): React.JSX.Element
 
       <Field label="Synopsis">
         <AutoGrowTextarea
-          ref={synopsisRef}
           measureKey={`${node.id}-panel-synopsis`}
-          rows={2}
-          growCap={2}
+          rows={3}
+          growCap={null}
           value={meta.synopsis}
           placeholder="Add synopsis"
-          className="min-h-0 resize-none overflow-hidden text-sm"
-          onChange={(e) => {
-            const el = e.currentTarget
-            const nextText = e.target.value
-            const synopsis = synopsisFitsInLines(el, nextText, MAX_SYNOPSIS_LINES)
-              ? nextText
-              : clampSynopsisToLines(el, nextText, MAX_SYNOPSIS_LINES)
-            setMeta({ ...meta, synopsis })
-          }}
+          className="min-h-[4.5rem] resize-none overflow-y-auto text-sm"
+          onChange={(e) => setMeta({ ...meta, synopsis: e.target.value })}
           onBlur={save}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              ;(e.target as HTMLTextAreaElement).blur()
-            }
-          }}
         />
+        {meta.synopsis.length > SYNOPSIS_SOFT_CHAR_HINT ? (
+          <p className="text-xs text-muted-foreground">
+            {meta.synopsis.length.toLocaleString()} characters — a bit long for a synopsis
+          </p>
+        ) : null}
       </Field>
 
       <Field label="Status">

@@ -174,10 +174,10 @@ async function openLatestAppDownload(): Promise<{ success: boolean }> {
   }
 }
 
-// Packaged Priama.app and `npm run dev` otherwise share the same userData
-// (~/Library/Application Support/priama) and single-instance lock, so the
-// installed app steals the focus. Give unpackaged runs a separate profile.
-if (!app.isPackaged) {
+// Keep `npm run dev` / rundev.py off the installed app's single-instance lock
+// and userData. Must run before requestSingleInstanceLock().
+if (!app.isPackaged || process.env.PRIAMA_DEV === '1') {
+  app.setName('Priama Dev')
   app.setPath('userData', join(app.getPath('appData'), 'priama-dev'))
 }
 

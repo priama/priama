@@ -10,6 +10,9 @@ import {
 
 export type PlanningMeta = ChapterMeta | SceneMeta
 
+/** Soft length hint for synopsis in the Info panel — never truncates stored text. */
+export const SYNOPSIS_SOFT_CHAR_HINT = 600
+
 /** Strip HTML tags and count whitespace-separated words (same as chapter cards). */
 export function countHtmlWords(html: string): number {
   const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
