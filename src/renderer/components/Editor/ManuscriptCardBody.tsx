@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { countNodeWords, isChapterFolder } from '@/lib/treeUtils'
 import { useAppStore } from '@/store/appStore'
@@ -34,8 +33,6 @@ const STATUS_CHIP_CLASS: Record<ManuscriptStatus, string> = {
   revise: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
   done: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300'
 }
-
-export const MAX_SYNOPSIS_LINES = 4
 
 export async function persistPlanningMeta(
   node: TreeNode,
@@ -352,152 +349,17 @@ function WordGoalControl({
   )
 }
 
-function readTextareaLineMetrics(el: HTMLTextAreaElement): {
-  lineHeight: number
-  chrome: number
-} {
-  const cs = getComputedStyle(el)
-  const parsedLine = parseFloat(cs.lineHeight)
-  const lineHeight =
-    Number.isFinite(parsedLine) && parsedLine > 0
-      ? parsedLine
-      : (parseFloat(cs.fontSize) || 14) * 1.5
-  const chrome =
-    (parseFloat(cs.paddingTop) || 0) +
-    (parseFloat(cs.paddingBottom) || 0) +
-    (parseFloat(cs.borderTopWidth) || 0) +
-    (parseFloat(cs.borderBottomWidth) || 0)
-  return { lineHeight, chrome }
-}
-
-export function synopsisFitsInLines(
-  el: HTMLTextAreaElement,
-  text: string,
-  maxLines: number
-): boolean {
-  const { lineHeight, chrome } = readTextareaLineMetrics(el)
-  const maxScroll = lineHeight * maxLines + chrome + 2
-
-  const prevValue = el.value
-  const prevHeight = el.style.height
-  const prevMaxHeight = el.style.maxHeight
-  const prevOverflow = el.style.overflowY
-  el.value = text
-  el.style.height = '0px'
-  el.style.maxHeight = 'none'
-  el.style.overflowY = 'hidden'
-  const scrollHeight = el.scrollHeight
-  el.value = prevValue
-  el.style.height = prevHeight
-  el.style.maxHeight = prevMaxHeight
-  el.style.overflowY = prevOverflow
-  return scrollHeight <= maxScroll
-}
-
-export function clampSynopsisToLines(
-  el: HTMLTextAreaElement,
-  text: string,
-  maxLines: number
-): string {
-  if (synopsisFitsInLines(el, text, maxLines)) return text
-  let lo = 0
-  let hi = text.length
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2)
-    if (synopsisFitsInLines(el, text.slice(0, mid), maxLines)) lo = mid
-    else hi = mid - 1
-  }
-  return text.slice(0, lo)
-}
-
-function SynopsisField({
+function SynopsisPreview({
   nodeId,
   synopsis,
-  readOnly,
-  onSave
+  readOnly
 }: {
   nodeId: string
   synopsis: string
   readOnly?: boolean
-  onSave: (synopsis: string) => void
 }): React.JSX.Element {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(synopsis)
-  const revertRef = useRef(synopsis)
-  const skipSaveRef = useRef(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const clampedOnOpenRef = useRef(false)
-
-  useEffect(() => {
-    if (!editing) {
-      setDraft(synopsis)
-      revertRef.current = synopsis
-      clampedOnOpenRef.current = false
-    }
-  }, [synopsis, editing])
-
-  useLayoutEffect(() => {
-    if (!editing || clampedOnOpenRef.current) return
-    const el = textareaRef.current
-    if (!el || el.clientWidth <= 0) return
-    clampedOnOpenRef.current = true
-    const clamped = clampSynopsisToLines(el, draft, MAX_SYNOPSIS_LINES)
-    if (clamped !== draft) setDraft(clamped)
-  }, [editing, draft])
-
-  const commitSave = (): void => {
-    const el = textareaRef.current
-    const toSave = el ? clampSynopsisToLines(el, draft, MAX_SYNOPSIS_LINES) : draft
-    onSave(toSave)
-    setEditing(false)
-  }
-
-  if (editing && !readOnly) {
-    return (
-      <div className="mt-2 flex-1" onClick={(e) => e.stopPropagation()}>
-        <AutoGrowTextarea
-          ref={textareaRef}
-          measureKey={`${nodeId}-synopsis`}
-          rows={2}
-          growCap={2}
-          value={draft}
-          autoFocus
-          placeholder="Add synopsis"
-          className="min-h-0 resize-none overflow-hidden text-sm"
-          onChange={(e) => {
-            const el = e.currentTarget
-            const next = e.target.value
-            if (synopsisFitsInLines(el, next, MAX_SYNOPSIS_LINES)) {
-              setDraft(next)
-              return
-            }
-            setDraft(clampSynopsisToLines(el, next, MAX_SYNOPSIS_LINES))
-          }}
-          onBlur={() => {
-            if (skipSaveRef.current) {
-              skipSaveRef.current = false
-              setEditing(false)
-              return
-            }
-            commitSave()
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.preventDefault()
-              skipSaveRef.current = true
-              setDraft(revertRef.current)
-              setEditing(false)
-              return
-            }
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              commitSave()
-            }
-          }}
-        />
-      </div>
-    )
-  }
+  const openInfo = useAppStore((s) => s.openManuscriptInfo)
+  const hasSynopsis = Boolean(synopsis.trim())
 
   return (
     <button
@@ -505,21 +367,19 @@ function SynopsisField({
       disabled={readOnly}
       className={cn(
         'mt-2 flex-1 text-left text-sm',
-        synopsis.trim()
+        hasSynopsis
           ? 'text-muted-foreground line-clamp-4'
           : 'text-muted-foreground/70 italic',
-        !readOnly && !synopsis.trim() && 'hover:text-foreground'
+        !readOnly && 'hover:text-foreground'
       )}
+      title={hasSynopsis ? synopsis : undefined}
       onClick={(e) => {
-        if (synopsis.trim()) {
-          // Let the card open the chapter/scene; edit via Info panel.
-          return
-        }
         e.stopPropagation()
-        if (!readOnly) setEditing(true)
+        if (readOnly) return
+        openInfo(nodeId)
       }}
     >
-      {synopsis.trim() || 'Add synopsis'}
+      {hasSynopsis ? synopsis.trim() : 'Add synopsis'}
     </button>
   )
 }
@@ -552,12 +412,7 @@ export function ManuscriptCardBody({
 
   return (
     <>
-      <SynopsisField
-        nodeId={node.id}
-        synopsis={meta.synopsis}
-        readOnly={readOnly}
-        onSave={(synopsis) => save({ synopsis })}
-      />
+      <SynopsisPreview nodeId={node.id} synopsis={meta.synopsis} readOnly={readOnly} />
       <div className="mt-3 flex items-center justify-between gap-2">
         <WordGoalControl
           current={stats.wordCount}

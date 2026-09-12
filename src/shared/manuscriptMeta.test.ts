@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SYNOPSIS_SOFT_CHAR_HINT,
   chapterMetaWithStructure,
   formatWordProgress,
   planningMetaFor,
@@ -203,5 +204,13 @@ describe('planningMetaFor', () => {
       metadata: JSON.stringify({ status: 'done' })
     })
     expect(planningMetaFor(scene).status).toBe('done')
+  })
+})
+
+
+describe('SYNOPSIS_SOFT_CHAR_HINT', () => {
+  it('is a positive soft hint, not a hard max', () => {
+    expect(SYNOPSIS_SOFT_CHAR_HINT).toBeGreaterThan(0)
+    expect(SYNOPSIS_SOFT_CHAR_HINT).toBe(600)
   })
 })
