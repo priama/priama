@@ -19,7 +19,6 @@ function safeRelativeTime(iso: string | null | undefined): string | null {
 
 export function StatusBar(): React.JSX.Element {
   const {
-    lastSaved,
     isDirty,
     theme,
     toggleTheme,
@@ -32,14 +31,9 @@ export function StatusBar(): React.JSX.Element {
   const { saveProject } = useProject()
   const manuscriptWords = useManuscriptWordTotal()
 
-  const savedRelative = safeRelativeTime(lastSaved)
   const backupRelative = safeRelativeTime(lastBackupAt)
 
-  const savedLabel = isDirty
-    ? 'Unsaved changes'
-    : savedRelative
-      ? `Last saved: ${savedRelative}`
-      : 'Ready'
+  const savedLabel = isDirty ? 'Saving…' : 'Saved'
 
   const backupLabel =
     backupWarningCount > 0
