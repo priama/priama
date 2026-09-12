@@ -31,6 +31,7 @@ import {
 } from './projectStore'
 import type { CreateProjectInput } from '@shared/types'
 import { PROJECT_FILENAME } from '@shared/types'
+import { getRecoveryDir } from './paths'
 
 vi.mock('../config', () => ({
   addRecentProject: vi.fn().mockResolvedValue(undefined),
@@ -204,6 +205,32 @@ describe('openProject / closeProject', () => {
   })
 })
 
+function warningTitles(opened: { openWarnings?: { title: string }[] }): string[] {
+  return (opened.openWarnings ?? []).map((w) => w.title)
+}
+
+function makeTxd(overrides: Record<string, unknown>) {
+  const timestamp = new Date().toISOString()
+  return {
+    parentId: null,
+    sortOrder: 0,
+    content: '',
+    metadata: '{}',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    ...overrides
+  }
+}
+
+async function reopen(path: string) {
+  closeProject()
+  return openProject(path)
+}
+
+async function readIndex(path: string) {
+  return JSON.parse(await fse.readFile(path, 'utf-8'))
+}
+
 describe('openProject recovery', () => {
   beforeEach(async () => {
     await createProject(makeInput())
@@ -212,30 +239,22 @@ describe('openProject recovery', () => {
   it('recovers a .txd file not present in the manifest', async () => {
     const root = getProjectRootPath()!
     const orphanId = uuidv4()
-    const orphanTxd = {
-      id: orphanId,
-      parentId: null,
-      type: 'chapter',
-      title: 'Orphaned Chapter',
-      sortOrder: 0,
-      content: 'Recovered words',
-      metadata: '{}',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
     await fse.writeFile(
       join(root, 'manuscript', 'chapter-99.txd'),
-      JSON.stringify(orphanTxd),
+      JSON.stringify(makeTxd({ id: orphanId, type: 'chapter', title: 'Orphaned Chapter', content: 'Recovered words' })),
       'utf-8'
     )
 
     const path = getProjectPath()!
-    closeProject()
-    const opened = await openProject(path)
+    const opened = await reopen(path)
 
     const recovered = opened.nodes.find((n) => n.id === orphanId)
     expect(recovered?.content).toBe('Recovered words')
-    expect(opened.openWarnings?.length).toBeGreaterThan(0)
+    expect(warningTitles(opened)).toContain('Recovered missing items')
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+    expect(second.nodes.find((n) => n.id === orphanId)?.content).toBe('Recovered words')
   })
 
   it('drops a broken entry whose file id no longer matches and recovers the real content', async () => {
@@ -244,40 +263,329 @@ describe('openProject recovery', () => {
 
     const root = getProjectRootPath()!
     const path = getProjectPath()!
-    const manifestJson = JSON.parse(await fse.readFile(path, 'utf-8'))
+    const manifestJson = await readIndex(path)
     const entry = manifestJson.index.chapters.find((e: { id: string }) => e.id === chapter.id)
 
     const replacementId = uuidv4()
-    const replacementTxd = {
-      id: replacementId,
-      parentId: null,
-      type: 'chapter',
-      title: 'Replacement',
-      sortOrder: 0,
-      content: 'Replacement content',
-      metadata: '{}',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    }
     await fse.writeFile(
       join(root, 'manuscript', entry.filename),
-      JSON.stringify(replacementTxd),
+      JSON.stringify(
+        makeTxd({
+          id: replacementId,
+          type: 'chapter',
+          title: 'Replacement',
+          content: 'Replacement content'
+        })
+      ),
       'utf-8'
     )
 
-    closeProject()
-    const opened = await openProject(path)
+    const opened = await reopen(path)
 
     expect(opened.nodes.find((n) => n.id === chapter.id)).toBeUndefined()
     const recoveredNode = opened.nodes.find((n) => n.id === replacementId)
     expect(recoveredNode?.content).toBe('Replacement content')
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+    expect(second.nodes.find((n) => n.id === replacementId)?.content).toBe('Replacement content')
+  })
+
+  it('moves a misplaced .txd into the canonical folder and does not recover again', async () => {
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const orphanId = uuidv4()
+    await fse.ensureDir(join(root, 'wiki', 'notes'))
+    await fse.writeFile(
+      join(root, 'wiki', 'notes', 'stray-chapter.txd'),
+      JSON.stringify(makeTxd({ id: orphanId, type: 'chapter', title: 'Stray', content: 'From notes' })),
+      'utf-8'
+    )
+
+    const opened = await reopen(path)
+    expect(opened.nodes.find((n) => n.id === orphanId)?.content).toBe('From notes')
+    expect(warningTitles(opened)).toContain('Recovered missing items')
+    expect(await fse.pathExists(join(root, 'wiki', 'notes', 'stray-chapter.txd'))).toBe(false)
+    expect(await fse.pathExists(join(root, 'manuscript', 'stray-chapter.txd'))).toBe(true)
+
+    const chapterCount = (await readIndex(path)).index.chapters.filter(
+      (e: { id: string }) => e.id === orphanId
+    ).length
+    expect(chapterCount).toBe(1)
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+    expect((await readIndex(path)).index.chapters.filter((e: { id: string }) => e.id === orphanId)).toHaveLength(1)
+  })
+
+  it('updates an existing index row when the file is found in the wrong folder', async () => {
+    const chapter = await createNode(null, 'chapter', 'Ch1')
+    await updateNode(chapter.id, { content: 'Live' })
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const manifestJson = await readIndex(path)
+    const filename = manifestJson.index.chapters.find((e: { id: string }) => e.id === chapter.id).filename
+
+    await fse.ensureDir(join(root, 'wiki', 'notes'))
+    await fse.move(join(root, 'manuscript', filename), join(root, 'wiki', 'notes', filename))
+
+    const opened = await reopen(path)
+    expect(opened.nodes.find((n) => n.id === chapter.id)?.content).toBe('Live')
+    expect(warningTitles(opened)).not.toContain('Recovered missing items')
+    expect(await fse.pathExists(join(root, 'manuscript', filename))).toBe(true)
+    expect((await readIndex(path)).index.chapters.filter((e: { id: string }) => e.id === chapter.id)).toHaveLength(1)
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+  })
+
+  it('quarantines a duplicate-id extra file instead of indexing it twice', async () => {
+    const chapter = await createNode(null, 'chapter', 'Ch1')
+    await updateNode(chapter.id, { content: 'Canonical' })
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+
+    await fse.ensureDir(join(root, 'wiki', 'notes'))
+    await fse.writeFile(
+      join(root, 'wiki', 'notes', 'copy.txd'),
+      JSON.stringify(
+        makeTxd({
+          id: chapter.id,
+          type: 'chapter',
+          title: 'Copy',
+          content: 'Duplicate copy'
+        })
+      ),
+      'utf-8'
+    )
+
+    const opened = await reopen(path)
+    expect(opened.nodes.filter((n) => n.id === chapter.id)).toHaveLength(1)
+    expect(opened.nodes.find((n) => n.id === chapter.id)?.content).toBe('Canonical')
+    expect(warningTitles(opened)).toContain('Set aside extra files')
+    expect(warningTitles(opened)).not.toContain('Recovered missing items')
+    expect((await readIndex(path)).index.chapters.filter((e: { id: string }) => e.id === chapter.id)).toHaveLength(1)
+    expect(await fse.pathExists(join(root, 'wiki', 'notes', 'copy.txd'))).toBe(false)
+    expect(await fse.pathExists(join(getRecoveryDir(root), 'wiki', 'notes', 'copy.txd'))).toBe(true)
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+  })
+
+  it('does not toast when the same folder filename exists in two wiki scopes', async () => {
+    const notesFolder = await createFolder('notes', null, 'Capitulo 1')
+    const loreFolder = await createFolder('lore', null, 'Humanos')
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const manifest = await readIndex(path)
+    const notesEntry = manifest.index.folders.find((e: { id: string }) => e.id === notesFolder.id)
+    const loreEntry = manifest.index.folders.find((e: { id: string }) => e.id === loreFolder.id)
+    const sharedName = notesEntry.filename
+    const loreSrc = join(root, 'wiki', 'lore', 'folders', loreEntry.filename)
+    const loreDest = join(root, 'wiki', 'lore', 'folders', sharedName)
+    if (loreSrc !== loreDest) {
+      await fse.move(loreSrc, loreDest, { overwrite: true })
+    }
+    loreEntry.filename = sharedName
+    delete notesEntry.folderScope
+    notesEntry.deletedAt = '2026-07-30T07:25:17.975Z'
+    await fse.writeFile(path, JSON.stringify(manifest, null, 2), 'utf-8')
+
+    const opened = await reopen(path)
+    expect(warningTitles(opened)).not.toContain('Recovered missing items')
+    expect(opened.nodes.find((n) => n.id === notesFolder.id)?.title).toBe('Capitulo 1')
+    expect(opened.nodes.find((n) => n.id === loreFolder.id)?.title).toBe('Humanos')
+    const notesAfter = (await readIndex(path)).index.folders.find(
+      (e: { id: string }) => e.id === notesFolder.id
+    )
+    expect(notesAfter.folderScope).toBe('notes')
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+  })
+
+  it('moves a folder out of manuscript/ into manuscript/folders', async () => {
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const folderId = uuidv4()
+    await fse.writeFile(
+      join(root, 'manuscript', 'folder-99.txd'),
+      JSON.stringify(
+        makeTxd({
+          id: folderId,
+          type: 'folder',
+          title: 'Loose folder',
+          metadata: JSON.stringify({ scope: 'manuscript' })
+        })
+      ),
+      'utf-8'
+    )
+
+    const opened = await reopen(path)
+    expect(opened.nodes.find((n) => n.id === folderId)?.title).toBe('Loose folder')
+    expect(await fse.pathExists(join(root, 'manuscript', 'folder-99.txd'))).toBe(false)
+    expect(await fse.pathExists(join(root, 'manuscript', 'folders', 'folder-99.txd'))).toBe(true)
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+  })
+
+  it('relocates a folder from the entries/folders alias into entry/folders', async () => {
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const folderId = uuidv4()
+    const aliasDir = join(root, 'wiki', 'entries', 'folders')
+    await fse.ensureDir(aliasDir)
+    await fse.writeFile(
+      join(aliasDir, 'folder-07.txd'),
+      JSON.stringify(
+        makeTxd({
+          id: folderId,
+          type: 'folder',
+          title: 'Alias folder',
+          metadata: JSON.stringify({ scope: 'entry' })
+        })
+      ),
+      'utf-8'
+    )
+
+    const opened = await reopen(path)
+    expect(opened.nodes.find((n) => n.id === folderId)?.title).toBe('Alias folder')
+    expect(await fse.pathExists(join(aliasDir, 'folder-07.txd'))).toBe(false)
+    expect(await fse.pathExists(join(root, 'wiki', 'entry', 'folders', 'folder-07.txd'))).toBe(true)
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+  })
+
+  it('puts a scene with a missing chapter parent in the trash', async () => {
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const sceneId = uuidv4()
+    await fse.writeFile(
+      join(root, 'manuscript', 'scene-01-99.txd'),
+      JSON.stringify(
+        makeTxd({
+          id: sceneId,
+          type: 'scene',
+          title: 'Orphan scene',
+          parentId: uuidv4(),
+          content: 'Scene words'
+        })
+      ),
+      'utf-8'
+    )
+
+    const opened = await reopen(path)
+    const scene = opened.nodes.find((n) => n.id === sceneId)
+    expect(scene?.content).toBe('Scene words')
+    expect(scene?.deletedAt).toBeTruthy()
+    expect(warningTitles(opened)).toContain('Recovered missing items')
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+    expect(second.nodes.find((n) => n.id === sceneId)?.deletedAt).toBeTruthy()
+  })
+
+  it('deletes expired trash leftovers instead of re-indexing them', async () => {
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const expiredId = uuidv4()
+    const expiredAt = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+    const stray = join(root, 'wiki', 'notes', 'expired.txd')
+    await fse.ensureDir(join(root, 'wiki', 'notes'))
+    await fse.writeFile(
+      stray,
+      JSON.stringify(
+        makeTxd({
+          id: expiredId,
+          type: 'chapter',
+          title: 'Expired',
+          deletedAt: expiredAt
+        })
+      ),
+      'utf-8'
+    )
+
+    const opened = await reopen(path)
+    expect(opened.nodes.find((n) => n.id === expiredId)).toBeUndefined()
+    expect(await fse.pathExists(stray)).toBe(false)
+    expect(opened.openWarnings ?? []).toHaveLength(0)
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+  })
+
+  it('quarantines an untyped file in manuscript and stays quiet on reopen', async () => {
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    await fse.writeFile(
+      join(root, 'manuscript', 'mystery.txd'),
+      JSON.stringify(makeTxd({ id: uuidv4(), type: 'nope', title: 'Mystery' })),
+      'utf-8'
+    )
+
+    const opened = await reopen(path)
+    expect(await fse.pathExists(join(root, 'manuscript', 'mystery.txd'))).toBe(false)
+    expect(warningTitles(opened)).toContain('Set aside extra files')
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+  })
+
+  it('infers note type from wiki/notes when the type field is invalid', async () => {
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const noteId = uuidv4()
+    await fse.ensureDir(join(root, 'wiki', 'notes'))
+    await fse.writeFile(
+      join(root, 'wiki', 'notes', 'note-99.txd'),
+      JSON.stringify(makeTxd({ id: noteId, type: 'nope', title: 'Inferred', content: 'Note body' })),
+      'utf-8'
+    )
+
+    const opened = await reopen(path)
+    const note = opened.nodes.find((n) => n.id === noteId)
+    expect(note?.type).toBe('note')
+    expect(note?.content).toBe('Note body')
+    expect(warningTitles(opened)).toContain('Recovered missing items')
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+  })
+
+  it('does not toast for unreadable .txd files left in place', async () => {
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    const junk = join(root, 'manuscript', 'junk.txd')
+    await fse.writeFile(junk, 'not json', 'utf-8')
+
+    const opened = await reopen(path)
+    expect(opened.openWarnings ?? []).toHaveLength(0)
+    expect(await fse.pathExists(junk)).toBe(true)
+
+    const second = await reopen(path)
+    expect(second.openWarnings ?? []).toHaveLength(0)
+  })
+
+  it('skips AppleDouble ._ files', async () => {
+    const root = getProjectRootPath()!
+    const path = getProjectPath()!
+    await fse.writeFile(
+      join(root, 'manuscript', '._chapter-01.txd'),
+      JSON.stringify(makeTxd({ id: uuidv4(), type: 'chapter', title: 'AppleDouble' })),
+      'utf-8'
+    )
+
+    const opened = await reopen(path)
+    expect(opened.openWarnings ?? []).toHaveLength(0)
+    expect(opened.nodes.find((n) => n.title === 'AppleDouble')).toBeUndefined()
   })
 
   it('has no openWarnings on a normal open', async () => {
     await createNode(null, 'chapter', 'Ch1')
     const path = getProjectPath()!
-    closeProject()
-    const opened = await openProject(path)
+    const opened = await reopen(path)
     expect(opened.openWarnings ?? []).toHaveLength(0)
   })
 })
@@ -446,6 +754,20 @@ describe('updateNode', () => {
     const found = opened.nodes.find((n) => n.id === node.id)!
     expect(found.title).toBe('Updated Title')
     expect(found.content).toBe('New content')
+  })
+
+  it('saves a complete .txd and leaves no temp file', async () => {
+    const node = await createNode(null, 'chapter', 'Ch1')
+    await updateNode(node.id, { content: 'Hello world' })
+
+    const manuscript = join(getProjectRootPath()!, 'manuscript')
+    const names = await fse.readdir(manuscript)
+    expect(names.filter((name) => name.endsWith('.tmp'))).toEqual([])
+
+    const txdName = names.find((name) => name.endsWith('.txd'))
+    expect(txdName).toBeTruthy()
+    const raw = await fse.readFile(join(manuscript, txdName!), 'utf-8')
+    expect(JSON.parse(raw).content).toBe('Hello world')
   })
 
   it('throws for nonexistent node', async () => {

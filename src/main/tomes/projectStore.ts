@@ -49,15 +49,15 @@ import {
   getTomesPath,
   sanitizeFolderName,
   getBackupsDir,
-  getManuscriptDir,
-  getWikiDir,
   getAssetsDir,
   getCharacterImagesDir,
   getLocationImagesDir,
   getLoreImagesDir,
   getEntryImagesDir
 } from './paths'
+import { listScanDirectories, reconcileIndexedNodes } from './recoverOnOpen'
 import { validateTomesFile } from './validate'
+import { writeFileAtomic } from './writeFileAtomic'
 import {
   addRecentProject,
   setBackupLocations,
@@ -124,16 +124,29 @@ function scopeToEntityIndexKey(scope: FolderScope): keyof TomesManifest['index']
   }
 }
 
-function deduplicateIndexEntries(entries: TomesIndexEntry[]): TomesIndexEntry[] {
-  const liveByFilename = new Map<string, string>()
+function indexEntryDedupeKey(
+  entry: TomesIndexEntry,
+  indexKey: keyof TomesManifest['index']
+): string {
+  if (indexKey === 'folders') {
+    return `${entry.folderScope ?? 'manuscript'}:${entry.filename}`
+  }
+  return entry.filename
+}
+
+function deduplicateIndexEntries(
+  entries: TomesIndexEntry[],
+  indexKey: keyof TomesManifest['index']
+): TomesIndexEntry[] {
+  const liveByKey = new Map<string, string>()
   for (const entry of entries) {
     if (!entry.deletedAt) {
-      liveByFilename.set(entry.filename, entry.id)
+      liveByKey.set(indexEntryDedupeKey(entry, indexKey), entry.id)
     }
   }
   return entries.filter((entry) => {
     if (!entry.deletedAt) return true
-    const liveId = liveByFilename.get(entry.filename)
+    const liveId = liveByKey.get(indexEntryDedupeKey(entry, indexKey))
     return !liveId || liveId === entry.id
   })
 }
@@ -151,7 +164,7 @@ function normalizeManifest(m: TomesManifest): TomesManifest {
   ]
   for (const key of indexKeys) {
     if (m.index[key]) {
-      m.index[key] = deduplicateIndexEntries(m.index[key])
+      m.index[key] = deduplicateIndexEntries(m.index[key], key)
     }
   }
 
@@ -260,7 +273,7 @@ async function readTxdFile(filePath: string): Promise<TxDFile> {
 
 async function writeTxdFile(filePath: string, txd: TxDFile): Promise<void> {
   await fse.ensureDir(join(filePath, '..'))
-  await fse.writeFile(filePath, JSON.stringify(txd, null, 2), 'utf-8')
+  await writeFileAtomic(filePath, JSON.stringify(txd, null, 2))
 }
 
 function getTxdPath(filename: string, type: NodeType, scope?: FolderScope): string {
@@ -273,133 +286,23 @@ function getTxdPathForNode(node: TreeNode, filename: string): string {
   return getTxdPath(filename, node.type, scope)
 }
 
-async function writeFileAtomic(filePath: string, content: string): Promise<void> {
-  const tempPath = `${filePath}.${process.pid}.tmp`
-  await fse.writeFile(tempPath, content, 'utf-8')
-  await fse.rename(tempPath, filePath)
-}
-
 async function writeManifest(): Promise<void> {
   if (!manifest || !tomesPath) throw new Error('No project open')
   manifest.lastSavedAt = now()
   await writeFileAtomic(tomesPath, JSON.stringify(manifest, null, 2))
 }
 
-interface ScanDir {
-  dir: string
-  folderScope?: FolderScope
-}
-
-function getScanDirectories(root: string): ScanDir[] {
-  return [
-    { dir: getManuscriptDir(root) }, // chapters + scenes share this dir
-    { dir: join(getManuscriptDir(root), 'folders'), folderScope: 'manuscript' },
-    { dir: join(getWikiDir(root), 'characters') },
-    { dir: join(getWikiDir(root), 'characters', 'folders'), folderScope: 'characters' },
-    { dir: join(getWikiDir(root), 'locations') },
-    { dir: join(getWikiDir(root), 'locations', 'folders'), folderScope: 'locations' },
-    { dir: join(getWikiDir(root), 'lore') },
-    { dir: join(getWikiDir(root), 'lore', 'folders'), folderScope: 'lore' },
-    { dir: join(getWikiDir(root), 'notes') },
-    { dir: join(getWikiDir(root), 'notes', 'folders'), folderScope: 'notes' },
-    { dir: join(getWikiDir(root), 'entries') },
-    { dir: join(getWikiDir(root), 'entry', 'folders'), folderScope: 'entry' }
-  ]
-}
-
-async function loadAllNodes(): Promise<{ nodes: TreeNode[]; recovered: number; broken: number }> {
-  if (!manifest || !projectRoot) return { nodes: [], recovered: 0, broken: 0 }
-
-  const nodes: TreeNode[] = []
-  const claimedPaths = new Set<string>()
-  const brokenEntries: { indexKey: keyof TomesManifest['index']; id: string }[] = []
-  const categories: { key: keyof TomesManifest['index']; type: NodeType }[] = [
-    { key: 'folders', type: 'folder' },
-    { key: 'chapters', type: 'chapter' },
-    { key: 'scenes', type: 'scene' },
-    { key: 'characters', type: 'character' },
-    { key: 'locations', type: 'location' },
-    { key: 'lore', type: 'lore' },
-    { key: 'notes', type: 'note' },
-    { key: 'entries', type: 'entry' }
-  ]
-
-  // Pass 1: claim files referenced by the manifest whose content actually
-  // matches the entry. A missing file is left alone (could be an unsynced
-  // cloud file, not necessarily gone) — only an id mismatch (a different
-  // node's content now sits at this path, e.g. from a past filename
-  // collision) marks the entry as broken.
-  for (const { key, type } of categories) {
-    const entries = manifest.index[key] ?? []
-    for (const entry of entries) {
-      const filePath = getTxdPathForEntry(entry, type)
-      if (!(await fse.pathExists(filePath))) continue
-      const txd = await readTxdFile(filePath)
-      if (txd.id !== entry.id) {
-        brokenEntries.push({ indexKey: key, id: entry.id })
-        continue
-      }
-      const node = txdToNode(txd, entry)
-      nodes.push(node)
-      nodeCache.set(node.id, node)
-      claimedPaths.add(resolve(filePath))
-    }
+async function loadAllNodes(): Promise<{
+  nodes: TreeNode[]
+  recovered: number
+  broken: number
+  quarantined: number
+  indexMutated: boolean
+}> {
+  if (!manifest || !projectRoot) {
+    return { nodes: [], recovered: 0, broken: 0, quarantined: 0, indexMutated: false }
   }
-
-  // Pass 2: any .txd file left unclaimed is either an orphan (never made it
-  // into the manifest — e.g. a manifest rolled back to an older backup) or
-  // the real content that a broken entry above no longer points to. Either
-  // way, its content is real and shouldn't be invisible — recover it as a
-  // new entry.
-  let recovered = 0
-  for (const scanDir of getScanDirectories(projectRoot)) {
-    if (!(await fse.pathExists(scanDir.dir))) continue
-    const files = await fse.readdir(scanDir.dir)
-    for (const file of files) {
-      if (!file.endsWith(TXD_EXT)) continue
-      const filePath = join(scanDir.dir, file)
-      if (claimedPaths.has(resolve(filePath))) continue
-
-      let txd: TxDFile
-      try {
-        txd = await readTxdFile(filePath)
-      } catch {
-        continue
-      }
-
-      const indexKey = indexKeyForType(txd.type)
-      const parentId = txd.parentId && nodeCache.has(txd.parentId) ? txd.parentId : null
-      const sortOrder = (manifest.index[indexKey] ?? []).filter(
-        (e) => !e.deletedAt && (e.parentId ?? null) === parentId
-      ).length
-
-      const entry: TomesIndexEntry = {
-        id: txd.id,
-        filename: file,
-        title: txd.title,
-        sortOrder,
-        ...(parentId ? { parentId } : {}),
-        ...(txd.type === 'folder' && scanDir.folderScope ? { folderScope: scanDir.folderScope } : {}),
-        ...(txd.categoryId ? { categoryId: txd.categoryId } : {}),
-        ...(txd.deletedAt ? { deletedAt: txd.deletedAt } : {}),
-        ...(txd.originalParentId ? { originalParentId: txd.originalParentId } : {})
-      }
-
-      manifest.index[indexKey].push(entry)
-      const node = txdToNode({ ...txd, parentId }, entry)
-      nodes.push(node)
-      nodeCache.set(node.id, node)
-      claimedPaths.add(resolve(filePath))
-      recovered += 1
-    }
-  }
-
-  // Pass 3: drop entries whose backing content is confirmed gone.
-  for (const { indexKey, id } of brokenEntries) {
-    manifest.index[indexKey] = manifest.index[indexKey].filter((e) => e.id !== id)
-  }
-
-  return { nodes, recovered, broken: brokenEntries.length }
+  return reconcileIndexedNodes({ projectRoot, manifest, nodeCache })
 }
 
 function getEntryScope(entry: TomesIndexEntry, type: NodeType): FolderScope | undefined {
@@ -470,23 +373,14 @@ export async function createProject(input: CreateProjectInput): Promise<{
   const id = uuidv4()
   const timestamp = now()
 
-  await fse.ensureDir(getManuscriptDir(root))
-  await fse.ensureDir(join(getManuscriptDir(root), 'folders'))
-  await fse.ensureDir(join(getWikiDir(root), 'characters'))
-  await fse.ensureDir(join(getWikiDir(root), 'characters', 'folders'))
+  for (const scan of listScanDirectories(root)) {
+    if (scan.alias) continue
+    await fse.ensureDir(scan.dir)
+  }
   await fse.ensureDir(getCharacterImagesDir(root))
-  await fse.ensureDir(join(getWikiDir(root), 'locations'))
-  await fse.ensureDir(join(getWikiDir(root), 'locations', 'folders'))
   await fse.ensureDir(getLocationImagesDir(root))
-  await fse.ensureDir(join(getWikiDir(root), 'lore'))
-  await fse.ensureDir(join(getWikiDir(root), 'lore', 'folders'))
   await fse.ensureDir(getLoreImagesDir(root))
-  await fse.ensureDir(join(getWikiDir(root), 'notes'))
-  await fse.ensureDir(join(getWikiDir(root), 'notes', 'folders'))
-  await fse.ensureDir(join(getWikiDir(root), 'entries'))
-  await fse.ensureDir(join(getWikiDir(root), 'entries', 'folders'))
   await fse.ensureDir(getEntryImagesDir(root))
-  await fse.ensureDir(join(getWikiDir(root), 'entry', 'folders'))
   await fse.ensureDir(getBackupsDir(root))
   await fse.ensureDir(getAssetsDir(root))
 
@@ -553,8 +447,8 @@ export async function openProject(tomesFilePath: string): Promise<OpenProjectRes
   tomesPath = tomesFilePath
   nodeCache.clear()
 
-  const { nodes, recovered, broken } = await loadAllNodes()
-  if (recovered > 0 || broken > 0) {
+  const { nodes, recovered, broken, quarantined, indexMutated } = await loadAllNodes()
+  if (recovered > 0 || broken > 0 || indexMutated) {
     await writeManifest()
   }
   await purgeExpiredTrash()
@@ -584,6 +478,13 @@ export async function openProject(tomesFilePath: string): Promise<OpenProjectRes
       path: tomesPath,
       title: 'Cleaned project index',
       message: `Removed ${broken} index entr${broken === 1 ? 'y' : 'ies'} that pointed to content that no longer exists.`
+    })
+  }
+  if (quarantined > 0) {
+    openWarnings.push({
+      path: tomesPath,
+      title: 'Set aside extra files',
+      message: `Moved ${quarantined} file${quarantined === 1 ? '' : 's'} that could not be kept in the project into the recovery folder.`
     })
   }
 

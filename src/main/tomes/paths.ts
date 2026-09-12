@@ -49,6 +49,13 @@ export function getBackupsDir(projectRoot: string): string {
   return join(projectRoot, 'backups')
 }
 
+/** Unscanned folder for duplicate/unplaceable .txd files found on open. */
+export const RECOVERY_DIR_NAME = '.recovery'
+
+export function getRecoveryDir(projectRoot: string): string {
+  return join(projectRoot, RECOVERY_DIR_NAME)
+}
+
 export function getNodeDir(projectRoot: string, type: string, scope?: string): string {
   switch (type) {
     case 'chapter':
