@@ -443,6 +443,11 @@ function buildMenu(): void {
         { role: 'selectAll' },
         { type: 'separator' },
         {
+          label: 'Quick Open…',
+          accelerator: 'CmdOrCtrl+P',
+          click: () => sendToFocusedWindow('menu:quickOpen')
+        },
+        {
           label: 'Find in Project',
           accelerator: 'CmdOrCtrl+Shift+F',
           click: () => sendToFocusedWindow('menu:findInProject')

@@ -77,6 +77,8 @@ interface AppState {
 
   /** Session-only: Spotlight Find in Project overlay open. Not persisted. */
   projectFindOpen: boolean
+  /** Session-only: Quick Open (Cmd+P) overlay. Not persisted. */
+  quickOpenOpen: boolean
   /** Session-only: open in-doc SearchBar after navigating to a project-find hit. */
   pendingDocumentSearch: { nodeId: string; term: string; caseSensitive: boolean } | null
 
@@ -147,6 +149,7 @@ interface AppState {
   applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
 
   setProjectFindOpen: (open: boolean) => void
+  setQuickOpenOpen: (open: boolean) => void
   setPendingDocumentSearch: (
     pending: { nodeId: string; term: string; caseSensitive: boolean } | null
   ) => void
@@ -225,6 +228,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   renameSession: null,
 
   projectFindOpen: false,
+  quickOpenOpen: false,
   pendingDocumentSearch: null,
 
   setProject: (path, meta, nodes) =>
@@ -270,6 +274,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       containerHistory: [],
       containerHistoryIndex: -1,
       projectFindOpen: false,
+      quickOpenOpen: false,
       pendingDocumentSearch: null
     }),
 
@@ -556,7 +561,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
 
-  setProjectFindOpen: (open) => set({ projectFindOpen: open }),
+  setProjectFindOpen: (open) =>
+    set(open ? { projectFindOpen: true, quickOpenOpen: false } : { projectFindOpen: false }),
+  setQuickOpenOpen: (open) =>
+    set(open ? { quickOpenOpen: true, projectFindOpen: false } : { quickOpenOpen: false }),
   setPendingDocumentSearch: (pending) => set({ pendingDocumentSearch: pending }),
 
   applyNavigationSync: (nav) =>

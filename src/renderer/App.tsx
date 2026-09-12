@@ -25,7 +25,9 @@ import { usePreferencesSync } from '@/hooks/usePreferencesSync'
 import { useFocusMode, useFocusChromeActive } from '@/hooks/useFocusMode'
 import { useEditorAppearance } from '@/hooks/useEditorAppearance'
 import { useProjectFind } from '@/hooks/useProjectFind'
+import { useQuickOpen } from '@/hooks/useQuickOpen'
 import { ProjectFindOverlay } from '@/components/Search/ProjectFindOverlay'
+import { QuickOpenOverlay } from '@/components/Search/QuickOpenOverlay'
 import { isWorkspaceWindow } from '@/lib/hashParams'
 import { useSearchParams } from '@/lib/hashParams'
 import {
@@ -73,6 +75,7 @@ export function AppLayout(): React.JSX.Element {
   usePreferencesSync()
   useFocusMode()
   useProjectFind()
+  useQuickOpen()
   useEditorAppearance()
   useNavigationSync()
   useNavigationSyncPublisher(isProjectOpen && !isSecondary)
@@ -225,6 +228,7 @@ export function AppLayout(): React.JSX.Element {
         onOpenChange={setShowEditorAppearanceModal}
       />
       <ProjectFindOverlay />
+      <QuickOpenOverlay />
       {showBackupsModal ? (
         <ErrorBoundary region="Backups">
           <BackupsModal open={showBackupsModal} onOpenChange={setShowBackupsModal} />
