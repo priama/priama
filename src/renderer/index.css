@@ -363,6 +363,16 @@ html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-men
   display: none;
 }
 
+.sidebar-width-motion {
+  transition: width 450ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-width-motion {
+    transition: none;
+  }
+}
+
 /* Container cards keep a fixed width; extra cards wrap instead of stretching. */
 .container-card-grid {
   display: grid;

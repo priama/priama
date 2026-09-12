@@ -2,6 +2,7 @@ import { useAppStore } from '@/store/appStore'
 import { getActiveEditorInstance } from '@/lib/activeEditor'
 import { canMergeWithNext, canSplitAtCaret, canSplitNode } from '@/lib/splitMerge'
 import { isWritingSurfaceOpen } from '@/lib/writingSurface'
+import { SIDEBAR_EXPANDED_MIN_WIDTH } from '@shared/types'
 
 /** Push Edit-menu enablement for split/merge (and focus chrome) to the main process. */
 export function syncWritingMenuState(): void {
@@ -39,6 +40,8 @@ export function syncWritingMenuState(): void {
     typewriterScrolling: state.typewriterScrolling,
     entityHighlights: state.entityHighlights,
     canSplitDocument,
-    canMergeWithNext: canMerge
+    canMergeWithNext: canMerge,
+    sidebarVisible: state.sidebarWidth >= SIDEBAR_EXPANDED_MIN_WIDTH,
+    sidebarEnabled: state.isProjectOpen
   })
 }

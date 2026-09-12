@@ -28,7 +28,7 @@ import { useProjectFind } from '@/hooks/useProjectFind'
 import { ProjectFindOverlay } from '@/components/Search/ProjectFindOverlay'
 import { isWorkspaceWindow } from '@/lib/hashParams'
 import { useSearchParams } from '@/lib/hashParams'
-import { SIDEBAR_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, RIGHT_PANEL_MAX_WIDTH } from '@shared/types'
+import { SIDEBAR_MAX_WIDTH, RIGHT_PANEL_MIN_WIDTH, RIGHT_PANEL_MAX_WIDTH, normalizeSidebarWidth } from '@shared/types'
 
 const FOCUS_TITLEBAR_INSET = 78
 const isMac =
@@ -47,6 +47,7 @@ export function AppLayout(): React.JSX.Element {
     showBackupsModal,
     setShowBackupsModal,
     setSidebarWidth,
+    toggleSidebar,
     setRightPanelWidth,
     setSelectedNodeId,
   } = useAppStore()
@@ -84,7 +85,7 @@ export function AppLayout(): React.JSX.Element {
   useEffect(() => {
     if (isSecondary) return
     void window.electronAPI.windows.getLayout().then((layout) => {
-      setSidebarWidth(layout.sidebarWidth ?? SIDEBAR_MAX_WIDTH)
+      setSidebarWidth(normalizeSidebarWidth(layout.sidebarWidth ?? SIDEBAR_MAX_WIDTH))
       setRightPanelWidth(
         Math.min(
           RIGHT_PANEL_MAX_WIDTH,
@@ -112,6 +113,10 @@ export function AppLayout(): React.JSX.Element {
       if (!isProjectOpen || isSecondary) return
       void window.electronAPI.windows.openDevicePreview({ scope: 'manuscript' })
     })
+    const unsubToggleSidebar = window.electronAPI.on('menu:toggleSidebar', () => {
+      if (!isProjectOpen || isSecondary) return
+      toggleSidebar()
+    })
     const unsubOpened = window.electronAPI.on('tomes:projectOpened', (data: unknown) => {
       if (isSecondary) return
       useHistoryStore.getState().clear()
@@ -137,6 +142,7 @@ export function AppLayout(): React.JSX.Element {
       unsubBackups()
       unsubCloseProject()
       unsubDevicePreview()
+      unsubToggleSidebar()
       unsubOpened()
       unsubBeforeQuit()
     }
@@ -147,7 +153,8 @@ export function AppLayout(): React.JSX.Element {
     setShowNewProjectModal,
     setShowExportDialog,
     setShowBackupsModal,
-    isProjectOpen
+    isProjectOpen,
+    toggleSidebar
   ])
 
   if (isSecondary && !secondaryHydrated) {

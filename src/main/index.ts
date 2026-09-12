@@ -108,7 +108,9 @@ let writingMenuState: WritingMenuState = {
   typewriterScrolling: 'focus',
   entityHighlights: 'hide-in-focus',
   canSplitDocument: false,
-  canMergeWithNext: false
+  canMergeWithNext: false,
+  sidebarVisible: true,
+  sidebarEnabled: false
 }
 
 function aliveWindow(win: BrowserWindow | null | undefined): BrowserWindow | null {
@@ -332,6 +334,11 @@ function applyWritingMenuState(state: WritingMenuState): void {
     if (splitItem) splitItem.enabled = state.canSplitDocument
     const mergeItem = menu.getMenuItemById('merge-with-next')
     if (mergeItem) mergeItem.enabled = state.canMergeWithNext
+    const sidebarItem = menu.getMenuItemById('sidebar')
+    if (sidebarItem) {
+      sidebarItem.checked = state.sidebarVisible
+      sidebarItem.enabled = state.sidebarEnabled
+    }
   } catch {
     // Menu torn down during quit / reload.
   }
@@ -460,6 +467,16 @@ function buildMenu(): void {
     {
       label: 'View',
       submenu: [
+        {
+          id: 'sidebar',
+          label: 'Sidebar',
+          type: 'checkbox',
+          accelerator: 'Alt+CmdOrCtrl+1',
+          checked: writingMenuState.sidebarVisible,
+          enabled: writingMenuState.sidebarEnabled,
+          click: () => sendToFocusedWindow('menu:toggleSidebar')
+        },
+        { type: 'separator' },
         {
           id: 'focus-mode',
           label: 'Focus Mode',

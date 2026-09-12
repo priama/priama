@@ -668,6 +668,8 @@ export interface WritingMenuState {
   entityHighlights: EntityHighlights
   canSplitDocument: boolean
   canMergeWithNext: boolean
+  sidebarVisible: boolean
+  sidebarEnabled: boolean
 }
 
 export type ChapterStructure = 'simple' | 'scenes'
@@ -1149,7 +1151,24 @@ export const TRASH_CATEGORY_LABELS: Record<TrashCategory, string> = {
 }
 
 export const SIDEBAR_MAX_WIDTH = 280
+/** Icon-rail width when the sidebar is collapsed. */
 export const SIDEBAR_MIN_WIDTH = 56
+export const SIDEBAR_ICON_ONLY_THRESHOLD = SIDEBAR_MIN_WIDTH + 16
+/** Minimum width while the sidebar is expanded. Shrink further and it snaps to the icon rail. */
+export const SIDEBAR_EXPANDED_MIN_WIDTH = 240
+/** Dragging past this (below expanded min) collapses to the icon rail. */
+export const SIDEBAR_COLLAPSE_WIDTH = 200
+/** When collapsed, drag this far to snap the sidebar open again. */
+export const SIDEBAR_EXPAND_WIDTH = 96
+
+/** Coerce a persisted sidebar width into icon-rail or the expanded band. */
+export function normalizeSidebarWidth(width: number): number {
+  if (!Number.isFinite(width)) return SIDEBAR_MAX_WIDTH
+  if (width <= SIDEBAR_ICON_ONLY_THRESHOLD) return SIDEBAR_MIN_WIDTH
+  if (width < SIDEBAR_EXPANDED_MIN_WIDTH) return SIDEBAR_MAX_WIDTH
+  return Math.min(SIDEBAR_MAX_WIDTH, width)
+}
+
 export const RIGHT_PANEL_MIN_WIDTH = 320
 export const RIGHT_PANEL_MAX_WIDTH = 640
 

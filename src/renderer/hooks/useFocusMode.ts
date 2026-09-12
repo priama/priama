@@ -22,6 +22,7 @@ export function useFocusMode(): void {
   const typewriterScrolling = useAppStore((s) => s.typewriterScrolling)
   const entityHighlights = useAppStore((s) => s.entityHighlights)
   const isProjectOpen = useAppStore((s) => s.isProjectOpen)
+  const sidebarWidth = useAppStore((s) => s.sidebarWidth)
 
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedNodeId && !n.deletedAt) ?? null,
@@ -44,7 +45,16 @@ export function useFocusMode(): void {
 
   useEffect(() => {
     syncWritingMenuState()
-  }, [focusMode, writingSurfaceOpen, typewriterScrolling, entityHighlights, selectedNodeId, nodes])
+  }, [
+    focusMode,
+    writingSurfaceOpen,
+    typewriterScrolling,
+    entityHighlights,
+    selectedNodeId,
+    nodes,
+    isProjectOpen,
+    sidebarWidth
+  ])
 
   useEffect(() => {
     const unsubToggle = window.electronAPI.on('menu:toggleFocusMode', () => {

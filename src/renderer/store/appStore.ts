@@ -16,7 +16,9 @@ import {
   clampEditorAppearance,
   migrateExpandedSections,
   migrateSectionOrder,
+  SIDEBAR_EXPANDED_MIN_WIDTH,
   SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
   stepEditorSize
 } from '@shared/types'
 import { isValidContainerId, pruneContainerNavigation } from '@shared/projectUiState'
@@ -56,6 +58,8 @@ interface AppState {
   entityHighlights: EntityHighlights
   editorAppearance: EditorAppearance
   sidebarWidth: number
+  /** Last expanded sidebar width; used to restore after collapsing to the icon rail. Not persisted. */
+  lastSidebarWidth: number
   rightPanelWidth: number
   rightPanelOpen: boolean
 
@@ -136,6 +140,7 @@ interface AppState {
   setShowBookSettingsModal: (show: boolean) => void
   setShowEditorAppearanceModal: (show: boolean) => void
   setSidebarWidth: (width: number) => void
+  toggleSidebar: () => void
   setRightPanelWidth: (width: number) => void
   applyNavigationSync: (nav: import('@shared/types').NavigationSyncState) => void
 
@@ -206,6 +211,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   entityHighlights: 'hide-in-focus' as EntityHighlights,
   editorAppearance: { ...DEFAULT_EDITOR_APPEARANCE },
   sidebarWidth: SIDEBAR_MAX_WIDTH,
+  lastSidebarWidth: SIDEBAR_MAX_WIDTH,
   rightPanelWidth: 320,
   rightPanelOpen: true,
   showNewProjectModal: false,
@@ -532,7 +538,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowBookSettingsModal: (show) => set({ showBookSettingsModal: show }),
   setShowEditorAppearanceModal: (show) => set({ showEditorAppearanceModal: show }),
   setShowBackupsModal: (show) => set({ showBackupsModal: show }),
-  setSidebarWidth: (width) => set({ sidebarWidth: width }),
+  setSidebarWidth: (width) =>
+    set((s) => ({
+      sidebarWidth: width,
+      ...(width >= SIDEBAR_EXPANDED_MIN_WIDTH ? { lastSidebarWidth: width } : {})
+    })),
+  toggleSidebar: () =>
+    set((s) => ({
+      sidebarWidth:
+        s.sidebarWidth >= SIDEBAR_EXPANDED_MIN_WIDTH ? SIDEBAR_MIN_WIDTH : s.lastSidebarWidth
+    })),
   setRightPanelWidth: (width) => set({ rightPanelWidth: width }),
 
   setProjectFindOpen: (open) => set({ projectFindOpen: open }),

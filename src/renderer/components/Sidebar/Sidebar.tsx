@@ -51,6 +51,7 @@ import { useTreeNodeMenuHandlers } from '@/hooks/useTreeNodeMenuHandlers'
 import { MoveSceneDialog } from '@/components/Tree/MoveSceneDialog'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
 import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
+import { useSidebarCollapseMotion } from '@/hooks/useSidebarCollapseMotion'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import { cn } from '@/lib/utils'
 import {
@@ -60,10 +61,9 @@ import {
 } from '@/lib/treeUtils'
 import { folderScopeForCategory } from '@shared/categoryPresets'
 import type { CategoryDefinition, ChapterStructure, TrashCategory } from '@shared/types'
-import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, TRASH_CATEGORY_LABELS } from '@shared/types'
+import { SIDEBAR_COLLAPSE_WIDTH, SIDEBAR_EXPAND_WIDTH, SIDEBAR_EXPANDED_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, TRASH_CATEGORY_LABELS } from '@shared/types'
 
 const SIDEBAR_TITLEBAR_INSET = 78
-const SIDEBAR_ICON_ONLY_THRESHOLD = SIDEBAR_MIN_WIDTH + 16
 
 type DragHandleProps = {
   attributes: ReturnType<typeof useSortable>['attributes']
@@ -148,27 +148,29 @@ function SectionHeader({
 }): React.JSX.Element {
   if (iconOnly) {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={onSelectContainer}
-            className={cn(
-              'mx-auto mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
-              isContainerSelected ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-            )}
-            aria-label={label}
-          >
-            <Icon className="h-3.5 w-3.5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right">{label}</TooltipContent>
-      </Tooltip>
+      <div className="mx-1 flex min-h-9 items-center justify-center">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onSelectContainer}
+              className={cn(
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
+                isContainerSelected ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+              )}
+              aria-label={label}
+            >
+              <Icon className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{label}</TooltipContent>
+        </Tooltip>
+      </div>
     )
   }
 
   return (
-    <div className={cn('group/section mx-1 flex min-w-0 items-center gap-1 rounded-md px-2 py-1.5', isContainerSelected && 'bg-accent text-accent-foreground')}>
+    <div className={cn('group/section mx-1 flex min-h-9 min-w-0 items-center gap-1 rounded-md px-2 py-1.5', isContainerSelected && 'bg-accent text-accent-foreground')}>
       <button type="button" onClick={(e) => { e.stopPropagation(); onToggle() }} className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground">
         <ChevronRight className={cn('h-3 w-3 transition-transform duration-200 ease-in-out', isExpanded && 'rotate-90')} />
       </button>
@@ -227,11 +229,20 @@ export function Sidebar(): React.JSX.Element {
   const [showTrashEmpty, setShowTrashEmpty] = useState(false)
   const [showCategoryManager, setShowCategoryManager] = useState(false)
 
-  const iconOnly = sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
   const width = sidebarWidth
   const trashCategories = getTrashCategories(nodes)
 
-  const { handleProps } = useResizeHandle(sidebarWidth, setSidebarWidth, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH)
+  const { handleProps } = useResizeHandle(
+    sidebarWidth,
+    setSidebarWidth,
+    SIDEBAR_EXPANDED_MIN_WIDTH,
+    SIDEBAR_MAX_WIDTH,
+    'left',
+    SIDEBAR_COLLAPSE_WIDTH,
+    SIDEBAR_EXPAND_WIDTH,
+    SIDEBAR_MIN_WIDTH
+  )
+  const { iconOnly, motionClassName } = useSidebarCollapseMotion(sidebarWidth)
   usePersistLayout(sidebarWidth, 'sidebarWidth')
 
   const sensors = useSensors(
@@ -392,13 +403,27 @@ export function Sidebar(): React.JSX.Element {
   return (
     <>
       <TooltipProvider delayDuration={200}>
-        <aside className="relative flex h-full shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-150" style={{ width }}>
-          <div className="drag-region flex h-9 shrink-0 items-center justify-end px-2" style={{ paddingLeft: SIDEBAR_TITLEBAR_INSET }} />
-
+        <aside
+          className={cn(
+            'relative flex h-full shrink-0 flex-col overflow-hidden bg-sidebar',
+            motionClassName
+          )}
+          style={{ width }}
+        >
+          <div
+            className="drag-region flex h-9 shrink-0 items-center justify-end px-2"
+            style={{ paddingLeft: SIDEBAR_TITLEBAR_INSET }}
+          />
           <div className="relative flex min-h-0 flex-1 flex-col border-r border-sidebar-border">
-            <div className={cn('sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto', iconOnly ? 'py-1' : 'py-2')}>
-              {!iconOnly && projectMeta && (
-                <div className="mb-1 flex min-w-0 items-center gap-2 px-2">
+            <div className="sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto py-2">
+              {projectMeta && (
+                <div
+                  className={cn(
+                    'mb-1 flex min-w-0 items-center gap-2 px-2',
+                    iconOnly && 'invisible pointer-events-none'
+                  )}
+                  aria-hidden={iconOnly}
+                >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold leading-tight">{projectMeta.title}</p>
                     {projectMeta.author && (
@@ -496,33 +521,31 @@ export function Sidebar(): React.JSX.Element {
                 )}
               </div>
 
-              {!iconOnly && (
-                <div className="mt-2 px-2 pb-1">
+              <div className="mt-2 px-2 pb-1">
+                {iconOnly ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={() => setShowCategoryManager(true)}
+                        className="mx-auto flex min-h-9 w-8 items-center justify-center rounded-md text-muted-foreground/60 hover:bg-accent/50 hover:text-muted-foreground"
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Manage categories</TooltipContent>
+                  </Tooltip>
+                ) : (
                   <button
                     type="button"
                     onClick={() => setShowCategoryManager(true)}
-                    className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground/60 transition-colors hover:bg-accent/30 hover:text-muted-foreground"
+                    className="flex min-h-9 w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground/60 transition-colors hover:bg-accent/30 hover:text-muted-foreground"
                   >
                     <Settings2 className="h-3 w-3" />
                     <span>Manage categories</span>
                   </button>
-                </div>
-              )}
-
-              {iconOnly && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => setShowCategoryManager(true)}
-                      className="mx-auto mb-1 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground/60 hover:bg-accent/50 hover:text-muted-foreground"
-                    >
-                      <Settings2 className="h-3.5 w-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">Manage categories</TooltipContent>
-                </Tooltip>
-              )}
+                )}
+              </div>
             </div>
 
             <div {...handleProps} className={cn(handleProps.className, 'right-0')} style={{ right: 0 }} />

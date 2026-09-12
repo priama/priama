@@ -1,35 +1,56 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
+import { resolveCollapsibleWidth } from '@/lib/collapsiblePanelWidth'
 
 export function useResizeHandle(
   width: number,
   onWidthChange: (w: number) => void,
   min: number,
   max: number,
-  side: 'left' | 'right' = 'left'
+  side: 'left' | 'right' = 'left',
+  collapseBelow?: number,
+  expandAbove?: number,
+  collapsedWidth = 0
 ): {
+  dragging: boolean
   handleProps: {
     onMouseDown: (e: React.MouseEvent) => void
     className: string
   }
 } {
-  const dragging = useRef(false)
+  const draggingRef = useRef(false)
+  const [dragging, setDragging] = useState(false)
 
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
-      dragging.current = true
+      draggingRef.current = true
+      setDragging(true)
       const startX = e.clientX
       const startWidth = width
 
       const onMove = (ev: MouseEvent): void => {
-        if (!dragging.current) return
+        if (!draggingRef.current) return
         const delta = ev.clientX - startX
-        const next = side === 'left' ? startWidth + delta : startWidth - delta
-        onWidthChange(Math.min(max, Math.max(min, next)))
+        const proposed = side === 'left' ? startWidth + delta : startWidth - delta
+        if (collapseBelow == null) {
+          onWidthChange(Math.min(max, Math.max(min, proposed)))
+          return
+        }
+        onWidthChange(
+          resolveCollapsibleWidth(proposed, {
+            wasOpen: startWidth >= min,
+            min,
+            max,
+            collapseBelow,
+            expandAbove,
+            collapsedWidth
+          })
+        )
       }
 
       const onUp = (): void => {
-        dragging.current = false
+        draggingRef.current = false
+        setDragging(false)
         document.removeEventListener('mousemove', onMove)
         document.removeEventListener('mouseup', onUp)
         document.body.style.cursor = ''
@@ -41,10 +62,11 @@ export function useResizeHandle(
       document.addEventListener('mousemove', onMove)
       document.addEventListener('mouseup', onUp)
     },
-    [width, onWidthChange, min, max, side]
+    [width, onWidthChange, min, max, side, collapseBelow, expandAbove, collapsedWidth]
   )
 
   return {
+    dragging,
     handleProps: {
       onMouseDown,
       className:

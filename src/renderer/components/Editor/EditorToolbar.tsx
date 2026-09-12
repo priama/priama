@@ -15,7 +15,7 @@ import { Button } from '@/components/UI/button'
 import { Separator } from '@/components/UI/separator'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/UI/tooltip'
 import { useAppStore } from '@/store/appStore'
-import { SIDEBAR_MIN_WIDTH } from '@shared/types'
+import { SIDEBAR_ICON_ONLY_THRESHOLD } from '@shared/types'
 import { StyleDropdown } from './StyleDropdown'
 import { ColorPickerButton, TEXT_COLORS, HIGHLIGHT_COLORS } from './ColorPicker'
 import { cn } from '@/lib/utils'
@@ -25,8 +25,6 @@ interface EditorToolbarProps {
   wordCount: number
   onOpenSearch?: () => void
 }
-
-const SIDEBAR_ICON_ONLY_THRESHOLD = SIDEBAR_MIN_WIDTH + 16
 
 function ToolbarButton({
   onClick,
