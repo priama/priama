@@ -1,21 +1,10 @@
-import { formatDistanceToNow } from 'date-fns'
 import { Moon, Sun, Download, Save, BookOpen } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
 import { useProject } from '@/hooks/useProject'
 import { useManuscriptWordTotal } from '@/hooks/useManuscriptWordTotal'
 import { FocusModeButton } from '@/components/Editor/FocusModeButton'
-
-function safeRelativeTime(iso: string | null | undefined): string | null {
-  if (!iso) return null
-  const ms = Date.parse(iso)
-  if (Number.isNaN(ms)) return null
-  try {
-    return formatDistanceToNow(new Date(ms), { addSuffix: true })
-  } catch {
-    return null
-  }
-}
+import { backupStatusLabel } from '@/lib/backupStatusLabel'
 
 export function StatusBar(): React.JSX.Element {
   const {
@@ -31,16 +20,8 @@ export function StatusBar(): React.JSX.Element {
   const { saveProject } = useProject()
   const manuscriptWords = useManuscriptWordTotal()
 
-  const backupRelative = safeRelativeTime(lastBackupAt)
-
   const savedLabel = isDirty ? 'Saving…' : 'Saved'
-
-  const backupLabel =
-    backupWarningCount > 0
-      ? `Backup warning: ${backupWarningCount} location${backupWarningCount === 1 ? '' : 's'} unavailable`
-      : backupRelative
-        ? `Last backup: ${backupRelative}`
-        : 'No backups yet'
+  const backupLabel = backupStatusLabel(lastBackupAt, backupWarningCount)
 
   const manuscriptWordsLabel = `${manuscriptWords.toLocaleString()} ${
     manuscriptWords === 1 ? 'word' : 'words'
