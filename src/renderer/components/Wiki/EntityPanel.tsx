@@ -16,7 +16,8 @@ import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
 import { useManuscriptAppearances } from '@/hooks/useManuscriptAppearances'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { PanelNameField } from '@/components/Wiki/PanelNameField'
-import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
+import { usePersistLayout } from '@/hooks/useResize'
+import { ResizeHandle } from '@/components/UI/ResizeHandle'
 import { cn } from '@/lib/utils'
 import {
   DEFAULT_CHARACTER_META,
@@ -376,13 +377,6 @@ export function EntityPanel(): React.JSX.Element | null {
     }
   }, [activeId, node])
 
-  const { handleProps } = useResizeHandle(
-    rightPanelWidth,
-    setRightPanelWidth,
-    RIGHT_PANEL_MIN_WIDTH,
-    RIGHT_PANEL_MAX_WIDTH,
-    'right'
-  )
   usePersistLayout(rightPanelWidth, 'rightPanelWidth')
 
   const handleNoteUpdate = async (updates: {
@@ -490,10 +484,12 @@ export function EntityPanel(): React.JSX.Element | null {
         }}
       >
         {interactive && (
-          <div
-            {...handleProps}
-            className={cn(handleProps.className, 'left-0')}
-            style={{ left: 0 }}
+          <ResizeHandle
+            width={rightPanelWidth}
+            onWidthChange={setRightPanelWidth}
+            min={RIGHT_PANEL_MIN_WIDTH}
+            max={RIGHT_PANEL_MAX_WIDTH}
+            side="right"
           />
         )}
 

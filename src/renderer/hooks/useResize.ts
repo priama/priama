@@ -14,7 +14,6 @@ export function useResizeHandle(
   dragging: boolean
   handleProps: {
     onMouseDown: (e: React.MouseEvent) => void
-    className: string
   }
 } {
   const draggingRef = useRef(false)
@@ -68,9 +67,7 @@ export function useResizeHandle(
   return {
     dragging,
     handleProps: {
-      onMouseDown,
-      className:
-        'absolute top-0 z-10 h-full w-1.5 cursor-col-resize bg-transparent hover:bg-primary/30 active:bg-primary/50 transition-colors'
+      onMouseDown
     }
   }
 }

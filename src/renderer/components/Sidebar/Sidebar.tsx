@@ -50,7 +50,8 @@ import {
 import { useTreeNodeMenuHandlers } from '@/hooks/useTreeNodeMenuHandlers'
 import { MoveSceneDialog } from '@/components/Tree/MoveSceneDialog'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
-import { useResizeHandle, usePersistLayout } from '@/hooks/useResize'
+import { usePersistLayout } from '@/hooks/useResize'
+import { ResizeHandle } from '@/components/UI/ResizeHandle'
 import { useSidebarCollapseMotion } from '@/hooks/useSidebarCollapseMotion'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import { cn } from '@/lib/utils'
@@ -232,16 +233,6 @@ export function Sidebar(): React.JSX.Element {
   const width = sidebarWidth
   const trashCategories = getTrashCategories(nodes)
 
-  const { handleProps } = useResizeHandle(
-    sidebarWidth,
-    setSidebarWidth,
-    SIDEBAR_EXPANDED_MIN_WIDTH,
-    SIDEBAR_MAX_WIDTH,
-    'left',
-    SIDEBAR_COLLAPSE_WIDTH,
-    SIDEBAR_EXPAND_WIDTH,
-    SIDEBAR_MIN_WIDTH
-  )
   const { iconOnly, motionClassName } = useSidebarCollapseMotion(sidebarWidth)
   usePersistLayout(sidebarWidth, 'sidebarWidth')
 
@@ -548,7 +539,16 @@ export function Sidebar(): React.JSX.Element {
               </div>
             </div>
 
-            <div {...handleProps} className={cn(handleProps.className, 'right-0')} style={{ right: 0 }} />
+            <ResizeHandle
+              width={sidebarWidth}
+              onWidthChange={setSidebarWidth}
+              min={SIDEBAR_EXPANDED_MIN_WIDTH}
+              max={SIDEBAR_MAX_WIDTH}
+              side="left"
+              collapseBelow={SIDEBAR_COLLAPSE_WIDTH}
+              expandAbove={SIDEBAR_EXPAND_WIDTH}
+              collapsedWidth={SIDEBAR_MIN_WIDTH}
+            />
           </div>
         </aside>
       </TooltipProvider>
