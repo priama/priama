@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAppStore, getContainerViewMode } from '@/store/appStore'
+import { useAppStore } from '@/store/appStore'
 import { isValidContainerId } from '@shared/projectUiState'
 import { useHistoryStore } from '@/store/historyStore'
 import {
@@ -18,7 +18,7 @@ import {
 } from '@/lib/treeNodeMenuActions'
 import { useTreeNodeMenuHandlers } from '@/hooks/useTreeNodeMenuHandlers'
 import { RichTextEditor } from '@/components/Editor/RichTextEditor'
-import { ContainerView, type ListVariant } from '@/components/Editor/ContainerView'
+import { ContainerView } from '@/components/Editor/ContainerView'
 import { MoveSceneDialog } from '@/components/Tree/MoveSceneDialog'
 import {
   folderContainerId,
@@ -49,21 +49,6 @@ function resolveContainerCategory(
   return categories.find((c) => c.id === containerId) ?? null
 }
 
-function listVariantForScope(scope: FolderScope | null | undefined): ListVariant {
-  switch (scope) {
-    case 'manuscript':
-      return 'manuscript'
-    case 'characters':
-      return 'characters'
-    case 'locations':
-      return 'locations'
-    case 'lore':
-      return 'lore'
-    default:
-      return 'default'
-  }
-}
-
 function containerSelectionId(
   selectedNodeId: string | null,
   selectedEntityId: string | null,
@@ -88,11 +73,8 @@ export function EditorPane(): React.JSX.Element {
     containerHistory,
     containerHistoryIndex,
     containerGoBack,
-    containerGoForward,
-    setContainerViewMode
+    containerGoForward
   } = useAppStore()
-
-  const containerViewModes = useAppStore((s) => s.containerViewModes)
 
   const canGoBack = containerHistory
     .slice(0, containerHistoryIndex)
@@ -100,11 +82,6 @@ export function EditorPane(): React.JSX.Element {
   const canGoForward = containerHistory
     .slice(containerHistoryIndex + 1)
     .some((id) => isValidContainerId(id, nodes, categories))
-
-  const viewModeFor = (containerKey: string) =>
-    getContainerViewMode({ containerViewModes }, containerKey)
-  const onViewModeChangeFor = (containerKey: string) => (mode: 'cards' | 'list') =>
-    setContainerViewMode(containerKey, mode)
 
   const buildBreadcrumb = (folderId: string): string => {
     const parts: string[] = []
@@ -294,9 +271,6 @@ export function EditorPane(): React.JSX.Element {
           canGoForward={canGoForward}
           onGoBack={containerGoBack}
           onGoForward={containerGoForward}
-          viewMode={viewModeFor(selectedContainerId)}
-          onViewModeChange={onViewModeChangeFor(selectedContainerId)}
-          listVariant="default"
           items={items}
           emptyMessage="Nothing in this category."
           selectedNodeId={selectedNodeId ?? selectedEntityId}
@@ -324,9 +298,6 @@ export function EditorPane(): React.JSX.Element {
           canGoForward={canGoForward}
           onGoBack={containerGoBack}
           onGoForward={containerGoForward}
-          viewMode={viewModeFor('manuscript')}
-          onViewModeChange={onViewModeChangeFor('manuscript')}
-          listVariant="manuscript"
           items={items}
           emptyMessage="No items yet. Right-click to add a folder or chapter."
           selectedNodeId={selectedNodeId}
@@ -367,9 +338,6 @@ export function EditorPane(): React.JSX.Element {
           canGoForward={canGoForward}
           onGoBack={containerGoBack}
           onGoForward={containerGoForward}
-          viewMode={viewModeFor(containerCategory.id)}
-          onViewModeChange={onViewModeChangeFor(containerCategory.id)}
-          listVariant={listVariantForScope(scope)}
           items={items}
           emptyMessage={`No ${emptyLabel} entries yet. Right-click to add a folder or entry.`}
           selectedNodeId={containerSelectionId(selectedNodeId, selectedEntityId, selectedEntryId)}
@@ -418,9 +386,6 @@ export function EditorPane(): React.JSX.Element {
             canGoForward={canGoForward}
             onGoBack={containerGoBack}
             onGoForward={containerGoForward}
-            viewMode={viewModeFor(selectedContainerId!)}
-            onViewModeChange={onViewModeChangeFor(selectedContainerId!)}
-            listVariant={listVariantForScope(folderScope)}
             items={items}
             emptyMessage="This folder is empty. Right-click to add items."
             selectedNodeId={
@@ -463,7 +428,6 @@ export function EditorPane(): React.JSX.Element {
 
   if (selectedNode && isChapterFolder(selectedNode)) {
     const scenes = getScenes(nodes, selectedNode.id)
-    const chapterKey = `chapter:${selectedNode.id}`
     return (
       <>
         <ContainerView
@@ -473,9 +437,6 @@ export function EditorPane(): React.JSX.Element {
           canGoForward={canGoForward}
           onGoBack={containerGoBack}
           onGoForward={containerGoForward}
-          viewMode={viewModeFor(chapterKey)}
-          onViewModeChange={onViewModeChangeFor(chapterKey)}
-          listVariant="chapterScenes"
           items={scenes}
           emptyMessage="No scenes yet. Right-click to add a scene."
           selectedNodeId={selectedNodeId}

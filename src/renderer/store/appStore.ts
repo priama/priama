@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { CategoryDefinition, ContainerViewMode, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
+import type { CategoryDefinition, ProjectMeta, TreeNode, WikiEntityType } from '@shared/types'
 import { DEFAULT_SECTION_ORDER, DEFAULT_EXPANDED_SECTIONS, migrateExpandedSections, migrateSectionOrder, SIDEBAR_MAX_WIDTH } from '@shared/types'
 import { isValidContainerId, pruneContainerNavigation } from '@shared/projectUiState'
 import type { RenameSession, RenameSurface, RenamePhase } from '@/lib/renameSession'
@@ -23,7 +23,6 @@ interface AppState {
   selectedContainerId: string | null
   expandedSections: Set<string>
   sectionOrder: string[]
-  containerViewModes: Record<string, ContainerViewMode>
 
   selectedEntityId: string | null
   selectedEntityType: WikiEntityType | null
@@ -66,8 +65,6 @@ interface AppState {
   selectWikiEntity: (id: string | null, type: WikiEntityType | null) => void
   toggleSection: (section: string) => void
   setSectionOrder: (order: string[]) => void
-  setContainerViewMode: (containerId: string, mode: ContainerViewMode) => void
-  setContainerViewModes: (modes: Record<string, ContainerViewMode>) => void
 
   setSelectedEntity: (id: string | null, type: WikiEntityType | null) => void
   /** Panel entry selection — preserves center view when opening/closing (same as wiki entities). */
@@ -127,7 +124,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedContainerId: null,
   expandedSections: new Set(DEFAULT_EXPANDED_SECTIONS),
   sectionOrder: [...DEFAULT_SECTION_ORDER],
-  containerViewModes: {},
 
   selectedEntityId: null,
   selectedEntityType: null,
@@ -182,8 +178,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       backupWarningCount: 0,
       renameSession: null,
       containerHistory: [],
-      containerHistoryIndex: -1,
-      containerViewModes: {}
+      containerHistoryIndex: -1
     }),
 
   setProjectMeta: (meta) => set({ projectMeta: meta }),
@@ -322,11 +317,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ expandedSections: expanded })
   },
   setSectionOrder: (order) => set({ sectionOrder: order }),
-  setContainerViewMode: (containerId, mode) =>
-    set((state) => ({
-      containerViewModes: { ...state.containerViewModes, [containerId]: mode }
-    })),
-  setContainerViewModes: (modes) => set({ containerViewModes: { ...modes } }),
 
   /** Panel entry selection — preserves center view like setSelectedEntity for wiki items. */
   selectEntry: (id, categoryId) => {
@@ -499,10 +489,3 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   clearPendingRename: () => set({ renameSession: null })
 }))
-
-export function getContainerViewMode(
-  state: Pick<AppState, 'containerViewModes'>,
-  containerId: string
-): ContainerViewMode {
-  return state.containerViewModes[containerId] ?? 'cards'
-}

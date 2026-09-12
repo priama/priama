@@ -11,14 +11,12 @@ import {
 import {
   SortableContext,
   rectSortingStrategy,
-  verticalListSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
   arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { formatDistanceToNow } from 'date-fns'
-import { ChevronLeft, ChevronRight, Folder, GripVertical, LayoutGrid, List } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Folder, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { countNodeWords, isFolder, isChapterFolder, isSimpleChapter, stripNodeContentPreview } from '@/lib/treeUtils'
 import { useAppStore } from '@/store/appStore'
@@ -27,7 +25,7 @@ import { makeRenameCommand } from '@/lib/commands'
 import { useRenameInput } from '@/hooks/useRenameInput'
 import { TreeContextMenu, EmptyAreaContextMenu, type MoveToFolder } from '@/components/Tree/TreeContextMenu'
 import { ConfirmDialog } from '@/components/UI/ConfirmDialog'
-import type { ContainerViewMode, TreeNode } from '@shared/types'
+import type { TreeNode } from '@shared/types'
 import {
   parseMetadata,
   DEFAULT_CHARACTER_META,
@@ -38,17 +36,6 @@ import {
 import type { CharacterMeta, LocationMeta, LoreMeta, BestiaryMeta } from '@shared/types'
 import { OPTIONAL_BESTIARY_CATEGORY_ID } from '@shared/categoryIds'
 
-export type ListVariant =
-  | 'default'
-  | 'manuscript'
-  | 'chapterScenes'
-  | 'characters'
-  | 'locations'
-  | 'lore'
-
-const LIST_GRID_COLS =
-  'grid-cols-[minmax(0,2fr)_minmax(0,7rem)_9rem_9rem_minmax(0,1.5fr)_1.75rem]'
-
 interface ContainerViewProps {
   title: string
   subtitle?: string
@@ -57,9 +44,6 @@ interface ContainerViewProps {
   canGoForward?: boolean
   onGoBack?: () => void
   onGoForward?: () => void
-  viewMode: ContainerViewMode
-  onViewModeChange: (mode: ContainerViewMode) => void
-  listVariant?: ListVariant
   items: TreeNode[]
   emptyMessage: string
   selectedNodeId: string | null
@@ -96,7 +80,6 @@ type ItemMenuProps = {
   isSelected: boolean
   readOnly?: boolean
   menuVariant?: 'manuscript' | 'wiki' | 'trash'
-  listVariant?: ListVariant
   /** Manual (context-menu) rename — session rename is handled inside the item. */
   renaming?: boolean
   renameValue?: string
@@ -125,38 +108,7 @@ function MetaTag({ value }: { value: string }): React.JSX.Element | null {
   return <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{value}</span>
 }
 
-function formatNodeTypeLabel(type: TreeNode['type']): string {
-  if (!type) return ''
-  return type.charAt(0).toUpperCase() + type.slice(1)
-}
-
-function formatRelativeDate(iso: string | undefined): string {
-  if (!iso) return '—'
-  return formatDistanceToNow(new Date(iso), { addSuffix: true })
-}
-
-function listTypeColumnLabel(variant: ListVariant): string {
-  return variant === 'lore' ? 'Category' : 'Type'
-}
-
-function listTypeCell(
-  node: TreeNode,
-  variant: ListVariant
-): { text: string; title?: string } {
-  if (variant === 'locations' && node.type === 'location') {
-    const meta = parseMetadata<LocationMeta>(node.metadata, DEFAULT_LOCATION_META)
-    const text = meta.type.trim()
-    return text ? { text, title: text } : { text: '—' }
-  }
-  if (variant === 'lore' && node.type === 'lore') {
-    const meta = parseMetadata<LoreMeta>(node.metadata, DEFAULT_LORE_META)
-    const text = meta.category.trim()
-    return text ? { text, title: text } : { text: '—' }
-  }
-  return { text: formatNodeTypeLabel(node.type) || '—' }
-}
-
-function listContentsSummary(
+function cardContentsSummary(
   node: TreeNode,
   allNodes: TreeNode[],
   sceneChapter: boolean
@@ -193,7 +145,7 @@ function CardBody({
     return (
       <div className="mt-2 flex-1">
         <p className="text-sm text-muted-foreground">
-          {listContentsSummary(node, allNodes, sceneChapter)}
+          {cardContentsSummary(node, allNodes, sceneChapter)}
         </p>
       </div>
     )
@@ -429,111 +381,6 @@ function SortableCard(props: ItemMenuProps): React.JSX.Element {
   return wrapItemMenu(props, card)
 }
 
-function SortableListRow(props: ItemMenuProps): React.JSX.Element {
-  const {
-    node,
-    isSelected,
-    readOnly,
-    listVariant = 'default',
-    renaming: localRenaming,
-    renameValue,
-    onRenameValueChange,
-    onRenameCommit,
-    onRenameCancel,
-    onSelect
-  } = props
-
-  const sessionRename = useRenameInput('container', node.id)
-  const renaming = sessionRename.isEditing || !!localRenaming
-
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: node.id,
-    disabled: readOnly
-  })
-  const allNodes = useAppStore((s) => s.nodes)
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition
-  }
-
-  const folderNode = isFolder(node)
-  const sceneChapter = isChapterFolder(node)
-  const contents = listContentsSummary(node, allNodes, sceneChapter)
-  const typeCell = listTypeCell(node, listVariant)
-  const created = formatRelativeDate(node.createdAt)
-  const lastEdited = formatRelativeDate(node.updatedAt)
-
-  const row = (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        'no-drag group grid items-center gap-3 border-b border-border px-3 py-2.5 text-sm transition-colors',
-        LIST_GRID_COLS,
-        renaming ? 'cursor-default' : 'cursor-pointer',
-        isSelected ? 'bg-accent/50' : 'hover:bg-accent/30',
-        isDragging && 'opacity-50 z-10 bg-card'
-      )}
-      onClick={renaming ? undefined : onSelect}
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        {folderNode && <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />}
-        {sessionRename.isEditing ? (
-          <input
-            ref={sessionRename.inputRef}
-            value={sessionRename.draft}
-            onFocus={sessionRename.onFocus}
-            onChange={sessionRename.onChange}
-            onBlur={sessionRename.onBlur}
-            onKeyDown={sessionRename.onKeyDown}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full rounded border border-input bg-background px-2 py-1 text-sm font-medium"
-          />
-        ) : localRenaming ? (
-          <input
-            autoFocus
-            value={renameValue ?? node.title}
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => onRenameValueChange?.(e.target.value)}
-            onBlur={() => onRenameCommit?.()}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onRenameCommit?.()
-              if (e.key === 'Escape') onRenameCancel?.()
-            }}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full rounded border border-input bg-background px-2 py-1 text-sm font-medium"
-          />
-        ) : (
-          <span className="truncate font-medium">{node.title}</span>
-        )}
-      </div>
-      <span className="truncate text-muted-foreground" title={typeCell.title}>
-        {typeCell.text}
-      </span>
-      <span className="truncate text-muted-foreground">{created}</span>
-      <span className="truncate text-muted-foreground">{lastEdited}</span>
-      <span className="truncate text-muted-foreground">{contents || '—'}</span>
-      {!readOnly && !renaming ? (
-        <button
-          type="button"
-          className="justify-self-end rounded p-1 opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100 cursor-grab touch-none"
-          {...attributes}
-          {...listeners}
-          onClick={(e) => e.stopPropagation()}
-          aria-label="Drag to reorder"
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </button>
-      ) : (
-        <span />
-      )}
-    </div>
-  )
-
-  return wrapItemMenu(props, row)
-}
-
 export function ContainerView({
   title,
   subtitle,
@@ -542,9 +389,6 @@ export function ContainerView({
   canGoForward,
   onGoBack,
   onGoForward,
-  viewMode,
-  onViewModeChange,
-  listVariant = 'default',
   items,
   emptyMessage,
   selectedNodeId,
@@ -616,7 +460,6 @@ export function ContainerView({
       isSelected: selectedNodeId === node.id,
       readOnly,
       menuVariant,
-      listVariant,
       renaming: showRename,
       renameValue,
       onRenameValueChange: setRenameValue,
@@ -642,42 +485,20 @@ export function ContainerView({
     }
   }
 
+  const showHistoryNav = canGoBack || canGoForward
+
   const content = (
     <div className="flex-1 overflow-y-auto px-8 py-6">
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">{emptyMessage}</p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext
-            items={items.map((n) => n.id)}
-            strategy={viewMode === 'list' ? verticalListSortingStrategy : rectSortingStrategy}
-          >
-            {viewMode === 'list' ? (
-              <div className="mx-auto max-w-5xl overflow-hidden rounded-lg border border-border">
-                <div
-                  className={cn(
-                    'grid gap-3 border-b border-border bg-muted/40 px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground',
-                    LIST_GRID_COLS
-                  )}
-                >
-                  <span>Name</span>
-                  <span>{listTypeColumnLabel(listVariant)}</span>
-                  <span>Created</span>
-                  <span>Last edited</span>
-                  <span>Contents</span>
-                  <span />
-                </div>
-                {items.map((node) => (
-                  <SortableListRow key={node.id} {...itemProps(node)} />
-                ))}
-              </div>
-            ) : (
-              <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {items.map((node) => (
-                  <SortableCard key={node.id} {...itemProps(node)} />
-                ))}
-              </div>
-            )}
+          <SortableContext items={items.map((n) => n.id)} strategy={rectSortingStrategy}>
+            <div className="mx-auto grid max-w-5xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((node) => (
+                <SortableCard key={node.id} {...itemProps(node)} />
+              ))}
+            </div>
           </SortableContext>
         </DndContext>
       )}
@@ -697,43 +518,28 @@ export function ContainerView({
             )}
             {subtitle && <p className="shrink-0 text-sm text-muted-foreground">{subtitle}</p>}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onViewModeChange(viewMode === 'cards' ? 'list' : 'cards')}
-              className="rounded p-1 hover:bg-muted"
-              aria-label={viewMode === 'cards' ? 'Switch to list view' : 'Switch to cards view'}
-              aria-pressed={viewMode === 'list'}
-            >
-              {viewMode === 'cards' ? (
-                <LayoutGrid className="h-4 w-4" />
-              ) : (
-                <List className="h-4 w-4" />
-              )}
-            </button>
-            {(canGoBack || canGoForward) && (
-              <>
-                <button
-                  type="button"
-                  disabled={!canGoBack}
-                  onClick={onGoBack}
-                  className="rounded p-1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent"
-                  aria-label="Go back"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  disabled={!canGoForward}
-                  onClick={onGoForward}
-                  className="rounded p-1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent"
-                  aria-label="Go forward"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </>
-            )}
-          </div>
+          {showHistoryNav && (
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                disabled={!canGoBack}
+                onClick={onGoBack}
+                className="rounded p-1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                disabled={!canGoForward}
+                onClick={onGoForward}
+                className="rounded p-1 hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label="Go forward"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {emptyMenuItems && emptyMenuItems.length > 0 ? (
