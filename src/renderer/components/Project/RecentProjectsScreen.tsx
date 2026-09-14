@@ -170,6 +170,10 @@ export function RecentProjectsScreen(): React.JSX.Element {
                 await loadRecents()
               }}
               onDelete={() => setDeleteProject(project)}
+              onLocate={async () => {
+                await locateProject(project.id)
+                await loadRecents()
+              }}
             />
           ))}
 

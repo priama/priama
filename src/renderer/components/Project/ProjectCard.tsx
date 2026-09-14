@@ -5,6 +5,10 @@ import type { RecentProjectWithStatus } from '@shared/types'
 import { truncatePath } from '@shared/pathUtils'
 import { cn } from '@/lib/utils'
 
+const menuItemClass =
+  'flex cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent'
+const menuItemDestructiveClass = `${menuItemClass} text-destructive`
+
 interface ProjectCardProps {
   project: RecentProjectWithStatus
   onOpen: () => void
@@ -13,6 +17,7 @@ interface ProjectCardProps {
   onShowInFolder: () => void
   onRemove: () => void
   onDelete: () => void
+  onLocate: () => void
 }
 
 export function ProjectCard({
@@ -22,7 +27,8 @@ export function ProjectCard({
   onStats,
   onShowInFolder,
   onRemove,
-  onDelete
+  onDelete,
+  onLocate
 }: ProjectCardProps): React.JSX.Element {
   const isMac = navigator.platform.toLowerCase().includes('mac')
   const lastOpened = formatDistanceToNow(new Date(project.lastOpened), { addSuffix: true })
@@ -64,46 +70,40 @@ export function ProjectCard({
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className="z-50 min-w-[180px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
-          <ContextMenu.Item
-            className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent disabled:opacity-50"
-            disabled={!project.exists}
-            onSelect={onOpen}
-          >
-            Open
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
-            onSelect={onRename}
-          >
-            Rename
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
-            onSelect={onStats}
-          >
-            Stats
-          </ContextMenu.Item>
-          <ContextMenu.Item
-            className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
-            onSelect={onShowInFolder}
-          >
-            {isMac ? 'Show in Finder' : 'Show in Explorer'}
-          </ContextMenu.Item>
-          <ContextMenu.Separator className="my-1 h-px bg-border" />
-          <ContextMenu.Item
-            className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm text-destructive outline-none hover:bg-accent"
-            onSelect={onDelete}
-            disabled={!project.exists}
-          >
-            Delete Project…
-          </ContextMenu.Item>
-          <ContextMenu.Separator className="my-1 h-px bg-border" />
-          <ContextMenu.Item
-            className="flex cursor-pointer rounded-sm px-2 py-1.5 text-sm text-destructive outline-none hover:bg-accent"
-            onSelect={onRemove}
-          >
-            Remove from Recent
-          </ContextMenu.Item>
+          {project.exists ? (
+            <>
+              <ContextMenu.Item className={menuItemClass} onSelect={onOpen}>
+                Open
+              </ContextMenu.Item>
+              <ContextMenu.Item className={menuItemClass} onSelect={onRename}>
+                Rename
+              </ContextMenu.Item>
+              <ContextMenu.Item className={menuItemClass} onSelect={onStats}>
+                Stats
+              </ContextMenu.Item>
+              <ContextMenu.Item className={menuItemClass} onSelect={onShowInFolder}>
+                {isMac ? 'Show in Finder' : 'Show in Explorer'}
+              </ContextMenu.Item>
+              <ContextMenu.Separator className="my-1 h-px bg-border" />
+              <ContextMenu.Item className={menuItemDestructiveClass} onSelect={onDelete}>
+                Delete Project…
+              </ContextMenu.Item>
+              <ContextMenu.Separator className="my-1 h-px bg-border" />
+              <ContextMenu.Item className={menuItemDestructiveClass} onSelect={onRemove}>
+                Remove from Recent
+              </ContextMenu.Item>
+            </>
+          ) : (
+            <>
+              <ContextMenu.Item className={menuItemClass} onSelect={onLocate}>
+                Locate Project
+              </ContextMenu.Item>
+              <ContextMenu.Separator className="my-1 h-px bg-border" />
+              <ContextMenu.Item className={menuItemDestructiveClass} onSelect={onRemove}>
+                Remove from Recent
+              </ContextMenu.Item>
+            </>
+          )}
         </ContextMenu.Content>
       </ContextMenu.Portal>
     </ContextMenu.Root>
