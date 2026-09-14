@@ -126,7 +126,7 @@ export function RecentProjectsScreen(): React.JSX.Element {
             Priama
           </h1>
           <p className="mt-1 text-[12.5px] tracking-[0.1px] text-[var(--launch-ink-faint)]">
-            Free forever, fully offline, no account needed — made for writers.
+            Free, fully offline, no account needed — made for writers and journalists.
           </p>
         </div>
         <div className="mt-1 flex shrink-0 gap-[10px]">
@@ -156,7 +156,7 @@ export function RecentProjectsScreen(): React.JSX.Element {
           </h2>
         </div>
 
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] items-stretch gap-[14px] pb-10">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] auto-rows-[minmax(116px,auto)] items-stretch gap-[14px] pb-10">
           {recents.map((project) => (
             <ProjectCard
               key={project.id}
@@ -179,7 +179,7 @@ export function RecentProjectsScreen(): React.JSX.Element {
 
           <button
             type="button"
-            className="flex h-full min-h-0 flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-[var(--launch-hairline)] bg-transparent text-center text-[var(--launch-ink-faint)] transition-[background,border-color,color,transform] duration-100 hover:border-[var(--launch-accent)] hover:bg-[var(--launch-accent)]/5 hover:text-[var(--launch-ink)] active:scale-[0.99]"
+            className="flex h-full min-h-[116px] flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-[var(--launch-hairline)] bg-transparent text-center text-[var(--launch-ink-faint)] transition-[background,border-color,color,transform] duration-100 hover:border-[var(--launch-accent)] hover:bg-[var(--launch-accent)]/5 hover:text-[var(--launch-ink)] active:scale-[0.99]"
             onClick={() => setShowNewProjectModal(true)}
           >
             <Plus className="h-5 w-5" strokeWidth={2} />

@@ -40,7 +40,7 @@ export function ProjectCard({
           onClick={() => project.exists && onOpen()}
           disabled={!project.exists}
           className={cn(
-            'group relative flex h-full flex-col rounded-[10px] border border-[var(--launch-hairline)] bg-[var(--launch-bg-card)] px-[18px] pb-4 pt-[18px] text-left transition-[background,border-color,transform] duration-100 hover:-translate-y-px hover:border-[var(--launch-card-hover-border)] hover:bg-[var(--launch-bg-card-hover)]',
+            'group relative flex h-full min-h-[116px] flex-col rounded-[10px] border border-[var(--launch-hairline)] bg-[var(--launch-bg-card)] px-[18px] pb-4 pt-[18px] text-left transition-[background,border-color,transform] duration-100 hover:-translate-y-px hover:border-[var(--launch-card-hover-border)] hover:bg-[var(--launch-bg-card-hover)]',
             !project.exists && 'cursor-not-allowed opacity-60'
           )}
         >
