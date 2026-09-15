@@ -82,13 +82,14 @@ export async function addRecentProject(entry: Omit<RecentProjectEntry, 'coverCol
 }): Promise<RecentProjectEntry> {
   const config = await getConfig()
   const now = new Date().toISOString()
+  const existing = config.recentProjects.find((p) => p.id === entry.id)
   const full: RecentProjectEntry = {
     id: entry.id,
     title: entry.title,
     author: entry.author,
     primaryPath: entry.primaryPath,
     lastOpened: entry.lastOpened ?? now,
-    coverColor: entry.coverColor ?? pickCoverColor()
+    coverColor: entry.coverColor ?? existing?.coverColor ?? pickCoverColor()
   }
 
   config.recentProjects = config.recentProjects.filter((p) => p.id !== full.id)

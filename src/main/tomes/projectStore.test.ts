@@ -184,6 +184,22 @@ describe('openProject / closeProject', () => {
     expect(opened.meta.title).toBe('Test Project')
   })
 
+  it('adds the opened project to recents', async () => {
+    const { addRecentProject } = await import('../config')
+    const created = await createProject(makeInput())
+    closeProject()
+    vi.mocked(addRecentProject).mockClear()
+
+    await openProject(created.path)
+
+    expect(addRecentProject).toHaveBeenCalledWith({
+      id: created.meta.id,
+      title: 'Test Project',
+      author: 'Test Author',
+      primaryPath: created.path
+    })
+  })
+
   it('loads nodes that were created before close', async () => {
     const created = await createProject(makeInput())
     await createNode(null, 'chapter', 'Chapter 1')

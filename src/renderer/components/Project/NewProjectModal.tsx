@@ -38,7 +38,6 @@ import type {
 } from '@shared/types'
 import { splitManuscript, splitManuscriptAuto } from '@shared/import/splitManuscript'
 import { useProject } from '@/hooks/useProject'
-import { ProjectOriginStep } from '@/components/Project/ProjectOriginStep'
 import {
   ImportPreviewStep,
   type PreviewChapterRow
@@ -58,7 +57,7 @@ const ICON_COMPONENTS: Record<string, React.ComponentType<{ className?: string }
   FileText
 }
 
-type WizardStep = 'origin' | 'preview' | 'details' | 'template' | 'location' | 'backups' | 'creating'
+type WizardStep = 'preview' | 'details' | 'template' | 'location' | 'backups' | 'creating'
 
 interface NewProjectModalProps {
   open: boolean
@@ -87,7 +86,7 @@ function rowsFromParsed(
 
 export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): React.JSX.Element {
   const { createProjectFromInput } = useProject()
-  const [step, setStep] = useState<WizardStep>('origin')
+  const [step, setStep] = useState<WizardStep>('details')
   const [origin, setOrigin] = useState<'blank' | 'import'>('blank')
   const [parsed, setParsed] = useState<ParsedManuscriptFile | null>(null)
   const [splitMode, setSplitMode] = useState<ManuscriptSplitMode>('heading1')
@@ -107,7 +106,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const [selectedCategories, setSelectedCategories] = useState<CategoryDefinition[]>([])
 
   const reset = (): void => {
-    setStep('origin')
+    setStep('details')
     setOrigin('blank')
     setParsed(null)
     setSplitMode('heading1')
@@ -189,9 +188,11 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   }
 
   const handleImport = async (): Promise<void> => {
-    setOrigin('import')
     const ok = await pickDocx()
-    if (ok) setStep('preview')
+    if (ok) {
+      setOrigin('import')
+      setStep('preview')
+    }
   }
 
   const handleSplitModeChange = (mode: ManuscriptSplitMode): void => {
@@ -263,14 +264,6 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
         className={step === 'preview' ? 'sm:max-w-xl' : 'sm:max-w-lg'}
         onPointerDownOutside={(e) => (creating || parsing) && e.preventDefault()}
       >
-        {step === 'origin' && (
-          <ProjectOriginStep error={error} parsing={parsing} onBlank={() => {
-            setOrigin('blank')
-            setError(null)
-            setStep('details')
-          }} onImport={() => void handleImport()} />
-        )}
-
         {step === 'preview' && parsed && (
           <ImportPreviewStep
             fileName={parsed.fileName}
@@ -286,7 +279,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
             onChooseDifferentFile={() => void handleImport()}
             onBack={() => {
               setError(null)
-              setStep('origin')
+              setStep('details')
             }}
             onNext={() => setStep('details')}
           />
@@ -295,8 +288,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
         {step === 'details' && (
           <>
             <DialogHeader>
-              <DialogTitle>New Book Project</DialogTitle>
-              <DialogDescription>Tell us about your book.</DialogDescription>
+              <DialogTitle>New Project</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
@@ -333,14 +325,31 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
                   ))}
                 </select>
               </div>
+              {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
-            <DialogFooter className="gap-2">
-              <Button variant="ghost" onClick={() => setStep(origin === 'import' ? 'preview' : 'origin')}>
-                Back
+            <DialogFooter className="flex-row items-center justify-between gap-2 sm:justify-between">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void handleImport()}
+                disabled={parsing}
+              >
+                {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Import
               </Button>
-              <Button onClick={() => setStep('template')} disabled={!title.trim() || !author.trim()}>
-                Next
-              </Button>
+              <div className="flex gap-2">
+                {origin === 'import' && parsed && (
+                  <Button variant="ghost" onClick={() => setStep('preview')} disabled={parsing}>
+                    Back
+                  </Button>
+                )}
+                <Button
+                  onClick={() => setStep('template')}
+                  disabled={parsing || !title.trim() || !author.trim()}
+                >
+                  Next
+                </Button>
+              </div>
             </DialogFooter>
           </>
         )}

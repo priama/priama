@@ -63,7 +63,6 @@ import { writeFileAtomic } from './writeFileAtomic'
 import {
   addRecentProject,
   setBackupLocations,
-  updateRecentLastOpened,
   getBackupLocations,
   getConfig,
   updateRecentTitle
@@ -505,7 +504,12 @@ export async function openProject(tomesFilePath: string): Promise<OpenProjectRes
     await writeManifest()
   }
   await purgeExpiredTrash()
-  await updateRecentLastOpened(manifest.id)
+  await addRecentProject({
+    id: manifest.id,
+    title: manifest.title,
+    author: manifest.author,
+    primaryPath: tomesFilePath
+  })
 
   const categories = manifest.categories ?? defaultFictionCategories()
   const uiState = sanitizeProjectUiState(getUiState(), nodes, categories)
