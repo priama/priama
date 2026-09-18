@@ -1,6 +1,6 @@
 {
   "name": "priama",
-  "version": "0.0.5",
+  "version": "0.0.9",
   "description": "Local-first desktop writing application for authors",
   "main": "./out/main/index.js",
   "author": "priama",
