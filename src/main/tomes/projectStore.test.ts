@@ -431,7 +431,9 @@ describe('openProject recovery', () => {
     }
     loreEntry.filename = sharedName
     delete notesEntry.folderScope
-    notesEntry.deletedAt = '2026-07-30T07:25:17.975Z'
+    // Trashed but inside the retention window: a fixed date expires and the purge on
+    // open would delete the very entry this test inspects.
+    notesEntry.deletedAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     await fse.writeFile(path, JSON.stringify(manifest, null, 2), 'utf-8')
 
     const opened = await reopen(path)
