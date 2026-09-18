@@ -69,7 +69,7 @@ export function EditorAppearanceModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="no-drag sm:max-w-md">
+      <DialogContent presentation="sheet" className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Editor Appearance</DialogTitle>
           <DialogDescription>

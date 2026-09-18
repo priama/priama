@@ -154,7 +154,7 @@ export function BookSettingsModal({ open, onOpenChange }: BookSettingsModalProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="no-drag sm:max-w-2xl">
+      <DialogContent presentation="sheet" className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Book Settings</DialogTitle>
           <DialogDescription>

@@ -345,7 +345,7 @@ export function CategoryManagerModal({
         onOpenChange(v)
       }}
     >
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent presentation="sheet" className="sm:max-w-lg">
         <DialogHeader>
           {showAddForm ? (
             <>

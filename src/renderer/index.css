@@ -378,6 +378,12 @@ html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-men
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dialog-sheet[data-state] {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
   .sidebar-width-motion {
     transition: none;
   }
