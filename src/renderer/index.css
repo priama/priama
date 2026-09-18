@@ -90,8 +90,9 @@
     @apply border-border;
   }
 
+  /* App chrome uses the system UI font; writing surfaces opt into the editor face. */
   body {
-    @apply bg-background font-serif text-foreground antialiased;
+    @apply bg-background font-sans text-foreground antialiased;
     -webkit-font-smoothing: antialiased;
     user-select: none;
   }

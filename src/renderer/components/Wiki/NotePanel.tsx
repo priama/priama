@@ -136,7 +136,7 @@ export function NotePanel({
           growCap={null}
           persistedHeight={meta.contentHeightPx ?? null}
           onHeightChange={handleContentHeightChange}
-          className="font-serif text-base leading-relaxed"
+          className="font-editor text-base leading-relaxed"
         />
       </Field>
     </div>

@@ -120,7 +120,8 @@ export function RecentProjectsScreen(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-screen flex-col text-[var(--launch-ink)]">
+    // The launch screen keeps its serif book branding; the rest of the app uses the system font.
+    <div className="flex h-screen flex-col font-serif text-[var(--launch-ink)]">
       <header className="flex shrink-0 items-start justify-between gap-6 px-12 pb-[22px] pt-12">
         <div>
           <h1 className="font-serif text-[28px] font-bold leading-[1.15] tracking-[0.2px] text-[var(--launch-accent)]">

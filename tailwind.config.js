@@ -51,7 +51,9 @@ module.exports = {
       },
       fontFamily: {
         sans: ['-apple-system', 'SF Pro Text', 'Segoe UI', 'system-ui', 'sans-serif'],
-        serif: ['Literata', 'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Georgia', 'serif']
+        serif: ['Literata', 'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Georgia', 'serif'],
+        // The writer's chosen face (Editor Appearance) — for writing surfaces outside TipTap.
+        editor: ['var(--editor-font)']
       }
     }
   },
