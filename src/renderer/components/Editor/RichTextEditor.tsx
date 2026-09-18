@@ -33,8 +33,6 @@ import {
 import { clearEditorHistory, registerActiveEditorInstance } from '@/lib/activeEditor'
 import { loadEditorFontsUsedIn } from '@/lib/editorFonts'
 import { syncWritingMenuState } from '@/lib/writingMenuSync'
-import { splitDocumentAtCaret } from '@/lib/documentActions'
-import { canSplitAtCaret, canSplitNode } from '@/lib/splitMerge'
 import { openIndexedEntry } from '@/lib/categoryNavigation'
 import { panelEntryFingerprint } from '@/lib/entryTitleIndex'
 import { countWords } from '@/lib/utils'
@@ -127,7 +125,6 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     from: number
     to: number
   } | null>(null)
-  const [docMenu, setDocMenu] = useState<{ x: number; y: number } | null>(null)
   const [entityHover, setEntityHover] = useState<{
     x: number
     y: number
@@ -476,7 +473,6 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         const spellEl = target.closest('.spell-error') as HTMLElement | null
         if (spellEl) {
           e.preventDefault()
-          setDocMenu(null)
 
           const word = spellEl.dataset.word ?? ''
           const suggestions: string[] = JSON.parse(spellEl.dataset.suggestions ?? '[]')
@@ -518,17 +514,6 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
             return
           }
           return
-        }
-
-        if (
-          node &&
-          editor &&
-          canSplitNode(node, nodes) &&
-          canSplitAtCaret(editor)
-        ) {
-          e.preventDefault()
-          setSpellMenu(null)
-          setDocMenu({ x: e.clientX, y: e.clientY })
         }
       }}
     >
@@ -631,74 +616,6 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
         />
       )}
 
-      {docMenu && (
-        <DocumentSplitMenu
-          x={docMenu.x}
-          y={docMenu.y}
-          onSplit={() => {
-            setDocMenu(null)
-            void splitDocumentAtCaret()
-          }}
-          onClose={() => setDocMenu(null)}
-        />
-      )}
     </div>
-  )
-}
-
-function DocumentSplitMenu({
-  x,
-  y,
-  onSplit,
-  onClose
-}: {
-  x: number
-  y: number
-  onSplit: () => void
-  onClose: () => void
-}): React.JSX.Element {
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent): void => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
-    const handleKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    window.addEventListener('mousedown', handleClick)
-    window.addEventListener('keydown', handleKey)
-    return () => {
-      window.removeEventListener('mousedown', handleClick)
-      window.removeEventListener('keydown', handleKey)
-    }
-  }, [onClose])
-
-  return createPortal(
-    <div
-      ref={ref}
-      style={{
-        position: 'fixed',
-        left: Math.min(x, window.innerWidth - 200),
-        top: Math.min(y, window.innerHeight - 80),
-        zIndex: 9999
-      }}
-      className="min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-md"
-    >
-      <button
-        type="button"
-        className="flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-sm outline-none hover:bg-accent"
-        onMouseDown={(e) => {
-          e.preventDefault()
-          onSplit()
-        }}
-      >
-        Split Document
-      </button>
-    </div>,
-    document.body
   )
 }
