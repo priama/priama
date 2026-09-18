@@ -24,7 +24,12 @@ import { FocusWordCount } from './FocusWordCount'
 import { FocusModeButton } from './FocusModeButton'
 import { addCustomWord, removeCustomWord, isCustomWord, onSpellCheckLangChange } from '@/lib/spellCheck'
 import { useAppStore } from '@/store/appStore'
-import { markContentDirty, registerActiveEditor } from '@/lib/contentPersistence'
+import {
+  getUnsavedContent,
+  markContentDirty,
+  publishUnsavedContent,
+  registerActiveEditor
+} from '@/lib/contentPersistence'
 import { clearEditorHistory, registerActiveEditorInstance } from '@/lib/activeEditor'
 import { syncWritingMenuState } from '@/lib/writingMenuSync'
 import { splitDocumentAtCaret } from '@/lib/documentActions'
@@ -95,14 +100,11 @@ function highlightsAreVisible(): boolean {
 }
 
 export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element {
-  const {
-    nodes,
-    categories,
-    updateNodeInStore,
-    setSelectedEntity,
-    pendingDocumentSearch,
-    setPendingDocumentSearch
-  } = useAppStore()
+  const nodes = useAppStore((s) => s.nodes)
+  const categories = useAppStore((s) => s.categories)
+  const setSelectedEntity = useAppStore((s) => s.setSelectedEntity)
+  const pendingDocumentSearch = useAppStore((s) => s.pendingDocumentSearch)
+  const setPendingDocumentSearch = useAppStore((s) => s.setPendingDocumentSearch)
   const focusChrome = useFocusChromeActive()
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchOpenWithReplace, setSearchOpenWithReplace] = useState(false)
@@ -248,39 +250,42 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     },
     onUpdate: ({ editor: ed }) => {
       if (!node) return
-      const html = ed.getHTML()
-      updateNodeInStore(node.id, { content: html })
-      markContentDirty(node.id, html)
+      markContentDirty(node.id, ed.getHTML())
     },
     onSelectionUpdate: () => {
       syncWritingMenuState()
     }
   }, [node?.id])
 
+  const nodeId = node?.id ?? null
+
   useEffect(() => {
-    if (!editor || !node) {
+    // On a node switch this first runs once more with the outgoing editor, which useEditor
+    // has already destroyed; registering it would pair the new node with the old buffer.
+    if (!editor || editor.isDestroyed || !nodeId) {
       registerActiveEditor(null)
       registerActiveEditorInstance(null, null)
       return
     }
 
-    registerActiveEditor(() => ({ nodeId: node.id, content: editor.getHTML() }))
-    registerActiveEditorInstance(editor, node.id)
+    registerActiveEditor(() => ({ nodeId, content: editor.getHTML() }))
+    registerActiveEditorInstance(editor, nodeId)
     syncWritingMenuState()
 
     return () => {
       registerActiveEditor(null)
       registerActiveEditorInstance(null, null)
+      publishUnsavedContent(nodeId)
       syncWritingMenuState()
     }
-  }, [editor, node?.id, node])
+  }, [editor, nodeId])
 
   useEffect(() => {
-    if (editor && node) {
-      editor.commands.setContent(node.content, false)
-      clearEditorHistory(editor)
-      syncWritingMenuState()
-    }
+    if (!editor || editor.isDestroyed || !node) return
+    // Text typed before a quick switch-back may still be saving; it is newer than the store.
+    editor.commands.setContent(getUnsavedContent(node.id) ?? node.content, false)
+    clearEditorHistory(editor)
+    syncWritingMenuState()
   }, [editor, node?.id])
 
   useEffect(() => {
@@ -401,7 +406,10 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     }
   }
 
-  const wordCount = editor ? countWords(editor.getHTML()) : 0
+  // This component re-renders on every transaction (caret moves included); only
+  // re-serialize the document when it actually changed.
+  const doc = editor?.state.doc
+  const wordCount = useMemo(() => (editor ? countWords(editor.getHTML()) : 0), [editor, doc])
 
   if (!node) {
     return (

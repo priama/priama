@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow, screen, type WebContents } from 'electron'
 import { join } from 'path'
 import type { DevicePreviewRequestOptions, WindowBounds, WindowLayoutState } from '@shared/types'
 
@@ -45,11 +45,12 @@ function defaultBounds(width: number, height: number): WindowBounds {
   }
 }
 
-export function broadcast(channel: string, payload: unknown): void {
+export function broadcast(channel: string, payload: unknown, except?: WebContents): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (win.isDestroyed()) continue
     try {
       if (win.webContents.isDestroyed()) continue
+      if (except && win.webContents.id === except.id) continue
       win.webContents.send(channel, payload)
     } catch {
       // Window tore down between the checks and send.

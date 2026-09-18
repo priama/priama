@@ -25,7 +25,8 @@ const launchBtnBase =
 export function RecentProjectsScreen(): React.JSX.Element {
   const { openProject, openProjectAtPath, removeFromRecent, renameRecentProject, locateProject } =
     useProject()
-  const { showNewProjectModal, setShowNewProjectModal } = useAppStore()
+  const showNewProjectModal = useAppStore((s) => s.showNewProjectModal)
+  const setShowNewProjectModal = useAppStore((s) => s.setShowNewProjectModal)
   const [recents, setRecents] = useState<RecentProjectWithStatus[]>([])
   const [missingProject, setMissingProject] = useState<RecentProjectWithStatus | null>(null)
   const [renameProject, setRenameProject] = useState<RecentProjectWithStatus | null>(null)

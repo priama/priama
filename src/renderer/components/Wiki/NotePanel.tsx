@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
-import { useAppStore } from '@/store/appStore'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { PanelNameField } from '@/components/Wiki/PanelNameField'
-import { markContentDirty, registerActiveNoteContent } from '@/lib/contentPersistence'
+import {
+  getUnsavedContent,
+  markContentDirty,
+  publishUnsavedContent,
+  registerActiveNoteContent
+} from '@/lib/contentPersistence'
 import type { NoteMeta } from '@shared/types'
 
 function Field({
@@ -36,21 +40,28 @@ export function NotePanel({
   metadataSource: string
   onUpdate: (updates: { metadata?: NoteMeta; title?: string; content?: string }) => void
 }): React.JSX.Element {
-  const updateNodeInStore = useAppStore((s) => s.updateNodeInStore)
   const { meta, setMeta, name, setName } = usePanelNodeState({
     nodeId,
     title,
     metadata,
     metadataSource
   })
+  // Typing stays local (the panel is keyed by node id); the store copy only catches up
+  // when a write lands, so `content` seeds the body once instead of controlling it.
+  const [body, setBody] = useState(() => getUnsavedContent(nodeId) ?? content)
+  const bodyRef = useRef(body)
+  bodyRef.current = body
   const heightSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const metaRef = useRef(meta)
   metaRef.current = meta
 
   useEffect(() => {
-    registerActiveNoteContent(() => ({ nodeId, content }))
-    return () => registerActiveNoteContent(null)
-  }, [nodeId, content])
+    registerActiveNoteContent(() => ({ nodeId, content: bodyRef.current }))
+    return () => {
+      registerActiveNoteContent(null)
+      publishUnsavedContent(nodeId)
+    }
+  }, [nodeId])
 
   useEffect(() => {
     return () => {
@@ -69,7 +80,7 @@ export function NotePanel({
   )
 
   const handleBodyChange = (next: string): void => {
-    updateNodeInStore(nodeId, { content: next })
+    setBody(next)
     markContentDirty(nodeId, next)
   }
 
@@ -119,7 +130,7 @@ export function NotePanel({
       <Field label="Content">
         <SpellCheckedTextarea
           measureKey={nodeId}
-          value={content}
+          value={body}
           onChange={(e) => handleBodyChange(e.target.value)}
           rows={3}
           growCap={null}

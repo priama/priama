@@ -24,14 +24,11 @@ export function useProject(): {
   renameRecentProject: (id: string, title: string) => Promise<void>
   locateProject: (projectId: string) => Promise<void>
 } {
-  const {
-    setProject,
-    closeProject: closeProjectStore,
-    setNodes,
-    setLastSaved,
-    setSelectedNodeId,
-    setBackupWarningCount
-  } = useAppStore()
+  const closeProjectStore = useAppStore((s) => s.closeProject)
+  const setNodes = useAppStore((s) => s.setNodes)
+  const setLastSaved = useAppStore((s) => s.setLastSaved)
+  const setSelectedNodeId = useAppStore((s) => s.setSelectedNodeId)
+  const setBackupWarningCount = useAppStore((s) => s.setBackupWarningCount)
   const addToast = useToastStore((s) => s.addToast)
 
   const selectFirstNode = useCallback(

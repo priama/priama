@@ -713,12 +713,3 @@ export function makePromoteSceneToScenesChapterCommand(params: {
     }
   }
 }
-
-/** Resolve live content for a node (editor buffer preferred). */
-export function resolveNodeContent(nodeId: string, fallback: string): string {
-  const active = getActiveEditorInstance()
-  if (active && active.nodeId === nodeId && !active.editor.isDestroyed) {
-    return active.editor.getHTML()
-  }
-  return fallback
-}

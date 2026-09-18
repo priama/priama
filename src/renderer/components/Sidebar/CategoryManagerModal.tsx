@@ -243,7 +243,12 @@ export function CategoryManagerModal({
   open,
   onOpenChange
 }: CategoryManagerModalProps): React.JSX.Element {
-  const { categories, sectionOrder, setSectionOrder, updateCategories, nodes, setNodes } = useAppStore()
+  const categories = useAppStore((s) => s.categories)
+  const sectionOrder = useAppStore((s) => s.sectionOrder)
+  const nodes = useAppStore((s) => s.nodes)
+  const setSectionOrder = useAppStore((s) => s.setSectionOrder)
+  const updateCategories = useAppStore((s) => s.updateCategories)
+  const setNodes = useAppStore((s) => s.setNodes)
   const [showAddForm, setShowAddForm] = useState(false)
 
   const addablePresets = useMemo(

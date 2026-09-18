@@ -216,25 +216,22 @@ type PanelSnapshot = {
 }
 
 export function EntityPanel(): React.JSX.Element | null {
-  const {
-    nodes,
-    selectedEntityId,
-    selectedEntityType,
-    selectedEntryId,
-    selectedEntryCategoryId,
-    manuscriptInfoNodeId,
-    categories,
-    rightPanelWidth,
-    rightPanelOpen,
-    setRightPanelOpen,
-    setRightPanelWidth,
-    setSelectedEntity,
-    selectEntry,
-    setSelectedNodeId,
-    clearManuscriptInfo,
-    updateNodeInStore,
-    setDirty
-  } = useAppStore()
+  const nodes = useAppStore((s) => s.nodes)
+  const selectedEntityId = useAppStore((s) => s.selectedEntityId)
+  const selectedEntityType = useAppStore((s) => s.selectedEntityType)
+  const selectedEntryId = useAppStore((s) => s.selectedEntryId)
+  const selectedEntryCategoryId = useAppStore((s) => s.selectedEntryCategoryId)
+  const manuscriptInfoNodeId = useAppStore((s) => s.manuscriptInfoNodeId)
+  const categories = useAppStore((s) => s.categories)
+  const rightPanelWidth = useAppStore((s) => s.rightPanelWidth)
+  const rightPanelOpen = useAppStore((s) => s.rightPanelOpen)
+  const setRightPanelOpen = useAppStore((s) => s.setRightPanelOpen)
+  const setRightPanelWidth = useAppStore((s) => s.setRightPanelWidth)
+  const setSelectedEntity = useAppStore((s) => s.setSelectedEntity)
+  const selectEntry = useAppStore((s) => s.selectEntry)
+  const setSelectedNodeId = useAppStore((s) => s.setSelectedNodeId)
+  const clearManuscriptInfo = useAppStore((s) => s.clearManuscriptInfo)
+  const updateNodeInStore = useAppStore((s) => s.updateNodeInStore)
 
   const wikiId = selectedEntryId ?? selectedEntityId
   const manuscriptCandidate =
@@ -396,7 +393,6 @@ export function EntityPanel(): React.JSX.Element | null {
     if (updates.title) storeUpdates.title = updated.title
     if (updates.content !== undefined) storeUpdates.content = updated.content
     updateNodeInStore(node.id, storeUpdates)
-    setDirty(true)
   }
 
   const handleUpdate = async (
@@ -411,7 +407,6 @@ export function EntityPanel(): React.JSX.Element | null {
 
     const updated = await window.electronAPI.tree.update(node.id, updates)
     updateNodeInStore(node.id, { metadata: updated.metadata, title: updated.title })
-    setDirty(true)
   }
 
   const handleEntryUpdate = async (updates: {
@@ -428,7 +423,6 @@ export function EntityPanel(): React.JSX.Element | null {
     if (updates.title) storeUpdates.title = updated.title
     if (updates.metadata !== undefined) storeUpdates.metadata = updated.metadata
     updateNodeInStore(node.id, storeUpdates)
-    setDirty(true)
   }
 
   const handleClose = (): void => {

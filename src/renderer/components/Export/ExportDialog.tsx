@@ -38,7 +38,9 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 }
 
 export function ExportDialog({ open, onOpenChange }: ExportDialogProps): React.JSX.Element {
-  const { projectMeta, nodes, selectedNodeId } = useAppStore()
+  const projectMeta = useAppStore((s) => s.projectMeta)
+  const nodes = useAppStore((s) => s.nodes)
+  const selectedNodeId = useAppStore((s) => s.selectedNodeId)
   const { runExport, exporting } = useExport()
 
   const chapters = useMemo(() => listManuscriptChapters(nodes), [nodes])

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { useAppStore } from '@/store/appStore'
 import {
   focusChromeActive,
@@ -9,32 +9,34 @@ import { mergeWithNext, splitDocumentAtCaret } from '@/lib/documentActions'
 import type { EntityHighlights, TypewriterScrolling } from '@shared/types'
 
 /**
+ * Derived inside the selector so callers (the app layout among them) re-render only when
+ * the answer flips — not whenever `nodes` changes, e.g. after each content save.
+ */
+function selectWritingSurfaceOpen(s: ReturnType<typeof useAppStore.getState>): boolean {
+  if (!s.isProjectOpen) return false
+  const selectedNode = s.selectedNodeId
+    ? (s.nodes.find((n) => n.id === s.selectedNodeId && !n.deletedAt) ?? null)
+    : null
+  return isWritingSurfaceOpen({
+    selectedContainerId: s.selectedContainerId,
+    selectedNode,
+    categories: s.categories
+  })
+}
+
+/**
  * Wires View-menu focus/typewriter/highlights actions and keeps the
  * application menu checkbox/radio state in sync. Also handles Esc-to-leave
  * when no overlay (search/menus) owns Escape.
  */
 export function useFocusMode(): void {
-  const nodes = useAppStore((s) => s.nodes)
-  const categories = useAppStore((s) => s.categories)
   const selectedNodeId = useAppStore((s) => s.selectedNodeId)
-  const selectedContainerId = useAppStore((s) => s.selectedContainerId)
   const focusMode = useAppStore((s) => s.focusMode)
   const typewriterScrolling = useAppStore((s) => s.typewriterScrolling)
   const entityHighlights = useAppStore((s) => s.entityHighlights)
   const isProjectOpen = useAppStore((s) => s.isProjectOpen)
   const sidebarWidth = useAppStore((s) => s.sidebarWidth)
-
-  const selectedNode = useMemo(
-    () => nodes.find((n) => n.id === selectedNodeId && !n.deletedAt) ?? null,
-    [nodes, selectedNodeId]
-  )
-
-  const writingSurfaceOpen = useMemo(
-    () =>
-      isProjectOpen &&
-      isWritingSurfaceOpen({ selectedContainerId, selectedNode, categories }),
-    [isProjectOpen, selectedContainerId, selectedNode, categories]
-  )
+  const writingSurfaceOpen = useAppStore(selectWritingSurfaceOpen)
 
   const chromeActive = focusChromeActive(focusMode, writingSurfaceOpen)
 
@@ -51,10 +53,19 @@ export function useFocusMode(): void {
     typewriterScrolling,
     entityHighlights,
     selectedNodeId,
-    nodes,
     isProjectOpen,
     sidebarWidth
   ])
+
+  // Split/merge enablement follows the tree, but subscribing to `nodes` during render
+  // would re-render the whole layout that hosts this hook.
+  useEffect(
+    () =>
+      useAppStore.subscribe((state, prev) => {
+        if (state.nodes !== prev.nodes) syncWritingMenuState()
+      }),
+    []
+  )
 
   useEffect(() => {
     const unsubToggle = window.electronAPI.on('menu:toggleFocusMode', () => {
@@ -130,41 +141,11 @@ export function useFocusMode(): void {
 
 /** Whether focus chrome (hidden panels) should currently apply. */
 export function useFocusChromeActive(): boolean {
-  const nodes = useAppStore((s) => s.nodes)
-  const categories = useAppStore((s) => s.categories)
-  const selectedNodeId = useAppStore((s) => s.selectedNodeId)
-  const selectedContainerId = useAppStore((s) => s.selectedContainerId)
   const focusMode = useAppStore((s) => s.focusMode)
-  const isProjectOpen = useAppStore((s) => s.isProjectOpen)
-
-  const selectedNode = useMemo(
-    () => nodes.find((n) => n.id === selectedNodeId && !n.deletedAt) ?? null,
-    [nodes, selectedNodeId]
-  )
-
-  return (
-    isProjectOpen &&
-    focusChromeActive(
-      focusMode,
-      isWritingSurfaceOpen({ selectedContainerId, selectedNode, categories })
-    )
-  )
+  const writingSurfaceOpen = useAppStore(selectWritingSurfaceOpen)
+  return focusChromeActive(focusMode, writingSurfaceOpen)
 }
 
 export function useWritingSurfaceOpen(): boolean {
-  const nodes = useAppStore((s) => s.nodes)
-  const categories = useAppStore((s) => s.categories)
-  const selectedNodeId = useAppStore((s) => s.selectedNodeId)
-  const selectedContainerId = useAppStore((s) => s.selectedContainerId)
-  const isProjectOpen = useAppStore((s) => s.isProjectOpen)
-
-  const selectedNode = useMemo(
-    () => nodes.find((n) => n.id === selectedNodeId && !n.deletedAt) ?? null,
-    [nodes, selectedNodeId]
-  )
-
-  return (
-    isProjectOpen &&
-    isWritingSurfaceOpen({ selectedContainerId, selectedNode, categories })
-  )
+  return useAppStore(selectWritingSurfaceOpen)
 }

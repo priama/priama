@@ -26,6 +26,7 @@ import { isValidContainerId, pruneContainerNavigation } from '@shared/projectUiS
 import type { RenameSession, RenameSurface, RenamePhase } from '@/lib/renameSession'
 import { createRenameSession } from '@/lib/renameSession'
 import { applyEditorAppearanceToDocument } from '@/lib/editorAppearance'
+import { reuseUnchangedNodes } from '@/lib/reuseUnchangedNodes'
 
 /** @deprecated Prefer RenameSurface — kept for call-site compatibility during migration. */
 export type PendingRenameTarget = RenameSurface
@@ -83,6 +84,11 @@ interface AppState {
   pendingDocumentSearch: { nodeId: string; term: string; caseSensitive: boolean } | null
 
   setProject: (path: string, meta: ProjectMeta, nodes?: TreeNode[]) => void
+  /**
+   * Apply a `sync:state` broadcast. For the project already open this only takes real
+   * changes — session fields (dirty flag, backup status, open sheets) are left alone.
+   */
+  applySyncState: (path: string, meta: ProjectMeta, nodes: TreeNode[]) => void
   closeProject: () => void
   setProjectMeta: (meta: ProjectMeta) => void
   setLastSaved: (timestamp: string) => void
@@ -250,6 +256,23 @@ export const useAppStore = create<AppState>((set, get) => ({
         : {})
     })),
 
+  applySyncState: (path, meta, incoming) => {
+    const s = get()
+    if (!s.isProjectOpen || s.projectPath !== path || s.projectId !== meta.id) {
+      s.setProject(path, meta, incoming)
+      return
+    }
+    const nodes = reuseUnchangedNodes(s.nodes, incoming)
+    const metaChanged = JSON.stringify(s.projectMeta) !== JSON.stringify(meta)
+    if (nodes === s.nodes && !metaChanged) return
+    set({
+      ...(metaChanged ? { projectMeta: meta, categories: meta.categories ?? [] } : {}),
+      ...(nodes !== s.nodes
+        ? { nodes, renameSession: pruneRenameIfNodeMissing(nodes, s.renameSession) }
+        : {})
+    })
+  },
+
   closeProject: () =>
     set({
       projectPath: null,
@@ -280,7 +303,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setProjectMeta: (meta) => set({ projectMeta: meta }),
   setLastSaved: (timestamp) => set({ lastSaved: timestamp, isDirty: false }),
-  setDirty: (dirty) => set({ isDirty: dirty }),
+  // Persistence calls this on every keystroke; an unchanged flag must not notify subscribers.
+  setDirty: (dirty) => set((s) => (s.isDirty === dirty ? s : { isDirty: dirty })),
   setBackupWarningCount: (count) => set({ backupWarningCount: count }),
   setLastBackupAt: (timestamp) => set({ lastBackupAt: timestamp }),
 
@@ -319,9 +343,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { nodes: [...s.nodes, node] }
     }),
   updateNodeInStore: (id, updates) =>
-    set((s) => ({
-      nodes: s.nodes.map((n) => (n.id === id ? { ...n, ...updates } : n))
-    })),
+    set((s) => {
+      const index = s.nodes.findIndex((n) => n.id === id)
+      if (index < 0) return s
+      const current = s.nodes[index]
+      const keys = Object.keys(updates) as (keyof TreeNode)[]
+      if (keys.every((key) => current[key] === updates[key])) return s
+      const nodes = [...s.nodes]
+      nodes[index] = { ...current, ...updates }
+      return { nodes }
+    }),
   removeNode: (id) =>
     set((s) => ({
       nodes: s.nodes.filter((n) => n.id !== id && n.parentId !== id),
@@ -420,7 +451,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     else expanded.add(key)
     set({ expandedSections: expanded })
   },
-  setSectionOrder: (order) => set({ sectionOrder: order }),
+  setSectionOrder: (order) =>
+    set((s) =>
+      order.length === s.sectionOrder.length && order.every((id, i) => id === s.sectionOrder[i])
+        ? s
+        : { sectionOrder: order }
+    ),
 
   /** Panel entry selection — preserves center view like setSelectedEntity for wiki items. */
   selectEntry: (id, categoryId) => {

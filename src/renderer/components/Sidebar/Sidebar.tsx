@@ -211,21 +211,20 @@ function SectionHeader({
 }
 
 export function Sidebar(): React.JSX.Element {
-  const {
-    nodes,
-    categories,
-    selectedContainerId,
-    expandedSections,
-    sectionOrder,
-    sidebarWidth,
-    projectMeta,
-    selectContainer,
-    setSelectedNodeId,
-    toggleSection,
-    setSectionOrder,
-    updateCategories,
-    setSidebarWidth
-  } = useAppStore()
+  const nodes = useAppStore((s) => s.nodes)
+  const categories = useAppStore((s) => s.categories)
+  const selectedContainerId = useAppStore((s) => s.selectedContainerId)
+  const expandedSections = useAppStore((s) => s.expandedSections)
+  const sectionOrder = useAppStore((s) => s.sectionOrder)
+  const sidebarWidth = useAppStore((s) => s.sidebarWidth)
+  const projectTitle = useAppStore((s) => s.projectMeta?.title ?? null)
+  const projectAuthor = useAppStore((s) => s.projectMeta?.author ?? '')
+  const selectContainer = useAppStore((s) => s.selectContainer)
+  const setSelectedNodeId = useAppStore((s) => s.setSelectedNodeId)
+  const toggleSection = useAppStore((s) => s.toggleSection)
+  const setSectionOrder = useAppStore((s) => s.setSectionOrder)
+  const updateCategories = useAppStore((s) => s.updateCategories)
+  const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
 
   const [showTrashEmpty, setShowTrashEmpty] = useState(false)
   const [showCategoryManager, setShowCategoryManager] = useState(false)
@@ -407,7 +406,7 @@ export function Sidebar(): React.JSX.Element {
           />
           <div className="relative flex min-h-0 flex-1 flex-col border-r border-sidebar-border">
             <div className="sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto py-2">
-              {projectMeta && (
+              {projectTitle !== null && (
                 <div
                   className={cn(
                     'mb-1 flex min-w-0 items-center gap-2 px-2',
@@ -416,9 +415,9 @@ export function Sidebar(): React.JSX.Element {
                   aria-hidden={iconOnly}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold leading-tight">{projectMeta.title}</p>
-                    {projectMeta.author && (
-                      <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{projectMeta.author}</p>
+                    <p className="truncate text-sm font-semibold leading-tight">{projectTitle}</p>
+                    {projectAuthor && (
+                      <p className="mt-0.5 truncate text-xs leading-tight text-muted-foreground">{projectAuthor}</p>
                     )}
                   </div>
                   <UndoRedoButtons />

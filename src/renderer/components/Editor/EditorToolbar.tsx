@@ -54,8 +54,7 @@ function ToolbarButton({
 }
 
 export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbarProps): React.JSX.Element {
-  const { sidebarWidth } = useAppStore()
-  const isSidebarContracted = sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
+  const isSidebarContracted = useAppStore((s) => s.sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD)
 
   if (!editor) return <div className="h-10 border-b border-border" />
 
