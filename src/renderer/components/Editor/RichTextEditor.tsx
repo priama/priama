@@ -22,7 +22,7 @@ import { SpellSuggestions } from './SpellSuggestions'
 import { PasteMenu } from './PasteMenu'
 import { FocusWordCount } from './FocusWordCount'
 import { FocusModeButton } from './FocusModeButton'
-import { addCustomWord, removeCustomWord, isCustomWord, onSpellCheckLangChange } from '@/lib/spellCheck'
+import { addCustomWord, removeCustomWord, isCustomWord, onSpellCheckSettingsChange } from '@/lib/spellCheck'
 import { useAppStore } from '@/store/appStore'
 import {
   getUnsavedContent,
@@ -296,7 +296,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
 
   useEffect(() => {
     if (!editor) return
-    return onSpellCheckLangChange(() => {
+    return onSpellCheckSettingsChange(() => {
       editor.commands.refreshSpellCheck()
     })
   }, [editor])

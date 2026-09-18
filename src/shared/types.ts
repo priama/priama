@@ -657,6 +657,8 @@ export interface PriamaPreferences {
   typewriterScrolling: TypewriterScrolling
   entityHighlights: EntityHighlights
   editorAppearance: import('./editorAppearance').EditorAppearance
+  /** Send text to LanguageTool for spelling and grammar. Off keeps checking on this machine. */
+  spellCheckOnline: boolean
   defaultChapterStructure?: ChapterStructure
   skipChapterStructurePrompt?: boolean
 }

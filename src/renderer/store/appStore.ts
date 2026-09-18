@@ -59,6 +59,8 @@ interface AppState {
   typewriterScrolling: TypewriterScrolling
   entityHighlights: EntityHighlights
   editorAppearance: EditorAppearance
+  /** Opt-in: use LanguageTool when online. Off (default) keeps spell-check on this machine. */
+  spellCheckOnline: boolean
   sidebarWidth: number
   /** Last expanded sidebar width; used to restore after collapsing to the icon rail. Not persisted. */
   lastSidebarWidth: number
@@ -136,12 +138,14 @@ interface AppState {
     options?: { persist?: boolean }
   ) => void
   stepEditorSize: (direction: EditorSizeStep, options?: { persist?: boolean }) => void
+  setSpellCheckOnline: (enabled: boolean, options?: { persist?: boolean }) => void
   applyWritingPreferences: (prefs: {
     theme?: 'light' | 'dark'
     focusMode?: boolean
     typewriterScrolling?: TypewriterScrolling
     entityHighlights?: EntityHighlights
     editorAppearance?: EditorAppearance
+    spellCheckOnline?: boolean
   }) => void
   setRightPanelOpen: (open: boolean) => void
   setShowNewProjectModal: (show: boolean) => void
@@ -221,6 +225,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   typewriterScrolling: 'focus' as TypewriterScrolling,
   entityHighlights: 'hide-in-focus' as EntityHighlights,
   editorAppearance: { ...DEFAULT_EDITOR_APPEARANCE },
+  spellCheckOnline: false,
   sidebarWidth: SIDEBAR_MAX_WIDTH,
   lastSidebarWidth: SIDEBAR_MAX_WIDTH,
   rightPanelWidth: 320,
@@ -550,6 +555,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       void window.electronAPI.tomes.updatePreferences({ editorAppearance: next })
     }
   },
+  setSpellCheckOnline: (enabled, options) => {
+    set({ spellCheckOnline: enabled })
+    if (options?.persist !== false) {
+      void window.electronAPI.tomes.updatePreferences({ spellCheckOnline: enabled })
+    }
+  },
   applyWritingPreferences: (prefs) => {
     if (prefs.theme !== undefined) {
       document.documentElement.classList.toggle('dark', prefs.theme === 'dark')
@@ -572,6 +583,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...(prefs.entityHighlights !== undefined ? { entityHighlights: prefs.entityHighlights } : {}),
       ...(prefs.editorAppearance !== undefined
         ? { editorAppearance: clampEditorAppearance(prefs.editorAppearance) }
+        : {}),
+      ...(prefs.spellCheckOnline !== undefined
+        ? { spellCheckOnline: prefs.spellCheckOnline === true }
         : {})
     })
   },

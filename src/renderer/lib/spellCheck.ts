@@ -100,7 +100,16 @@ const instances: Partial<Record<SpellCheckLang, NSpellInstance>> = {}
 const loading: Partial<Record<SpellCheckLang, Promise<NSpellInstance | null>>> = {}
 
 let projectLang: SpellCheckLang = 'en'
-const langListeners = new Set<() => void>()
+const settingsListeners = new Set<() => void>()
+
+function notifySettingsChange(): void {
+  for (const listener of settingsListeners) listener()
+}
+
+// Flipping the online preference swaps engines; open text should be checked again.
+useAppStore.subscribe((state, prev) => {
+  if (state.spellCheckOnline !== prev.spellCheckOnline) notifySettingsChange()
+})
 
 async function loadDictData(lang: SpellCheckLang): Promise<{ aff: string; dic: string }> {
   if (lang === 'en') return { aff: affEn, dic: dicEn }
@@ -160,12 +169,13 @@ export function setSpellCheckLang(lang: SpellCheckLang | undefined): void {
   }
 
   if (!changed) return
-  for (const listener of langListeners) listener()
+  notifySettingsChange()
 }
 
-export function onSpellCheckLangChange(cb: () => void): () => void {
-  langListeners.add(cb)
-  return () => langListeners.delete(cb)
+/** Fires when the language or the checking engine changes, so open text should be re-checked. */
+export function onSpellCheckSettingsChange(cb: () => void): () => void {
+  settingsListeners.add(cb)
+  return () => settingsListeners.delete(cb)
 }
 
 function rememberLang(code: string): void {
@@ -316,7 +326,10 @@ export async function check(text: string, options?: CheckOptions): Promise<Spell
 
   const excludeRanges = options?.excludeRanges
 
-  if (navigator.onLine && text.length <= LT_MAX_CHARS) {
+  // Offline (nspell) is the default. LanguageTool sends the text to a server, so it only
+  // runs when the writer opted in, and falls back to offline on any failure.
+  const onlineAllowed = useAppStore.getState().spellCheckOnline
+  if (onlineAllowed && navigator.onLine && text.length <= LT_MAX_CHARS) {
     const online = await checkOnline(text, options?.signal, excludeRanges)
     if (options?.signal?.aborted) return []
     if (online !== null) return online
