@@ -304,7 +304,8 @@ export function BookSettingsModal({ open, onOpenChange }: BookSettingsModalProps
                   value={projectMeta?.spellCheckLang ?? 'en'}
                   options={[
                     { id: 'en' as SpellCheckLang, label: 'English' },
-                    { id: 'es' as SpellCheckLang, label: 'Spanish' }
+                    { id: 'es' as SpellCheckLang, label: 'Spanish' },
+                    { id: 'ru' as SpellCheckLang, label: 'Russian' }
                   ]}
                   onChange={(id) => void persistSpellCheckLang(id)}
                 />

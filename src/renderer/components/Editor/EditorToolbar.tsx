@@ -7,8 +7,7 @@ import {
   Highlighter,
   List,
   ListOrdered,
-  Search,
-  Settings
+  Search
 } from 'lucide-react'
 import type { Editor } from '@tiptap/react'
 import { Button } from '@/components/UI/button'
@@ -55,7 +54,7 @@ function ToolbarButton({
 }
 
 export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbarProps): React.JSX.Element {
-  const { sidebarWidth, setShowBookSettingsModal } = useAppStore()
+  const { sidebarWidth } = useAppStore()
   const isSidebarContracted = sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
 
   if (!editor) return <div className="h-10 border-b border-border" />
@@ -153,12 +152,6 @@ export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbar
               <Search className="h-4 w-4" />
             </ToolbarButton>
           )}
-          <ToolbarButton
-            onClick={() => setShowBookSettingsModal(true)}
-            tooltip="Book Settings"
-          >
-            <Settings className="h-4 w-4" />
-          </ToolbarButton>
           <div className="text-xs text-muted-foreground">
             {wordCount.toLocaleString()} {wordCount === 1 ? 'word' : 'words'}
           </div>

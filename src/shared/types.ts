@@ -121,7 +121,7 @@ export function normalizeBookSettings(raw: Partial<BookSettings> & Record<string
   }
 }
 
-export type SpellCheckLang = 'en' | 'es'
+export type SpellCheckLang = 'en' | 'es' | 'ru'
 
 export interface ProjectMeta {
   id: string

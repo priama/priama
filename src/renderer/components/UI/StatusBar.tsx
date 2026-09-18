@@ -1,4 +1,4 @@
-import { Moon, Sun, Download, Save, BookOpen } from 'lucide-react'
+import { Moon, Sun, Download, Save, BookOpen, Settings } from 'lucide-react'
 import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/UI/button'
 import { useProject } from '@/hooks/useProject'
@@ -15,7 +15,8 @@ export function StatusBar(): React.JSX.Element {
     backupWarningCount,
     lastBackupAt,
     setShowExportDialog,
-    setShowBackupsModal
+    setShowBackupsModal,
+    setShowBookSettingsModal
   } = useAppStore()
   const { saveProject } = useProject()
   const manuscriptWords = useManuscriptWordTotal()
@@ -57,6 +58,15 @@ export function StatusBar(): React.JSX.Element {
       </div>
       <div className="flex items-center gap-1">
         <FocusModeButton />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={() => setShowBookSettingsModal(true)}
+          title="Book Settings"
+        >
+          <Settings className="h-3 w-3" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

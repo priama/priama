@@ -112,6 +112,19 @@
   }
 }
 
+/* Pocket-book yellow selection (overrides Chromium’s default light blue) */
+.ProseMirror ::selection,
+.ProseMirror::selection {
+  background-color: rgba(255, 213, 0, 0.45);
+  color: inherit;
+}
+
+.dark .ProseMirror ::selection,
+.dark .ProseMirror::selection {
+  background-color: rgba(255, 200, 60, 0.4);
+  color: inherit;
+}
+
 /* TipTap editor styles — sizes are em so they scale with --editor-size */
 .editor-measure {
   max-width: var(--editor-measure);

@@ -42,10 +42,28 @@ const LT_TIMEOUT_MS = 2000
 const LT_MAX_CHARS = 20_000
 const OFFLINE_YIELD_EVERY = 200
 
-const DICTS = {
-  en: { aff: affEn, dic: dicEn },
-  es: { aff: affEs, dic: dicEs }
-} as const
+/** Latin (EN/ES) words and Cyrillic (RU) words. */
+export const WORD_RE = /[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ']+|[\u0400-\u04FF]+/g
+
+export function isCyrillicWord(word: string): boolean {
+  return /[\u0400-\u04FF]/.test(word)
+}
+
+/** Latin primary/secondary pair. Russian project lang still uses EN as Latin primary. */
+export function latinPair(projectLang: SpellCheckLang): {
+  primary: 'en' | 'es'
+  secondary: 'en' | 'es'
+} {
+  const primary = projectLang === 'es' ? 'es' : 'en'
+  return { primary, secondary: primary === 'en' ? 'es' : 'en' }
+}
+
+export function spellCheckLangFromLtCode(code: string): SpellCheckLang {
+  const lower = code.toLowerCase()
+  if (lower.startsWith('ru')) return 'ru'
+  if (lower.startsWith('es')) return 'es'
+  return 'en'
+}
 
 function loadCustomWords(): Set<string> {
   try {
@@ -78,32 +96,70 @@ export function isCustomWord(word: string): boolean {
 
 type NSpellInstance = ReturnType<typeof nspell>
 
-let spellEn: NSpellInstance | null = null
-let spellEs: NSpellInstance | null = null
-let dictsReady = false
-let initPromise: Promise<void> | null = null
+const instances: Partial<Record<SpellCheckLang, NSpellInstance>> = {}
+const loading: Partial<Record<SpellCheckLang, Promise<NSpellInstance | null>>> = {}
 
 let projectLang: SpellCheckLang = 'en'
 const langListeners = new Set<() => void>()
 
+async function loadDictData(lang: SpellCheckLang): Promise<{ aff: string; dic: string }> {
+  if (lang === 'en') return { aff: affEn, dic: dicEn }
+  if (lang === 'es') return { aff: affEs, dic: dicEs }
+
+  // Code-split: Russian (~3.5MB) stays out of the initial renderer chunk.
+  const [affMod, dicMod] = await Promise.all([
+    import('../../../node_modules/dictionary-ru/index.aff?raw'),
+    import('../../../node_modules/dictionary-ru/index.dic?raw')
+  ])
+  return { aff: affMod.default, dic: dicMod.default }
+}
+
+async function getSpell(lang: SpellCheckLang): Promise<NSpellInstance | null> {
+  const existing = instances[lang]
+  if (existing) return existing
+
+  const inFlight = loading[lang]
+  if (inFlight) return inFlight
+
+  const promise = (async (): Promise<NSpellInstance | null> => {
+    try {
+      const data = await loadDictData(lang)
+      const spell = nspell(data)
+      instances[lang] = spell
+      return spell
+    } catch {
+      return null
+    } finally {
+      delete loading[lang]
+    }
+  })()
+
+  loading[lang] = promise
+  return promise
+}
+
+function warmDict(lang: SpellCheckLang): void {
+  requestIdleCallback(() => {
+    void getSpell(lang)
+  })
+}
+
 export function setSpellCheckLang(lang: SpellCheckLang | undefined): void {
   const next = lang ?? 'en'
-  if (next === projectLang) return
-
+  const changed = next !== projectLang
   projectLang = next
-  dictsReady = false
-  initPromise = null
 
-  requestIdleCallback(() => {
-    try {
-      initDict(projectLang)
-      dictsReady = true
-      initSecondaryDict(projectLang)
-    } catch {
-      // Ignore — offline check falls back to available dict
-    }
-  })
+  if (next === 'ru') {
+    warmDict('ru')
+  } else {
+    const { primary, secondary } = latinPair(next)
+    warmDict(primary)
+    requestIdleCallback(() => {
+      void getSpell(secondary)
+    })
+  }
 
+  if (!changed) return
   for (const listener of langListeners) listener()
 }
 
@@ -112,41 +168,8 @@ export function onSpellCheckLangChange(cb: () => void): () => void {
   return () => langListeners.delete(cb)
 }
 
-function initDict(lang: 'en' | 'es'): void {
-  if (lang === 'en' && !spellEn) spellEn = nspell(DICTS.en)
-  if (lang === 'es' && !spellEs) spellEs = nspell(DICTS.es)
-}
-
-function initSecondaryDict(primary: 'en' | 'es'): void {
-  try {
-    initDict(primary === 'en' ? 'es' : 'en')
-  } catch {
-    // Secondary dictionary is optional
-  }
-}
-
-function ensureDictsReady(): Promise<void> {
-  if (dictsReady) return Promise.resolve()
-  if (!initPromise) {
-    initPromise = new Promise((resolve) => {
-      queueMicrotask(() => {
-        try {
-          initDict(projectLang)
-          dictsReady = true
-          requestIdleCallback(() => initSecondaryDict(projectLang))
-          resolve()
-        } catch {
-          initPromise = null
-          resolve()
-        }
-      })
-    })
-  }
-  return initPromise
-}
-
 function rememberLang(code: string): void {
-  const lang: SpellCheckLang = code.startsWith('es') ? 'es' : 'en'
+  const lang = spellCheckLangFromLtCode(code)
   if (lang === projectLang) return
 
   setSpellCheckLang(lang)
@@ -214,22 +237,26 @@ async function checkOnline(
   }
 }
 
-const WORD_RE = /[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ']+/g
-
 async function checkOffline(
   text: string,
   signal?: AbortSignal,
   excludeRanges?: Array<{ from: number; to: number }>
 ): Promise<SpellMatch[]> {
-  await ensureDictsReady()
-  if (!dictsReady) return []
+  const needsCyrillic = /[\u0400-\u04FF]/.test(text)
+  const needsLatin = /[a-zA-ZáéíóúüñÁÉÍÓÚÜÑ]/.test(text)
 
-  if (!spellEn) initDict('en')
-  if (!spellEs) initDict('es')
+  const spellRu = needsCyrillic ? await getSpell('ru') : null
+  if (signal?.aborted) return []
 
-  const primary = projectLang === 'es' ? spellEs : spellEn
-  const secondary = projectLang === 'es' ? spellEn : spellEs
-  if (!primary) return []
+  let spellLatinPrimary: NSpellInstance | null = null
+  let spellLatinSecondary: NSpellInstance | null = null
+  if (needsLatin) {
+    const { primary, secondary } = latinPair(projectLang)
+    spellLatinPrimary = await getSpell(primary)
+    if (signal?.aborted) return []
+    spellLatinSecondary = await getSpell(secondary)
+    if (signal?.aborted) return []
+  }
 
   const matches: SpellMatch[] = []
   let wordCount = 0
@@ -251,19 +278,35 @@ async function checkOffline(
     if (overlapsExcludeRange(from, to, excludeRanges)) continue
     if (word.length < 2) continue
     if (isCustomWord(word)) continue
-    if (primary.correct(word)) continue
-    if (secondary?.correct(word)) continue
+
+    if (isCyrillicWord(word)) {
+      if (!spellRu || spellRu.correct(word)) continue
+      matches.push({
+        from,
+        to,
+        word,
+        suggestions: spellRu.suggest(word).slice(0, 6)
+      })
+      continue
+    }
+
+    if (!spellLatinPrimary) continue
+    if (spellLatinPrimary.correct(word)) continue
+    if (spellLatinSecondary?.correct(word)) continue
 
     matches.push({
       from,
       to,
       word,
       suggestions: [
-        ...primary.suggest(word).slice(0, 4),
-        ...(secondary?.suggest(word).slice(0, 2) ?? [])
-      ].filter((s, i, arr) => arr.indexOf(s) === i).slice(0, 6)
+        ...spellLatinPrimary.suggest(word).slice(0, 4),
+        ...(spellLatinSecondary?.suggest(word).slice(0, 2) ?? [])
+      ]
+        .filter((s, i, arr) => arr.indexOf(s) === i)
+        .slice(0, 6)
     })
   }
+
   return matches
 }
 
