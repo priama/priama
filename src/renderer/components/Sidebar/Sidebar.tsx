@@ -63,8 +63,7 @@ import {
 import { folderScopeForCategory } from '@shared/categoryPresets'
 import type { CategoryDefinition, ChapterStructure, TrashCategory } from '@shared/types'
 import { SIDEBAR_COLLAPSE_WIDTH, SIDEBAR_EXPAND_WIDTH, SIDEBAR_EXPANDED_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, TRASH_CATEGORY_LABELS } from '@shared/types'
-
-const SIDEBAR_TITLEBAR_INSET = 78
+import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
 
 type DragHandleProps = {
   attributes: ReturnType<typeof useSortable>['attributes']
@@ -402,7 +401,7 @@ export function Sidebar(): React.JSX.Element {
         >
           <div
             className="drag-region flex h-9 shrink-0 items-center justify-end px-2"
-            style={{ paddingLeft: SIDEBAR_TITLEBAR_INSET }}
+            style={{ paddingLeft: TITLEBAR_BUTTONS_INSET }}
           />
           <div className="relative flex min-h-0 flex-1 flex-col border-r border-sidebar-border">
             <div className="sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto py-2">

@@ -323,6 +323,11 @@ html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-men
   -webkit-app-region: no-drag;
 }
 
+/* Controls inside a draggable toolbar stay clickable; the empty space drags the window. */
+.drag-region :is(button, input, select, textarea, a, [role='button'], [role='combobox']) {
+  -webkit-app-region: no-drag;
+}
+
 /* Themed scrollbars everywhere. Without color-scheme (above), Chromium
    paints the OS light scrollbar — a white track — inside dark UI. */
 * {

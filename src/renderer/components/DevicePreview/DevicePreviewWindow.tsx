@@ -14,6 +14,7 @@ import {
   type DevicePreviewRequestOptions
 } from '@shared/types'
 import { cn } from '@/lib/utils'
+import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 
 const DEFAULT_FONT_SIZE = 100
@@ -247,10 +248,8 @@ export function DevicePreviewWindow(): React.JSX.Element {
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
       <header
-        className={cn(
-          'flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-2 drag-region',
-          isMac && 'pl-20'
-        )}
+        className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-2 drag-region"
+        style={isMac ? { paddingLeft: TITLEBAR_BUTTONS_INSET } : undefined}
       >
         <ScopeSelector
           className="no-drag"

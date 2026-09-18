@@ -1,6 +1,14 @@
 import { BrowserWindow, screen, type WebContents } from 'electron'
 import { join } from 'path'
 import type { DevicePreviewRequestOptions, WindowBounds, WindowLayoutState } from '@shared/types'
+import { TRAFFIC_LIGHT_POSITION } from '@shared/windowChrome'
+
+/** Hidden title bar with traffic lights where the renderer's insets expect them (macOS only). */
+export function titleBarOptions(): Electron.BrowserWindowConstructorOptions {
+  return process.platform === 'darwin'
+    ? { titleBarStyle: 'hiddenInset', trafficLightPosition: TRAFFIC_LIGHT_POSITION }
+    : { titleBarStyle: 'default' }
+}
 
 type ChildWindowKind = 'workspace' | 'imageViewer' | 'devicePreview'
 
@@ -81,7 +89,7 @@ export function openDocumentWindow(
     minWidth: 900,
     minHeight: 600,
     title: `Priama — ${title}`,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    ...titleBarOptions(),
     show: false,
     backgroundColor: themeBackground(theme),
     webPreferences: {
@@ -171,7 +179,7 @@ export function openDevicePreviewWindow(
     minWidth: 640,
     minHeight: 480,
     title: 'Device Preview',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    ...titleBarOptions(),
     show: false,
     backgroundColor: themeBackground(theme),
     webPreferences: {

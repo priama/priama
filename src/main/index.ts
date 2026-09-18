@@ -69,7 +69,8 @@ import {
   openDevicePreviewWindow,
   broadcast,
   saveSecondaryWindowState,
-  closeAllChildren
+  closeAllChildren,
+  titleBarOptions
 } from './windowManager'
 import {
   getNavigationState,
@@ -256,7 +257,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    ...titleBarOptions(),
     backgroundColor: '#1a1a1a',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

@@ -37,8 +37,8 @@ import {
   normalizeSidebarWidth,
   sidebarWidthOnProjectOpen
 } from '@shared/types'
+import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
 
-const FOCUS_TITLEBAR_INSET = 78
 const isMac =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
@@ -202,7 +202,7 @@ export function AppLayout(): React.JSX.Element {
           {focusChrome && isMac && (
             <div
               className="drag-region h-9 shrink-0"
-              style={{ paddingLeft: FOCUS_TITLEBAR_INSET }}
+              style={{ paddingLeft: TITLEBAR_BUTTONS_INSET }}
               aria-hidden
             />
           )}
