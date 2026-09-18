@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ import {
   type EditorFontId
 } from '@shared/editorAppearance'
 import { cn } from '@/lib/utils'
+import { loadEditorFont } from '@/lib/editorFonts'
 
 interface EditorAppearanceModalProps {
   open: boolean
@@ -58,6 +60,12 @@ export function EditorAppearanceModal({
   const setEditorAppearance = useAppStore((s) => s.setEditorAppearance)
   const spellCheckOnline = useAppStore((s) => s.spellCheckOnline)
   const setSpellCheckOnline = useAppStore((s) => s.setSpellCheckOnline)
+
+  // Each font button previews its own face.
+  useEffect(() => {
+    if (!open) return
+    for (const id of EDITOR_FONT_IDS) void loadEditorFont(id)
+  }, [open])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

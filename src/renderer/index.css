@@ -1,18 +1,9 @@
+/* Literata is the default editor face. Merriweather, Lora, and Inter load on demand
+   (lib/editorFonts.ts); the app chrome uses the system UI font. */
 @import '@fontsource/literata/400.css';
 @import '@fontsource/literata/400-italic.css';
 @import '@fontsource/literata/600.css';
 @import '@fontsource/literata/700.css';
-@import '@fontsource/merriweather/400.css';
-@import '@fontsource/merriweather/400-italic.css';
-@import '@fontsource/merriweather/700.css';
-@import '@fontsource/lora/400.css';
-@import '@fontsource/lora/400-italic.css';
-@import '@fontsource/lora/600.css';
-@import '@fontsource/lora/700.css';
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/inter/700.css';
 
 @tailwind base;
 @tailwind components;

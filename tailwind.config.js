@@ -50,7 +50,7 @@ module.exports = {
         sm: 'calc(var(--radius) - 4px)'
       },
       fontFamily: {
-        sans: ['-apple-system', 'SF Pro Text', 'Segoe UI', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['-apple-system', 'SF Pro Text', 'Segoe UI', 'system-ui', 'sans-serif'],
         serif: ['Literata', 'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Georgia', 'serif']
       }
     }

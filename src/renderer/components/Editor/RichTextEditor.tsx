@@ -31,6 +31,7 @@ import {
   registerActiveEditor
 } from '@/lib/contentPersistence'
 import { clearEditorHistory, registerActiveEditorInstance } from '@/lib/activeEditor'
+import { loadEditorFontsUsedIn } from '@/lib/editorFonts'
 import { syncWritingMenuState } from '@/lib/writingMenuSync'
 import { splitDocumentAtCaret } from '@/lib/documentActions'
 import { canSplitAtCaret, canSplitNode } from '@/lib/splitMerge'
@@ -283,7 +284,9 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
   useEffect(() => {
     if (!editor || editor.isDestroyed || !node) return
     // Text typed before a quick switch-back may still be saving; it is newer than the store.
-    editor.commands.setContent(getUnsavedContent(node.id) ?? node.content, false)
+    const html = getUnsavedContent(node.id) ?? node.content
+    loadEditorFontsUsedIn(html)
+    editor.commands.setContent(html, false)
     clearEditorHistory(editor)
     syncWritingMenuState()
   }, [editor, node?.id])
@@ -564,6 +567,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           onPasteRich={() => {
             if (!editor) return
             const cleaned = sanitizePastedHtml(pasteMenu.html)
+            loadEditorFontsUsedIn(cleaned)
             editor.commands.insertContent(cleaned)
             setPasteMenu(null)
           }}
