@@ -148,7 +148,7 @@ function SectionHeader({
 }): React.JSX.Element {
   if (iconOnly) {
     return (
-      <div className="mx-1 flex min-h-9 items-center justify-center">
+      <div className="mx-1 flex min-h-8 items-center justify-center">
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -156,7 +156,7 @@ function SectionHeader({
               onClick={onSelectContainer}
               className={cn(
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
-                isContainerSelected ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                isContainerSelected ? 'bg-sidebar-selected text-foreground' : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
               )}
               aria-label={label}
             >
@@ -170,17 +170,14 @@ function SectionHeader({
   }
 
   return (
-    <div className={cn('group/section mx-1 flex min-h-9 min-w-0 items-center gap-1 rounded-md px-2 py-1.5', isContainerSelected && 'bg-accent text-accent-foreground')}>
+    <div className={cn('group/section mx-1 flex min-h-7 min-w-0 items-center gap-1 rounded-md px-2 py-1', isContainerSelected && 'bg-sidebar-selected')}>
       <button type="button" onClick={(e) => { e.stopPropagation(); onToggle() }} className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground">
         <ChevronRight className={cn('h-3 w-3 transition-transform duration-200 ease-in-out', isExpanded && 'rotate-90')} />
       </button>
       <button
         type="button"
         onClick={onSelectContainer}
-        className={cn(
-          'flex min-w-0 flex-1 items-center gap-1.5 text-left text-base font-semibold',
-          isContainerSelected ? 'text-accent-foreground' : 'text-foreground hover:text-foreground'
-        )}
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-semibold text-foreground"
       >
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{label}</span>
@@ -380,8 +377,8 @@ export function Sidebar(): React.JSX.Element {
         className={cn(
           'mx-2 mb-0.5 flex w-[calc(100%-16px)] cursor-pointer items-center rounded-md py-1 pl-6 text-xs',
           selectedContainerId === containerId
-            ? 'bg-accent text-accent-foreground'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+            ? 'bg-sidebar-selected text-foreground'
+            : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground'
         )}
       >
         {TRASH_CATEGORY_LABELS[category]}
@@ -517,7 +514,7 @@ export function Sidebar(): React.JSX.Element {
                       <button
                         type="button"
                         onClick={() => setShowCategoryManager(true)}
-                        className="mx-auto flex min-h-9 w-8 items-center justify-center rounded-md text-muted-foreground/60 hover:bg-accent/50 hover:text-muted-foreground"
+                        className="mx-auto flex min-h-8 w-8 items-center justify-center rounded-md text-muted-foreground/60 hover:bg-sidebar-hover hover:text-muted-foreground"
                       >
                         <Settings2 className="h-3.5 w-3.5" />
                       </button>
@@ -528,7 +525,7 @@ export function Sidebar(): React.JSX.Element {
                   <button
                     type="button"
                     onClick={() => setShowCategoryManager(true)}
-                    className="flex min-h-9 w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground/60 transition-colors hover:bg-accent/30 hover:text-muted-foreground"
+                    className="flex min-h-7 w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground/60 transition-colors hover:bg-sidebar-hover hover:text-muted-foreground"
                   >
                     <Settings2 className="h-3 w-3" />
                     <span>Manage categories</span>

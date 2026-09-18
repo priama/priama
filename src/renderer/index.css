@@ -44,6 +44,9 @@
     --sidebar: 0 0% 97%;
     --sidebar-foreground: 240 10% 10%;
     --sidebar-border: 240 6% 90%;
+    /* Sidebar rows: a soft pill, not a solid block (Finder-style) */
+    --sidebar-hover: 240 5% 94.5%;
+    --sidebar-selected: 240 5% 92%;
 
     /* Editor appearance (app prefs — not document styles) */
     --editor-font: Literata, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
@@ -76,6 +79,8 @@
     --sidebar: 240 6% 8%;
     --sidebar-foreground: 0 0% 93%;
     --sidebar-border: 240 4% 14%;
+    --sidebar-hover: 240 5% 11%;
+    --sidebar-selected: 240 5% 13.5%;
   }
 }
 

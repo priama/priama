@@ -41,7 +41,9 @@ module.exports = {
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar))',
           foreground: 'hsl(var(--sidebar-foreground))',
-          border: 'hsl(var(--sidebar-border))'
+          border: 'hsl(var(--sidebar-border))',
+          hover: 'hsl(var(--sidebar-hover))',
+          selected: 'hsl(var(--sidebar-selected))'
         }
       },
       borderRadius: {

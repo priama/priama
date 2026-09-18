@@ -190,7 +190,7 @@ function TreeItemRow({
           aria-hidden="true"
           className={cn(
             'pointer-events-none absolute top-0.5 bottom-0.5 right-1 -z-10 rounded-md',
-            isSelected ? 'bg-accent' : 'bg-transparent group-hover:bg-accent/50'
+            isSelected ? 'bg-sidebar-selected' : 'bg-transparent group-hover:bg-sidebar-hover'
           )}
           style={{ left: `${contentLeft}px` }}
         />
