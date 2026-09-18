@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ import {
   type EditorFontId
 } from '@shared/editorAppearance'
 import { cn } from '@/lib/utils'
+import { loadEditorFont } from '@/lib/editorFonts'
 
 interface EditorAppearanceModalProps {
   open: boolean
@@ -56,10 +58,18 @@ export function EditorAppearanceModal({
 }: EditorAppearanceModalProps): React.JSX.Element {
   const appearance = useAppStore((s) => s.editorAppearance)
   const setEditorAppearance = useAppStore((s) => s.setEditorAppearance)
+  const spellCheckOnline = useAppStore((s) => s.spellCheckOnline)
+  const setSpellCheckOnline = useAppStore((s) => s.setSpellCheckOnline)
+
+  // Each font button previews its own face.
+  useEffect(() => {
+    if (!open) return
+    for (const id of EDITOR_FONT_IDS) void loadEditorFont(id)
+  }, [open])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="no-drag sm:max-w-md">
+      <DialogContent presentation="sheet" className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Editor Appearance</DialogTitle>
           <DialogDescription>
@@ -134,6 +144,25 @@ export function EditorAppearanceModal({
             >
               Reset to defaults
             </Button>
+          </div>
+
+          <div className="grid gap-2 border-t border-border pt-4">
+            <Label className="text-xs text-muted-foreground">Spelling</Label>
+            <label className="no-drag flex cursor-pointer items-start gap-2.5">
+              <input
+                type="checkbox"
+                checked={spellCheckOnline}
+                onChange={(e) => setSpellCheckOnline(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-foreground"
+              />
+              <span className="grid gap-0.5">
+                <span className="text-sm">Check spelling online</span>
+                <span className="text-xs text-muted-foreground">
+                  Adds grammar suggestions from LanguageTool by sending the paragraph you are
+                  writing to languagetool.org. When off, spelling is checked on this computer.
+                </span>
+              </span>
+            </label>
           </div>
         </div>
       </DialogContent>

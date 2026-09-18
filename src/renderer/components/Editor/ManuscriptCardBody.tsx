@@ -38,7 +38,7 @@ export async function persistPlanningMeta(
   node: TreeNode,
   patch: Partial<ChapterMeta & SceneMeta>
 ): Promise<void> {
-  const { updateNodeInStore, setDirty } = useAppStore.getState()
+  const { updateNodeInStore } = useAppStore.getState()
   let nextMeta: ChapterMeta | SceneMeta
   if (node.type === 'chapter') {
     const current = normalizeChapterMeta(parseMetadata(node.metadata, DEFAULT_CHAPTER_META))
@@ -50,7 +50,6 @@ export async function persistPlanningMeta(
   const metadata = serializeMetadata(nextMeta)
   const updated = await window.electronAPI.tree.update(node.id, { metadata })
   updateNodeInStore(node.id, { metadata: updated.metadata })
-  setDirty(true)
 }
 
 function useClickOutside(open: boolean, onClose: () => void): React.RefObject<HTMLDivElement | null> {

@@ -37,28 +37,28 @@ import {
   normalizeSidebarWidth,
   sidebarWidthOnProjectOpen
 } from '@shared/types'
+import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
 
-const FOCUS_TITLEBAR_INSET = 78
 const isMac =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
 export function AppLayout(): React.JSX.Element {
-  const {
-    isProjectOpen,
-    setShowNewProjectModal,
-    showExportDialog,
-    setShowExportDialog,
-    showBookSettingsModal,
-    setShowBookSettingsModal,
-    showEditorAppearanceModal,
-    setShowEditorAppearanceModal,
-    showBackupsModal,
-    setShowBackupsModal,
-    setSidebarWidth,
-    toggleSidebar,
-    setRightPanelWidth,
-    setSelectedNodeId,
-  } = useAppStore()
+  // Select fields one by one: this component renders every panel, so a whole-store
+  // subscription here would re-render the entire window on any store change.
+  const isProjectOpen = useAppStore((s) => s.isProjectOpen)
+  const showExportDialog = useAppStore((s) => s.showExportDialog)
+  const showBookSettingsModal = useAppStore((s) => s.showBookSettingsModal)
+  const showEditorAppearanceModal = useAppStore((s) => s.showEditorAppearanceModal)
+  const showBackupsModal = useAppStore((s) => s.showBackupsModal)
+  const setShowNewProjectModal = useAppStore((s) => s.setShowNewProjectModal)
+  const setShowExportDialog = useAppStore((s) => s.setShowExportDialog)
+  const setShowBookSettingsModal = useAppStore((s) => s.setShowBookSettingsModal)
+  const setShowEditorAppearanceModal = useAppStore((s) => s.setShowEditorAppearanceModal)
+  const setShowBackupsModal = useAppStore((s) => s.setShowBackupsModal)
+  const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const setRightPanelWidth = useAppStore((s) => s.setRightPanelWidth)
+  const setSelectedNodeId = useAppStore((s) => s.setSelectedNodeId)
   const params = useSearchParams()
   const isSecondary = isWorkspaceWindow()
   const { openProject, closeProject } = useProject()
@@ -202,7 +202,7 @@ export function AppLayout(): React.JSX.Element {
           {focusChrome && isMac && (
             <div
               className="drag-region h-9 shrink-0"
-              style={{ paddingLeft: FOCUS_TITLEBAR_INSET }}
+              style={{ paddingLeft: TITLEBAR_BUTTONS_INSET }}
               aria-hidden
             />
           )}

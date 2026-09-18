@@ -16,13 +16,16 @@ function defaultPreferences(): PriamaPreferences {
     focusMode: false,
     typewriterScrolling: 'focus',
     entityHighlights: 'hide-in-focus',
-    editorAppearance: { ...DEFAULT_EDITOR_APPEARANCE }
+    editorAppearance: { ...DEFAULT_EDITOR_APPEARANCE },
+    spellCheckOnline: false
   }
 }
 
 function normalizePreferences(prefs: Partial<PriamaPreferences> | undefined): PriamaPreferences {
   const merged = { ...defaultPreferences(), ...prefs }
   merged.editorAppearance = clampEditorAppearance(prefs?.editorAppearance ?? merged.editorAppearance)
+  // Only an explicit opt-in sends manuscript text off the machine.
+  merged.spellCheckOnline = prefs?.spellCheckOnline === true
   return merged
 }
 

@@ -89,7 +89,8 @@ const SCENE_BREAK_MARKER_OPTIONS = [
 ] as const
 
 export function BookSettingsModal({ open, onOpenChange }: BookSettingsModalProps): React.JSX.Element {
-  const { projectMeta, setProjectMeta } = useAppStore()
+  const projectMeta = useAppStore((s) => s.projectMeta)
+  const setProjectMeta = useAppStore((s) => s.setProjectMeta)
   const [settings, setSettings] = useState<BookSettings>(DEFAULT_BOOK_SETTINGS)
   const [activeTab, setActiveTab] = useState<'cover' | 'structure' | 'typography' | 'frontmatter'>('cover')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -153,7 +154,7 @@ export function BookSettingsModal({ open, onOpenChange }: BookSettingsModalProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="no-drag sm:max-w-2xl">
+      <DialogContent presentation="sheet" className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Book Settings</DialogTitle>
           <DialogDescription>

@@ -14,7 +14,7 @@ export function useSyncFromMain(): void {
       if (state.meta && state.path) {
         useAppStore
           .getState()
-          .setProject(state.path, state.meta, mergeIncomingNodes(state.nodes))
+          .applySyncState(state.path, state.meta, mergeIncomingNodes(state.nodes))
         useAppStore.getState().setSectionOrder(state.uiState.sectionOrder)
       } else if (useAppStore.getState().isProjectOpen) {
         useAppStore.getState().closeProject()

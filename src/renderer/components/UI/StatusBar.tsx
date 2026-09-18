@@ -7,17 +7,15 @@ import { FocusModeButton } from '@/components/Editor/FocusModeButton'
 import { backupStatusLabel } from '@/lib/backupStatusLabel'
 
 export function StatusBar(): React.JSX.Element {
-  const {
-    isDirty,
-    theme,
-    toggleTheme,
-    projectMeta,
-    backupWarningCount,
-    lastBackupAt,
-    setShowExportDialog,
-    setShowBackupsModal,
-    setShowBookSettingsModal
-  } = useAppStore()
+  const isDirty = useAppStore((s) => s.isDirty)
+  const theme = useAppStore((s) => s.theme)
+  const projectTitle = useAppStore((s) => s.projectMeta?.title ?? null)
+  const backupWarningCount = useAppStore((s) => s.backupWarningCount)
+  const lastBackupAt = useAppStore((s) => s.lastBackupAt)
+  const toggleTheme = useAppStore((s) => s.toggleTheme)
+  const setShowExportDialog = useAppStore((s) => s.setShowExportDialog)
+  const setShowBackupsModal = useAppStore((s) => s.setShowBackupsModal)
+  const setShowBookSettingsModal = useAppStore((s) => s.setShowBookSettingsModal)
   const { saveProject } = useProject()
   const manuscriptWords = useManuscriptWordTotal()
 
@@ -45,10 +43,10 @@ export function StatusBar(): React.JSX.Element {
         >
           {backupLabel}
         </button>
-        {projectMeta && (
+        {projectTitle !== null && (
           <>
             <span className="text-border">|</span>
-            <span>{projectMeta.title}</span>
+            <span>{projectTitle}</span>
             <span className="text-border">|</span>
             <span className="tabular-nums" title="Manuscript word count">
               {manuscriptWordsLabel}

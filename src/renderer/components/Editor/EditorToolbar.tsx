@@ -14,7 +14,7 @@ import { Button } from '@/components/UI/button'
 import { Separator } from '@/components/UI/separator'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/UI/tooltip'
 import { useAppStore } from '@/store/appStore'
-import { SIDEBAR_ICON_ONLY_THRESHOLD } from '@shared/types'
+import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
 import { StyleDropdown } from './StyleDropdown'
 import { ColorPickerButton, TEXT_COLORS, HIGHLIGHT_COLORS } from './ColorPicker'
 import { cn } from '@/lib/utils'
@@ -53,19 +53,22 @@ function ToolbarButton({
   )
 }
 
+const TOOLBAR_PADDING_X = 12
+
 export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbarProps): React.JSX.Element {
-  const { sidebarWidth } = useAppStore()
-  const isSidebarContracted = sidebarWidth <= SIDEBAR_ICON_ONLY_THRESHOLD
+  // A collapsed sidebar is narrower than the traffic lights; start the controls past them.
+  const paddingLeft = useAppStore((s) =>
+    Math.max(TOOLBAR_PADDING_X, TITLEBAR_BUTTONS_INSET - s.sidebarWidth)
+  )
 
   if (!editor) return <div className="h-10 border-b border-border" />
 
   return (
     <TooltipProvider delayDuration={300}>
+      {/* Empty toolbar space drags the window, like a native toolbar. */}
       <div
-        className={cn(
-          'no-drag flex items-center gap-0.5 border-b border-border px-3 py-1.5',
-          isSidebarContracted && 'pl-14'
-        )}
+        className="drag-region flex items-center gap-0.5 border-b border-border px-3 py-1.5"
+        style={{ paddingLeft }}
       >
         <StyleDropdown editor={editor} />
 

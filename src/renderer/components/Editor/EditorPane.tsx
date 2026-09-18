@@ -59,22 +59,20 @@ function containerSelectionId(
 }
 
 export function EditorPane(): React.JSX.Element {
-  const {
-    nodes,
-    categories,
-    selectedNodeId,
-    selectedEntityId,
-    selectedEntryId,
-    selectedContainerId,
-    setSelectedNodeId,
-    setSelectedEntity,
-    selectContainer,
-    setNodes,
-    containerHistory,
-    containerHistoryIndex,
-    containerGoBack,
-    containerGoForward
-  } = useAppStore()
+  const nodes = useAppStore((s) => s.nodes)
+  const categories = useAppStore((s) => s.categories)
+  const selectedNodeId = useAppStore((s) => s.selectedNodeId)
+  const selectedEntityId = useAppStore((s) => s.selectedEntityId)
+  const selectedEntryId = useAppStore((s) => s.selectedEntryId)
+  const selectedContainerId = useAppStore((s) => s.selectedContainerId)
+  const containerHistory = useAppStore((s) => s.containerHistory)
+  const containerHistoryIndex = useAppStore((s) => s.containerHistoryIndex)
+  const setSelectedNodeId = useAppStore((s) => s.setSelectedNodeId)
+  const setSelectedEntity = useAppStore((s) => s.setSelectedEntity)
+  const selectContainer = useAppStore((s) => s.selectContainer)
+  const setNodes = useAppStore((s) => s.setNodes)
+  const containerGoBack = useAppStore((s) => s.containerGoBack)
+  const containerGoForward = useAppStore((s) => s.containerGoForward)
 
   const canGoBack = containerHistory
     .slice(0, containerHistoryIndex)

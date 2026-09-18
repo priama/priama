@@ -8,7 +8,8 @@ function applyFromConfig(prefs: PriamaPreferences): void {
     focusMode: prefs.focusMode,
     typewriterScrolling: prefs.typewriterScrolling,
     entityHighlights: prefs.entityHighlights,
-    editorAppearance: prefs.editorAppearance ?? DEFAULT_EDITOR_APPEARANCE
+    editorAppearance: prefs.editorAppearance ?? DEFAULT_EDITOR_APPEARANCE,
+    spellCheckOnline: prefs.spellCheckOnline === true
   })
 }
 

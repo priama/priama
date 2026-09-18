@@ -45,7 +45,6 @@ const STATUS_CHIP_CLASS: Record<ManuscriptStatus, string> = {
 
 export function ManuscriptPanel({ node }: { node: TreeNode }): React.JSX.Element {
   const updateNodeInStore = useAppStore((s) => s.updateNodeInStore)
-  const setDirty = useAppStore((s) => s.setDirty)
   const planning = planningMetaFor(node)
   const { meta, setMeta, name, setName } = usePanelNodeState({
     nodeId: node.id,
@@ -61,9 +60,8 @@ export function ManuscriptPanel({ node }: { node: TreeNode }): React.JSX.Element
       if (!trimmed || trimmed === node.title) return
       const updated = await window.electronAPI.tree.update(node.id, { title: trimmed })
       updateNodeInStore(node.id, { title: updated.title })
-      setDirty(true)
     },
-    [node.id, node.title, setDirty, updateNodeInStore]
+    [node.id, node.title, updateNodeInStore]
   )
 
   const persistFields = useCallback(

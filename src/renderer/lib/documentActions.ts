@@ -7,9 +7,9 @@ import {
   makeConvertScenesChapterToSimpleCommand,
   makeConvertSimpleToScenesChapterCommand,
   makePromoteSceneToSimpleChapterCommand,
-  makePromoteSceneToScenesChapterCommand,
-  resolveNodeContent
+  makePromoteSceneToScenesChapterCommand
 } from '@/lib/commands'
+import { flushNode, getLiveContent } from '@/lib/contentPersistence'
 import {
   canMergeWithNext,
   canSplitAtCaret,
@@ -67,8 +67,8 @@ export async function mergeWithNext(node?: TreeNode): Promise<boolean> {
   const next = nextSiblingOfKind(target, nodes)
   if (!next) return false
 
-  const keeperHtml = resolveNodeContent(target.id, target.content)
-  const absorbedHtml = resolveNodeContent(next.id, next.content)
+  const keeperHtml = getLiveContent(target.id, target.content)
+  const absorbedHtml = getLiveContent(next.id, next.content)
 
   await useHistoryStore.getState().push(
     makeMergeCommand({
@@ -87,7 +87,11 @@ export async function convertScenesChapterToSimple(chapter: TreeNode): Promise<v
   const { nodes, selectedNodeId } = useAppStore.getState()
   if (!isChapterFolder(chapter)) return
 
-  const scenes = getScenes(nodes, chapter.id)
+  // The open scene's latest keystrokes live in the editor, not the store.
+  const scenes = getScenes(nodes, chapter.id).map((s) => ({
+    ...s,
+    content: getLiveContent(s.id, s.content)
+  }))
   if (scenes.length === 0) return
 
   const marker = sceneBreakMarker()
@@ -107,7 +111,7 @@ export async function convertScenesChapterToSimple(chapter: TreeNode): Promise<v
         sortOrder: s.sortOrder,
         parentId: s.parentId
       })),
-      chapterOriginalContent: chapter.content,
+      chapterOriginalContent: getLiveContent(chapter.id, chapter.content),
       chapterOriginalMetadata: chapter.metadata,
       joinedHtml: joined,
       previousSelectedId: selectedNodeId
@@ -117,8 +121,11 @@ export async function convertScenesChapterToSimple(chapter: TreeNode): Promise<v
 
 export async function convertSimpleToSceneChapter(chapter: TreeNode): Promise<void> {
   if (!isSimpleChapter(chapter)) return
+  // The command empties the chapter body; a debounced write still pending for it would
+  // land afterwards and put the old text back.
+  await flushNode(chapter.id)
   const { selectedNodeId } = useAppStore.getState()
-  const content = resolveNodeContent(chapter.id, chapter.content)
+  const content = getLiveContent(chapter.id, chapter.content)
 
   // Sync editor so we don't lose live buffer when clearing chapter content.
   const active = getActiveEditorInstance()
@@ -138,7 +145,7 @@ export async function convertSimpleToSceneChapter(chapter: TreeNode): Promise<vo
 
 export async function convertSceneToSimpleChapter(scene: TreeNode): Promise<void> {
   const { selectedNodeId } = useAppStore.getState()
-  const content = resolveNodeContent(scene.id, scene.content)
+  const content = getLiveContent(scene.id, scene.content)
   await useHistoryStore.getState().push(
     makePromoteSceneToSimpleChapterCommand({
       scene: { ...scene, content },
@@ -149,7 +156,7 @@ export async function convertSceneToSimpleChapter(scene: TreeNode): Promise<void
 
 export async function convertSceneToSceneChapter(scene: TreeNode): Promise<void> {
   const { selectedNodeId } = useAppStore.getState()
-  const content = resolveNodeContent(scene.id, scene.content)
+  const content = getLiveContent(scene.id, scene.content)
   await useHistoryStore.getState().push(
     makePromoteSceneToScenesChapterCommand({
       scene: { ...scene, content },

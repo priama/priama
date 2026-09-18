@@ -41,7 +41,9 @@ module.exports = {
         sidebar: {
           DEFAULT: 'hsl(var(--sidebar))',
           foreground: 'hsl(var(--sidebar-foreground))',
-          border: 'hsl(var(--sidebar-border))'
+          border: 'hsl(var(--sidebar-border))',
+          hover: 'hsl(var(--sidebar-hover))',
+          selected: 'hsl(var(--sidebar-selected))'
         }
       },
       borderRadius: {
@@ -50,8 +52,10 @@ module.exports = {
         sm: 'calc(var(--radius) - 4px)'
       },
       fontFamily: {
-        sans: ['-apple-system', 'SF Pro Text', 'Segoe UI', 'Inter', 'system-ui', 'sans-serif'],
-        serif: ['Literata', 'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Georgia', 'serif']
+        sans: ['-apple-system', 'SF Pro Text', 'Segoe UI', 'system-ui', 'sans-serif'],
+        serif: ['Literata', 'Iowan Old Style', 'Palatino Linotype', 'Palatino', 'Georgia', 'serif'],
+        // The writer's chosen face (Editor Appearance) — for writing surfaces outside TipTap.
+        editor: ['var(--editor-font)']
       }
     }
   },

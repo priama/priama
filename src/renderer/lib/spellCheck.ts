@@ -1,8 +1,4 @@
 import nspell from 'nspell'
-import affEn from '../../../node_modules/dictionary-en/index.aff?raw'
-import dicEn from '../../../node_modules/dictionary-en/index.dic?raw'
-import affEs from '../../../node_modules/dictionary-es/index.aff?raw'
-import dicEs from '../../../node_modules/dictionary-es/index.dic?raw'
 import { useAppStore } from '@/store/appStore'
 import type { SpellCheckLang } from '@shared/types'
 
@@ -100,18 +96,42 @@ const instances: Partial<Record<SpellCheckLang, NSpellInstance>> = {}
 const loading: Partial<Record<SpellCheckLang, Promise<NSpellInstance | null>>> = {}
 
 let projectLang: SpellCheckLang = 'en'
-const langListeners = new Set<() => void>()
+const settingsListeners = new Set<() => void>()
+
+function notifySettingsChange(): void {
+  for (const listener of settingsListeners) listener()
+}
+
+// Flipping the online preference swaps engines; open text should be checked again.
+useAppStore.subscribe((state, prev) => {
+  if (state.spellCheckOnline !== prev.spellCheckOnline) notifySettingsChange()
+})
+
+type RawModule = { default: string }
+
+// One chunk per language (EN ~0.55 MB, ES ~0.9 MB, RU ~3.5 MB), loaded the first time text
+// in that language needs checking instead of being parsed with the app at every launch.
+const DICTIONARY_LOADERS: Record<SpellCheckLang, () => Promise<[RawModule, RawModule]>> = {
+  en: () =>
+    Promise.all([
+      import('../../../node_modules/dictionary-en/index.aff?raw'),
+      import('../../../node_modules/dictionary-en/index.dic?raw')
+    ]),
+  es: () =>
+    Promise.all([
+      import('../../../node_modules/dictionary-es/index.aff?raw'),
+      import('../../../node_modules/dictionary-es/index.dic?raw')
+    ]),
+  ru: () =>
+    Promise.all([
+      import('../../../node_modules/dictionary-ru/index.aff?raw'),
+      import('../../../node_modules/dictionary-ru/index.dic?raw')
+    ])
+}
 
 async function loadDictData(lang: SpellCheckLang): Promise<{ aff: string; dic: string }> {
-  if (lang === 'en') return { aff: affEn, dic: dicEn }
-  if (lang === 'es') return { aff: affEs, dic: dicEs }
-
-  // Code-split: Russian (~3.5MB) stays out of the initial renderer chunk.
-  const [affMod, dicMod] = await Promise.all([
-    import('../../../node_modules/dictionary-ru/index.aff?raw'),
-    import('../../../node_modules/dictionary-ru/index.dic?raw')
-  ])
-  return { aff: affMod.default, dic: dicMod.default }
+  const [aff, dic] = await DICTIONARY_LOADERS[lang]()
+  return { aff: aff.default, dic: dic.default }
 }
 
 async function getSpell(lang: SpellCheckLang): Promise<NSpellInstance | null> {
@@ -160,12 +180,13 @@ export function setSpellCheckLang(lang: SpellCheckLang | undefined): void {
   }
 
   if (!changed) return
-  for (const listener of langListeners) listener()
+  notifySettingsChange()
 }
 
-export function onSpellCheckLangChange(cb: () => void): () => void {
-  langListeners.add(cb)
-  return () => langListeners.delete(cb)
+/** Fires when the language or the checking engine changes, so open text should be re-checked. */
+export function onSpellCheckSettingsChange(cb: () => void): () => void {
+  settingsListeners.add(cb)
+  return () => settingsListeners.delete(cb)
 }
 
 function rememberLang(code: string): void {
@@ -316,7 +337,10 @@ export async function check(text: string, options?: CheckOptions): Promise<Spell
 
   const excludeRanges = options?.excludeRanges
 
-  if (navigator.onLine && text.length <= LT_MAX_CHARS) {
+  // Offline (nspell) is the default. LanguageTool sends the text to a server, so it only
+  // runs when the writer opted in, and falls back to offline on any failure.
+  const onlineAllowed = useAppStore.getState().spellCheckOnline
+  if (onlineAllowed && navigator.onLine && text.length <= LT_MAX_CHARS) {
     const online = await checkOnline(text, options?.signal, excludeRanges)
     if (options?.signal?.aborted) return []
     if (online !== null) return online

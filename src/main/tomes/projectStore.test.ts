@@ -431,7 +431,9 @@ describe('openProject recovery', () => {
     }
     loreEntry.filename = sharedName
     delete notesEntry.folderScope
-    notesEntry.deletedAt = '2026-07-30T07:25:17.975Z'
+    // Trashed but inside the retention window: a fixed date expires and the purge on
+    // open would delete the very entry this test inspects.
+    notesEntry.deletedAt = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     await fse.writeFile(path, JSON.stringify(manifest, null, 2), 'utf-8')
 
     const opened = await reopen(path)
@@ -815,6 +817,41 @@ describe('updateNode', () => {
 
   it('throws for nonexistent node', async () => {
     await expect(updateNode('nonexistent', { title: 'X' })).rejects.toThrow('not found')
+  })
+
+  it('leaves the project index untouched for body and metadata saves', async () => {
+    const node = await createNode(null, 'chapter', 'Ch1')
+    const tomes = getProjectPath()!
+    const before = await fse.readFile(tomes, 'utf-8')
+    // Atomic writes rename a temp file into place, so any rewrite changes the inode.
+    const inodeBefore = (await fse.stat(tomes)).ino
+
+    await updateNode(node.id, { content: '<p>Typing</p>' })
+    await updateNode(node.id, { metadata: node.metadata })
+    await updateNode(node.id, { title: 'Ch1', sortOrder: node.sortOrder, parentId: null })
+
+    expect((await fse.stat(tomes)).ino).toBe(inodeBefore)
+    expect(await fse.readFile(tomes, 'utf-8')).toBe(before)
+    expect(getNode(node.id)!.content).toBe('<p>Typing</p>')
+  })
+
+  it('rewrites the project index when title, order, or parent change', async () => {
+    const folder = await createFolder('manuscript', null, 'Folder')
+    const node = await createNode(null, 'chapter', 'Ch1')
+    const tomes = getProjectPath()!
+    const indexEntry = async (): Promise<{ title: string; sortOrder: number; parentId?: string }> =>
+      JSON.parse(await fse.readFile(tomes, 'utf-8')).index.chapters.find(
+        (e: { id: string }) => e.id === node.id
+      )
+
+    await updateNode(node.id, { title: 'Renamed' })
+    expect((await indexEntry()).title).toBe('Renamed')
+
+    await updateNode(node.id, { sortOrder: 7 })
+    expect((await indexEntry()).sortOrder).toBe(7)
+
+    await updateNode(node.id, { parentId: folder.id })
+    expect((await indexEntry()).parentId).toBe(folder.id)
   })
 
   it('updates updatedAt timestamp', async () => {

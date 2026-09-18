@@ -206,7 +206,7 @@ export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.J
   return (
     <>
       <Dialog open={open && !confirmOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-xl">
+        <DialogContent presentation="sheet" className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Backups</DialogTitle>
             <DialogDescription>

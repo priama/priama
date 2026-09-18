@@ -69,7 +69,8 @@ import {
   openDevicePreviewWindow,
   broadcast,
   saveSecondaryWindowState,
-  closeAllChildren
+  closeAllChildren,
+  titleBarOptions
 } from './windowManager'
 import {
   getNavigationState,
@@ -223,8 +224,8 @@ function findTomesPathInArgv(argv: string[]): string | null {
   return null
 }
 
-function broadcastSync(): void {
-  broadcast('sync:state', getSyncState())
+function broadcastSync(except?: Electron.WebContents): void {
+  broadcast('sync:state', getSyncState(), except)
 }
 
 async function openProjectFromPath(tomesPath: string): Promise<void> {
@@ -256,7 +257,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    ...titleBarOptions(),
     backgroundColor: '#1a1a1a',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -856,9 +857,12 @@ function registerIpcHandlers(): void {
     return node
   })
 
-  ipcMain.handle('tree:update', async (_, { id, ...updates }) => {
+  ipcMain.handle('tree:update', async (event, { id, ...updates }) => {
     const node = await updateNode(id, updates)
-    broadcastSync()
+    // Body saves are the typing hot path and the sender already has the text; only other
+    // windows need the whole-project payload.
+    const contentOnly = Object.keys(updates).every((key) => key === 'content')
+    broadcastSync(contentOnly ? event.sender : undefined)
     return node
   })
 

@@ -190,7 +190,7 @@ function TreeItemRow({
           aria-hidden="true"
           className={cn(
             'pointer-events-none absolute top-0.5 bottom-0.5 right-1 -z-10 rounded-md',
-            isSelected ? 'bg-accent' : 'bg-transparent group-hover:bg-accent/50'
+            isSelected ? 'bg-sidebar-selected' : 'bg-transparent group-hover:bg-sidebar-hover'
           )}
           style={{ left: `${contentLeft}px` }}
         />
@@ -328,19 +328,16 @@ export function SidebarTree({
   onAddScene,
   onAddEntity
 }: SidebarTreeProps): React.JSX.Element {
-  const {
-    nodes,
-    selectedNodeId,
-    selectedEntityId,
-    selectedEntryId,
-    selectedContainerId,
-    categories,
-    expandedSections,
-    setSelectedNodeId,
-    selectContainer,
-    toggleSection,
-    setNodes,
-  } = useAppStore()
+  const nodes = useAppStore((s) => s.nodes)
+  const selectedNodeId = useAppStore((s) => s.selectedNodeId)
+  const selectedEntityId = useAppStore((s) => s.selectedEntityId)
+  const selectedEntryId = useAppStore((s) => s.selectedEntryId)
+  const selectedContainerId = useAppStore((s) => s.selectedContainerId)
+  const expandedSections = useAppStore((s) => s.expandedSections)
+  const setSelectedNodeId = useAppStore((s) => s.setSelectedNodeId)
+  const selectContainer = useAppStore((s) => s.selectContainer)
+  const toggleSection = useAppStore((s) => s.toggleSection)
+  const setNodes = useAppStore((s) => s.setNodes)
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -698,7 +695,10 @@ function SceneList({
   onAddScene?: (chapterId: string) => void
   disabled?: boolean
 }): React.JSX.Element {
-  const { selectedNodeId, setSelectedNodeId, setNodes, nodes, renameSession } = useAppStore()
+  const selectedNodeId = useAppStore((s) => s.selectedNodeId)
+  const setSelectedNodeId = useAppStore((s) => s.setSelectedNodeId)
+  const setNodes = useAppStore((s) => s.setNodes)
+  const renameSession = useAppStore((s) => s.renameSession)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
   const sensors = useSensors(
@@ -715,6 +715,7 @@ function SceneList({
     if (oldIndex === -1 || newIndex === -1) return
     const reordered = arrayMove(scenes, oldIndex, newIndex)
     const items = reordered.map((n, i) => ({ id: n.id, parentId: chapterId, sortOrder: i }))
+    const nodes = useAppStore.getState().nodes
     const nodesBefore = [...nodes]
     const orderMap = new Map(items.map((item) => [item.id, item.sortOrder]))
     setNodes(nodes.map((n) => (orderMap.has(n.id) ? { ...n, sortOrder: orderMap.get(n.id)! } : n)))

@@ -73,17 +73,22 @@ async function persistNode(nodeId: string): Promise<void> {
     // Only clear if nothing newer arrived while we were writing.
     if (current && current.content === writingContent) {
       dirtyNodes.delete(nodeId)
+      // Keystrokes never touch the store; it catches up once per completed write.
+      useAppStore.getState().updateNodeInStore(nodeId, { content: writingContent })
     }
   } catch (err) {
     console.error(`Failed to persist node ${nodeId}:`, err)
   } finally {
     persisting.delete(nodeId)
-    if (dirtyNodes.has(nodeId)) {
+    const current = dirtyNodes.get(nodeId)
+    if (current && current.content !== writingContent) {
       // Newer edit landed during the write — persist it immediately.
       cancelDebounce(nodeId)
       syncDirtyFlag()
       void persistNode(nodeId)
     } else {
+      // A failed write stays dirty for the next edit, flush, or autosave to retry;
+      // retrying here would spin on a persistent error.
       syncDirtyFlag()
     }
   }
@@ -102,9 +107,42 @@ function schedulePersist(nodeId: string): void {
   syncDirtyFlag()
 }
 
+/**
+ * Typing hot path: record the latest text and debounce a write. Deliberately does not
+ * touch the store — every `nodes` subscriber would re-render per keystroke. The store's
+ * `content` is the last saved copy; read live text with `getLiveContent`.
+ */
 export function markContentDirty(nodeId: string, content: string): void {
   dirtyNodes.set(nodeId, { content })
   schedulePersist(nodeId)
+}
+
+/** Text typed for `nodeId` that has not finished saving, if any. */
+export function getUnsavedContent(nodeId: string): string | undefined {
+  return dirtyNodes.get(nodeId)?.content
+}
+
+/**
+ * Latest text for a node: the open editor or note buffer, then unsaved edits, then the
+ * store copy, then `fallback`. Use for anything that writes content derived from a node.
+ */
+export function getLiveContent(nodeId: string, fallback: string): string {
+  const editor = getActiveEditorContent?.()
+  if (editor?.nodeId === nodeId) return editor.content
+  const note = getActiveNoteContent?.()
+  if (note?.nodeId === nodeId) return note.content
+  const unsaved = dirtyNodes.get(nodeId)
+  if (unsaved) return unsaved.content
+  return useAppStore.getState().nodes.find((n) => n.id === nodeId)?.content ?? fallback
+}
+
+/**
+ * An editing surface let go of `nodeId`: copy its unsaved text into the store now so
+ * lists, counts, and a quick reopen do not wait for the debounced write.
+ */
+export function publishUnsavedContent(nodeId: string): void {
+  const pending = dirtyNodes.get(nodeId)
+  if (pending) useAppStore.getState().updateNodeInStore(nodeId, { content: pending.content })
 }
 
 export function hasUnpersistedChanges(): boolean {

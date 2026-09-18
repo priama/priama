@@ -12,7 +12,8 @@ function subscribeEditorCapability(onStoreChange: () => void): () => void {
 }
 
 export function UndoRedoButtons({ className }: { className?: string }): React.JSX.Element {
-  const { canUndo, canRedo } = useHistoryStore()
+  const canUndo = useHistoryStore((s) => s.canUndo)
+  const canRedo = useHistoryStore((s) => s.canRedo)
   const tipTapCanUndo = useSyncExternalStore(subscribeEditorCapability, editorCanUndo, () => false)
   const tipTapCanRedo = useSyncExternalStore(subscribeEditorCapability, editorCanRedo, () => false)
 
