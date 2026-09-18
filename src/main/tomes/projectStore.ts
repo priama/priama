@@ -722,12 +722,24 @@ export async function updateNode(
     const entry = manifest.index[indexKey].find((e) => e.id === id)
     if (!entry) throw new Error(`Index entry ${id} not found`)
 
-    if (updates.title) entry.title = updates.title
-    if (updates.sortOrder !== undefined) entry.sortOrder = updates.sortOrder
-    if (updates.parentId !== undefined) entry.parentId = updates.parentId
+    // The index mirrors only title, order, and parent. Body and metadata live in the .txd,
+    // so a typing save rewrites one file instead of the whole project index.
+    let indexChanged = false
+    if (updates.title && updates.title !== entry.title) {
+      entry.title = updates.title
+      indexChanged = true
+    }
+    if (updates.sortOrder !== undefined && updates.sortOrder !== entry.sortOrder) {
+      entry.sortOrder = updates.sortOrder
+      indexChanged = true
+    }
+    if (updates.parentId !== undefined && updates.parentId !== (entry.parentId ?? null)) {
+      entry.parentId = updates.parentId
+      indexChanged = true
+    }
 
     await writeTxdFile(getTxdPathForNode(updated, entry.filename), nodeToTxd(updated))
-    await writeManifest()
+    if (indexChanged) await writeManifest()
     nodeCache.set(id, updated)
     result = updated
   })
