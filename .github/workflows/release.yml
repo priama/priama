@@ -13,9 +13,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  mac:
-    runs-on: macos-latest
-    timeout-minutes: 75
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -33,6 +33,97 @@ jobs:
             exit 1
           fi
 
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Create GitHub release on priama
+        env:
+          GH_TOKEN: ${{ secrets.PRIAMA_RELEASE_TOKEN }}
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          VERSION="${TAG#v}"
+          if gh release view "$TAG" --repo andyrpr/priama >/dev/null 2>&1; then
+            echo "Release $TAG already exists on andyrpr/priama"
+          else
+            gh release create "$TAG" \
+              --repo andyrpr/priama \
+              --title "Priama $VERSION" \
+              --latest \
+              --notes "Installers for this version. Windows and Linux come from GitHub Actions. macOS may be attached by CI or uploaded locally. Builds are unsigned."
+          fi
+
+  windows:
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
+
+      - run: npm ci
+
+      - name: Build, package, and publish
+        env:
+          GH_TOKEN: ${{ secrets.PRIAMA_RELEASE_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run dist:win -- --publish always
+
+  linux:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cache Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Linux packagers
+        run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg
+
+      - run: npm ci
+
+      - name: Build, package, and publish
+        env:
+          GH_TOKEN: ${{ secrets.PRIAMA_RELEASE_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npm run dist:linux -- --publish always
+
+  mac:
+    needs: prepare
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
       - name: Cache Electron
         uses: actions/cache@v4
         with:
@@ -42,8 +133,6 @@ jobs:
           key: ${{ runner.os }}-electron-${{ hashFiles('package-lock.json') }}
 
       - run: npm ci
-
-      - run: npm test
 
       - name: Build, package, and publish
         env:

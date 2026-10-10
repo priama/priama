@@ -39,7 +39,12 @@ npm run dev
 ```bash
 npm run dist:mac
 npm run dist:win
+npm run dist:linux
 ```
+
+## Publishing a release
+
+See **[docs/RELEASING.md](docs/RELEASING.md)**. Tagging `v*` on this repo should attach Windows and Linux installers to [andyrpr/priama](https://github.com/andyrpr/priama/releases). Confirm those files exist before calling the release done.
 
 ## License
 

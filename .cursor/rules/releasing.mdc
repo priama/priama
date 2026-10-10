@@ -1,0 +1,27 @@
+---
+description: How to publish Priama releases (tag CI → public priama repo)
+alwaysApply: true
+---
+
+# Publishing releases
+
+When the user asks to make/ship/publish a release, follow `docs/RELEASING.md`. Do not improvise.
+
+## Hard rules
+
+- Public installers live in **`andyrpr/priama`**, not `andyrpr/texteditor`.
+- **Never** treat “bump version + push `v*` tag to texteditor” as a finished release.
+- Confirm the public release page has the assets. If Actions never started (startup_failure), build and upload locally.
+
+## Required steps
+
+1. `npm version X.Y.Z --no-git-tag-version` (package.json + lockfile)
+2. `npm test`
+3. Commit/push version bump to `texteditor` (`Ship Priama X.Y.Z.`)
+4. Tag/push `vX.Y.Z` on `texteditor` (starts Windows, Linux, and macOS jobs)
+5. Confirm https://github.com/andyrpr/priama/releases/tag/vX.Y.Z has the installers and is Latest
+6. If Mac is missing: `CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac` then `gh release upload … --repo andyrpr/priama`
+
+Stopping after step 3 or 4 is wrong. The release is not done until the public assets exist.
+
+CI needs repo secret `PRIAMA_RELEASE_TOKEN` (fine-grained PAT, Contents write on `andyrpr/priama` only). Setup is in `docs/RELEASING.md`.
