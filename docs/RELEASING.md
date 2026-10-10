@@ -6,7 +6,7 @@
 
 | Repo | Role |
 |------|------|
-| `andyrpr/texteditor` (public) | Source code and the Release workflow |
+| `andyrpr/texteditor` (private) | Source code and the Release workflow |
 | `andyrpr/priama` (public) | GitHub Releases + download site |
 
 Users download from: https://github.com/andyrpr/priama/releases/latest

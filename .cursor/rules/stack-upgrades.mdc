@@ -1,0 +1,26 @@
+---
+description: Dependency and stack upgrade policy for Priama
+alwaysApply: true
+---
+
+# Stack upgrades
+
+Priama is Electron + React + TipTap 2 (ProseMirror) + Zustand + file-backed projects. Do not restack (no Tauri, native-only, SQLite-first, or Markdown/CodeMirror rewrites) unless the user explicitly asks.
+
+## TipTap
+
+- Keep every `@tiptap/*` package on the **same** 2.x version (resolved lockfile is 2.27.2).
+- Do not mix ranges like `^2.11.5` and `^2.27.2` in `package.json`.
+- Do not migrate to TipTap 3 unless explicitly requested (breaking: Floating UI, list/text-style kits, command signatures). Custom spell, block styles, entity marks, and find/replace must be regression-tested in that sprint.
+
+## Electron and tooling
+
+- Electron upgrades are **security** (Chromium). Bump Electron in its own change; do not combine with editor refactors.
+- Keep `electron-vite` / `electron-builder` compatible with the Electron version in use. Do not solo-upgrade Vite past what electron-vite supports.
+- React 19, Zustand, Radix, and dnd-kit: leave unless there is a CVE or a bug you are fixing.
+
+## Do not chase
+
+- Tailwind 4 (config/engine rewrite; no product benefit for this app).
+- Extra live TipTap instances (one editor for the open document).
+- New runtimes or databases as part of a routine upgrade.
