@@ -478,3 +478,102 @@ html[data-focus-mode='true'][data-entity-highlights='hide-in-focus'] .entity-men
   --launch-btn-primary-hover: #ffffff;
   --launch-btn-secondary-hover-border: #46454a;
 }
+
+/* Launch wordmark — mark 01 splits apart and uncovers the name as the right part travels. */
+.launch-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36em;
+  /* Reserves the right part, which hangs outside the name's box. */
+  padding-right: 0.6em;
+  color: var(--launch-ink);
+}
+
+/* Held back until the serif is measurable, so the travel distance can't change mid-flight. */
+.launch-wordmark--pending {
+  visibility: hidden;
+}
+
+.launch-wordmark__part {
+  display: block;
+  flex: none;
+  height: 0.85em;
+  width: calc(0.85em * 13.5 / 48);
+}
+
+/* The name keeps its final width from the first frame, so the header never reflows. */
+.launch-wordmark__slot {
+  position: relative;
+  display: inline-block;
+}
+
+.launch-wordmark__name {
+  display: inline-block;
+  color: var(--launch-accent);
+}
+
+/* Spans the name and carries the right part at its far edge, so one transform walks it across. */
+.launch-wordmark__mover {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.launch-wordmark__mover .launch-wordmark__part {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  margin-left: 0.36em;
+  transform: translateY(-50%);
+}
+
+.launch-wordmark--animate .launch-wordmark__mover {
+  animation: launch-wordmark-part 2300ms linear both;
+  will-change: transform;
+}
+
+.launch-wordmark--animate .launch-wordmark__name {
+  animation: launch-wordmark-name 2300ms linear both;
+}
+
+/* 0.5s beat on the closed caret so the eye lands on it, a legible 1.25s open, a beat, then the
+   colour arrives. The shorthand stays linear; each segment carries its own curve. Expo-out was
+   the first attempt and spent the whole travel in its first 250ms — too fast to register. */
+@keyframes launch-wordmark-part {
+  0%,
+  22% {
+    transform: translateX(calc(-100% - 0.72em + 1px));
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  76%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes launch-wordmark-name {
+  0%,
+  22% {
+    clip-path: inset(0 100% 0 0);
+    color: var(--launch-ink);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
+  76%,
+  85% {
+    clip-path: inset(0 0 0 0);
+    color: var(--launch-ink);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    color: var(--launch-accent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launch-wordmark--animate .launch-wordmark__mover,
+  .launch-wordmark--animate .launch-wordmark__name {
+    animation: none;
+  }
+}

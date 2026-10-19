@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Priama">
+  <rect x="8" y="10" width="6" height="44" rx="2" fill="currentColor"/>
+  <rect x="16" y="12" width="16" height="40" fill="none" stroke="currentColor" stroke-width="4"/>
+  <path d="M34 32H44M44 18V46M44 18H48M44 32H48M44 46H48" fill="none" stroke="currentColor" stroke-width="3"/>
+  <circle cx="52" cy="18" r="4" fill="currentColor"/>
+  <circle cx="52" cy="32" r="4" fill="currentColor"/>
+  <circle cx="52" cy="46" r="4" fill="currentColor"/>
+</svg>

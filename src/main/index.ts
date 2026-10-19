@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu, shell, dialog, nativeTheme } from 'electron'
 import { join } from 'path'
+import { existsSync } from 'fs'
 import {
   createProject,
   openProject,
@@ -1101,6 +1102,15 @@ if (gotLock) {
   app.whenReady().then(async () => {
     if (process.platform === 'win32') {
       app.setAppUserModelId('com.priama.app')
+    }
+
+    // Dev launches the stock Electron bundle, so macOS shows Electron's own Dock icon. Packaged
+    // builds take the real one from electron-builder; this only closes the gap while developing.
+    if (process.platform === 'darwin' && !app.isPackaged) {
+      const devIcon = join(__dirname, '../../build/icon.png')
+      if (existsSync(devIcon)) {
+        app.dock?.setIcon(devIcon)
+      }
     }
 
     const coldStartPath = findTomesPathInArgv(process.argv)

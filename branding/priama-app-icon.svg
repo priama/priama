@@ -1,0 +1,11 @@
+<!-- macOS app icon geometry: an 824x824 rounded rect centred on a 1024 canvas, so the tile
+     sits at the same optical size as every other icon in the Dock. Everything outside the
+     rounded rect is transparent — the Dock does not mask app icons, so the corners have to
+     be cut here. Explicit colours, not currentColor: this is rasterised standalone. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#fafaf9"/>
+  <g transform="translate(182.7 182.7) scale(10.2917)" fill="#18181a">
+    <path d="M18 8H31.5V56H18V50H25V14H18Z"/>
+    <path d="M46 8H32.5V56H46V50H39V14H46Z"/>
+  </g>
+</svg>

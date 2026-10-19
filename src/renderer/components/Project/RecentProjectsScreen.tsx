@@ -14,6 +14,7 @@ import { Label } from '@/components/UI/label'
 import { NewProjectModal } from '@/components/Project/NewProjectModal'
 import { DeleteProjectModal } from '@/components/Project/DeleteProjectModal'
 import { ProjectCard } from '@/components/Project/ProjectCard'
+import { PriamaWordmark } from '@/components/Project/PriamaWordmark'
 import { useProject } from '@/hooks/useProject'
 import type { AppUpdateStatus, RecentProjectWithStatus } from '@shared/types'
 
@@ -124,8 +125,8 @@ export function RecentProjectsScreen(): React.JSX.Element {
     <div className="flex h-screen flex-col font-serif text-[var(--launch-ink)]">
       <header className="flex shrink-0 items-start justify-between gap-6 px-12 pb-[22px] pt-12">
         <div>
-          <h1 className="font-serif text-[28px] font-bold leading-[1.15] tracking-[0.2px] text-[var(--launch-accent)]">
-            Priama
+          <h1 className="font-serif text-[28px] font-bold leading-[1.15] tracking-[0.2px]">
+            <PriamaWordmark />
           </h1>
           <p className="mt-1 text-[12.5px] tracking-[0.1px] text-[var(--launch-ink-faint)]">
             Free, fully offline, no account needed — made for writers and journalists.

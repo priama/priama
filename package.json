@@ -138,13 +138,15 @@
             ]
           }
         ]
-      }
+      },
+      "icon": "build/icon.png"
     },
     "win": {
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "linux": {
       "target": [
@@ -162,7 +164,8 @@
         }
       ],
       "category": "Office",
-      "artifactName": "Priama-${version}-linux-${arch}.${ext}"
+      "artifactName": "Priama-${version}-linux-${arch}.${ext}",
+      "icon": "build/icon.png"
     },
     "nsis": {
       "artifactName": "Priama-${version}-win-${arch}-setup.${ext}"
