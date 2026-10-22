@@ -33,6 +33,25 @@ describe('writeFileAtomic', () => {
     expect(await fse.readFile(dest, 'utf-8')).toBe('new-complete')
   })
 
+  it('serializes concurrent writes so the destination is never spliced', async () => {
+    const dest = join(dir, 'project.tomes')
+    // Different lengths: a shared temp file would leave the longer write's
+    // tail behind the shorter one, producing JSON that parses as neither.
+    const long = JSON.stringify({ __tomes: true, who: 'long', pad: 'a'.repeat(40000) })
+    const short = JSON.stringify({ __tomes: true, who: 'short', pad: 'b'.repeat(8000) })
+
+    for (let i = 0; i < 20; i++) {
+      await Promise.all([writeFileAtomic(dest, long), writeFileAtomic(dest, short)])
+
+      const written = await fse.readFile(dest, 'utf-8')
+      expect([long, short]).toContain(written)
+      expect(() => JSON.parse(written)).not.toThrow()
+    }
+
+    const leftovers = (await fse.readdir(dir)).filter((name) => name.endsWith('.tmp'))
+    expect(leftovers).toEqual([])
+  })
+
   it('leaves the destination unchanged if the temp write fails', async () => {
     const dest = join(dir, 'chapter-01.txd')
     await fse.writeFile(dest, 'old-complete', 'utf-8')
