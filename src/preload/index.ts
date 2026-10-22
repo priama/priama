@@ -133,7 +133,14 @@ export interface ElectronAPI {
     setWritingMenuState: (state: WritingMenuState) => Promise<{ success: boolean }>
     getUpdateStatus: () => Promise<AppUpdateStatus>
     openLatestDownload: () => Promise<{ success: boolean }>
+    /** Fire a menu action as if its menu item had been clicked. */
+    invokeMenuAction: (channel: string, arg?: unknown) => Promise<{ success: boolean }>
   }
+  /**
+   * The real host platform. The renderer previously sniffed navigator.platform,
+   * which is deprecated and disagreed with the main process.
+   */
+  platform: NodeJS.Platform
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void
 }
 
@@ -230,8 +237,10 @@ const api: ElectronAPI = {
     notifyRestoreReady: () => ipcRenderer.invoke('app:restoreReady'),
     setWritingMenuState: (state) => ipcRenderer.invoke('app:setWritingMenuState', state),
     getUpdateStatus: () => ipcRenderer.invoke('app:getUpdateStatus'),
-    openLatestDownload: () => ipcRenderer.invoke('app:openLatestDownload')
+    openLatestDownload: () => ipcRenderer.invoke('app:openLatestDownload'),
+    invokeMenuAction: (channel, arg) => ipcRenderer.invoke('app:menuAction', channel, arg)
   },
+  platform: process.platform,
   on: (channel, callback) => {
     const subscription = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args)
     ipcRenderer.on(channel, subscription)

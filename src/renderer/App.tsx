@@ -38,9 +38,8 @@ import {
   sidebarWidthOnProjectOpen
 } from '@shared/types'
 import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
+import { isMac } from '@/lib/platform'
 
-const isMac =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
 export function AppLayout(): React.JSX.Element {
   // Select fields one by one: this component renders every panel, so a whole-store

@@ -15,6 +15,7 @@ import {
 } from '@shared/types'
 import { cn } from '@/lib/utils'
 import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
+import { isMac } from '@/lib/platform'
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 
 const DEFAULT_FONT_SIZE = 100
@@ -243,7 +244,6 @@ export function DevicePreviewWindow(): React.JSX.Element {
     }
   }
 
-  const isMac = typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac')
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">

@@ -4,6 +4,7 @@ import { AlertCircle } from 'lucide-react'
 import type { RecentProjectWithStatus } from '@shared/types'
 import { truncatePath } from '@shared/pathUtils'
 import { cn } from '@/lib/utils'
+import { isMac } from '@/lib/platform'
 
 const menuItemClass =
   'flex cursor-pointer rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent'
@@ -30,7 +31,6 @@ export function ProjectCard({
   onDelete,
   onLocate
 }: ProjectCardProps): React.JSX.Element {
-  const isMac = navigator.platform.toLowerCase().includes('mac')
   const lastOpened = formatDistanceToNow(new Date(project.lastOpened), { addSuffix: true })
 
   return (

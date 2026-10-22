@@ -4,9 +4,8 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { useAppStore } from '@/store/appStore'
 import { useWritingSurfaceOpen } from '@/hooks/useFocusMode'
 import { cn } from '@/lib/utils'
+import { isMac } from '@/lib/platform'
 
-const isMac =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 
 function focusShortcutLabel(): string {
   return isMac ? '⌥⌘F' : 'Alt+Ctrl+F'
