@@ -11,10 +11,7 @@ import type { CreateProjectInput } from '@shared/types'
 import { defaultFictionCategories } from '@shared/categoryPresets'
 
 export function useProject(): {
-  createProjectFromInput: (
-    input: Omit<CreateProjectInput, 'templateId' | 'categories'> &
-      Partial<Pick<CreateProjectInput, 'templateId' | 'categories'>>
-  ) => Promise<void>
+  createProjectFromInput: (input: CreateProjectInput) => Promise<void>
   openProject: () => Promise<void>
   openProjectAtPath: (path: string) => Promise<void>
   saveProject: () => Promise<void>

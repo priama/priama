@@ -66,7 +66,7 @@ function indexOfNamedTag(lowerHtml: string, needle: string, from: number): numbe
     const idx = lowerHtml.indexOf(needle, i)
     if (idx === -1) return -1
     const after = lowerHtml[idx + needle.length]
-    if (after === undefined || /[\s>\/]/.test(after)) return idx
+    if (after === undefined || /[\s>/]/.test(after)) return idx
     i = idx + 1
   }
   return -1

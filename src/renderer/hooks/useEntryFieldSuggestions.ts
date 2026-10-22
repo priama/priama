@@ -10,7 +10,9 @@ export function useEntryFieldSuggestions(
   categoryId: string,
   field: string,
   currentNodeId: string,
-  defaultMeta: Record<string, unknown>
+  // `object`, not `Record<string, unknown>`: the callers pass declared meta
+  // interfaces, which have no index signature. It is only ever a fallback.
+  defaultMeta: object
 ): string[] {
   const nodes = useAppStore((s) => s.nodes)
 

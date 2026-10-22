@@ -206,7 +206,7 @@ export function EditorPane(): React.JSX.Element {
   const handleSelectContainerItem = (
     node: TreeNode,
     scope: FolderScope,
-    entryCategoryId?: string
+    _entryCategoryId?: string
   ): void => {
     if (isFolder(node)) {
       selectContainer(folderContainerId(node.id))

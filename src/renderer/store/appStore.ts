@@ -596,7 +596,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowEditorAppearanceModal: (show) => set({ showEditorAppearanceModal: show }),
   setShowBackupsModal: (show) => set({ showBackupsModal: show }),
   setSidebarWidth: (width) =>
-    set((s) => ({
+    set(() => ({
       sidebarWidth: width,
       ...(width >= SIDEBAR_EXPANDED_MIN_WIDTH ? { lastSidebarWidth: width } : {})
     })),

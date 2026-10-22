@@ -737,7 +737,7 @@ export async function reconcileIndexedNodes(ctx: ReconcileContext): Promise<Reco
       alignFolderMetadata(parsed, item.folderScope)
     }
 
-    let parentId = keepParentId(parsed.parentId, manifest, nodeCache, pendingIds)
+    const parentId = keepParentId(parsed.parentId, manifest, nodeCache, pendingIds)
     let trashOrphanScene = false
     if (item.type === 'scene') {
       const chapterOk = parsed.parentId

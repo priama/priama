@@ -194,7 +194,8 @@ const replaceAll = (
     resultsCopy = rebaseNextResultResponse[1]
   }
 
-  dispatch(tr)
+  // dispatch is undefined while TipTap dry-runs a command for can().
+  if (dispatch) dispatch(tr)
 }
 
 const searchAndReplacePluginKey = new PluginKey('searchAndReplacePlugin')

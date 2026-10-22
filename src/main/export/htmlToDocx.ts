@@ -12,7 +12,8 @@ import { docxFontName } from './formatting'
 type InlineStyle = {
   bold?: boolean
   italics?: boolean
-  underline?: boolean
+  // docx expects an object here, not a boolean — same shape used for headings below.
+  underline?: { type?: (typeof UnderlineType)[keyof typeof UnderlineType] }
 }
 
 function decodeEntities(text: string): string {
@@ -76,7 +77,7 @@ function runsFromHtml(html: string, fontFamily: ExportFontFamily, fontSize: numb
       const next: InlineStyle = { ...style }
       if (tag === 'strong' || tag === 'b') next.bold = true
       if (tag === 'em' || tag === 'i') next.italics = true
-      if (tag === 'u') next.underline = true
+      if (tag === 'u') next.underline = { type: UnderlineType.SINGLE }
       runs.push(...runsFromHtml(inner, fontFamily, fontSize, next))
     }
     lastIndex = match.index + match[0].length

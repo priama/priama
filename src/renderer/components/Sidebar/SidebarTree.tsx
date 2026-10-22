@@ -699,7 +699,7 @@ function SceneList({
   const setSelectedNodeId = useAppStore((s) => s.setSelectedNodeId)
   const setNodes = useAppStore((s) => s.setNodes)
   const renameSession = useAppStore((s) => s.renameSession)
-  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [, setActiveDragId] = useState<string | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),

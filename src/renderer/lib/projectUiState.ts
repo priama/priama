@@ -21,7 +21,6 @@ export function isUiRestoreInProgress(): boolean {
 
 export function captureProjectUiState(): ProjectUiState {
   const s = useAppStore.getState()
-  const categories = s.categories
 
   return {
     sectionOrder: [...s.sectionOrder],

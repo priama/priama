@@ -6,7 +6,12 @@ import {
   resolveChapterNumber
 } from './manuscript'
 import { buildEpubChapterEntries } from './epubChapters'
-import { DEFAULT_BOOK_SETTINGS, type BookSettings, type TreeNode } from '../types'
+import {
+  DEFAULT_BOOK_SETTINGS,
+  DEFAULT_EXPORT_FORMATTING,
+  type BookSettings,
+  type TreeNode
+} from '../types'
 
 function makeChapter(
   id: string,
@@ -48,7 +53,7 @@ describe('buildEpubChapterEntries cover page', () => {
     const ch = makeChapter('c1', 'Alpha', '<p>Body</p>')
     const entries = buildEpubChapterEntries(
       [ch],
-      { scope: 'manuscript', formatting: { fontFamily: 'serif', fontSize: 12, margins: 'normal' }, title: 'Book', author: 'Author' },
+      { scope: 'manuscript', formatting: { ...DEFAULT_EXPORT_FORMATTING, fontFamily: 'serif', fontSize: 12 }, title: 'Book', author: 'Author' },
       baseSettings,
       'file:///tmp/project/assets/cover.png'
     )

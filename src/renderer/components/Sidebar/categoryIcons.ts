@@ -3,7 +3,6 @@ import {
   Briefcase,
   Clock,
   Crown,
-  FileText,
   Film,
   Flame,
   FlaskConical,

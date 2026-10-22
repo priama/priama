@@ -74,7 +74,7 @@ function saveCustomWords(words: Set<string>): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...words]))
 }
 
-let customWords = loadCustomWords()
+const customWords = loadCustomWords()
 
 export function addCustomWord(word: string): void {
   customWords.add(word.toLowerCase())

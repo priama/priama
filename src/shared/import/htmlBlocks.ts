@@ -6,7 +6,7 @@ export interface HtmlBlock {
 const VOID_TAGS = new Set(['br', 'hr', 'img', 'input', 'meta', 'link', 'wbr', 'source', 'col', 'area'])
 
 function isTagBoundary(ch: string | undefined): boolean {
-  return ch === undefined || /[\s>\/]/.test(ch)
+  return ch === undefined || /[\s>/]/.test(ch)
 }
 
 function indexOfTag(html: string, tag: string, from: number, closing: boolean): number {

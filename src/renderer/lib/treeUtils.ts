@@ -131,8 +131,6 @@ export function trashContainerId(category: TrashCategory): string {
   return `trash:${category}`
 }
 
-const MANUSCRIPT_CHILD_TYPES: NodeType[] = ['folder', 'chapter']
-
 export function getChildren(
   nodes: TreeNode[],
   parentId: string | null,
@@ -140,7 +138,6 @@ export function getChildren(
   options?: { includeDeleted?: boolean }
 ): TreeNode[] {
   const activeOnly = !options?.includeDeleted
-  const childTypes = scope === 'manuscript' ? MANUSCRIPT_CHILD_TYPES : getWikiChildTypes(scope)
 
   return nodes
     .filter((n) => {
@@ -155,11 +152,6 @@ export function getChildren(
       return n.type === scopeToEntityType(scope)
     })
     .sort((a, b) => a.sortOrder - b.sortOrder)
-}
-
-function getWikiChildTypes(scope: FolderScope): NodeType[] {
-  const entityType = scopeToEntityType(scope)
-  return ['folder', entityType]
 }
 
 function scopeToEntityType(scope: FolderScope): NodeType {

@@ -5,14 +5,13 @@ import {
   Document,
   Packer,
   Paragraph,
-  TextRun,
   ImageRun,
   AlignmentType,
   convertInchesToTwip
 } from 'docx'
 import type { BookSettings, ExportFormatting, ExportOptions, ExportSection } from '@shared/types'
 import { buildFrontMatterBlocks } from '@shared/export/frontMatter'
-import { docxFontName, marginInches, pageDimensions } from './formatting'
+import { marginInches, pageDimensions } from './formatting'
 import {
   centeredTextParagraph,
   htmlToDocxParagraphs,

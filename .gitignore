@@ -8,3 +8,4 @@ release
 .env.local
 .vscode/*
 !.vscode/extensions.json
+*.tsbuildinfo

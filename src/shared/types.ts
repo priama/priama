@@ -75,7 +75,18 @@ const CHAPTER_NUMBERING_SCOPES: ChapterNumberingScope[] = ['manuscript-global', 
 const PARAGRAPH_STYLES: ParagraphStyle[] = ['first-line-indent', 'spaced']
 const TEXT_ALIGN_STYLES: TextAlignStyle[] = ['justify', 'left']
 
-export function normalizeBookSettings(raw: Partial<BookSettings> & Record<string, unknown>): BookSettings {
+/**
+ * Normalizers take `unknown` because their input is JSON read off disk, which
+ * may be any shape or none. This narrows once, at the boundary, so callers can
+ * pass a well-typed value or a parsed blob without casting at every call site.
+ */
+function asRawRecord<T>(input: unknown): Partial<T> & Record<string, unknown> {
+  return (typeof input === 'object' && input !== null ? input : {}) as Partial<T> &
+    Record<string, unknown>
+}
+
+export function normalizeBookSettings(input: unknown): BookSettings {
+  const raw = asRawRecord<BookSettings>(input)
   const chapterLabelStyle = CHAPTER_LABEL_STYLES.includes(raw.chapterLabelStyle as ChapterLabelStyle)
     ? (raw.chapterLabelStyle as ChapterLabelStyle)
     : DEFAULT_BOOK_SETTINGS.chapterLabelStyle
@@ -779,8 +790,9 @@ export interface CreateProjectInput {
   genre: string
   primaryParentDir: string
   backupLocations: string[]
-  templateId: TemplateId
-  categories: CategoryDefinition[]
+  /** Optional: createProject falls back to the fiction template and its categories. */
+  templateId?: TemplateId
+  categories?: CategoryDefinition[]
   importedChapters?: ManuscriptImportChapter[]
 }
 
@@ -871,7 +883,8 @@ export const DEFAULT_CHARACTER_META: CharacterMeta = {
   imageFocus: { ...DEFAULT_IMAGE_FOCUS }
 }
 
-export function normalizeCharacterMeta(raw: Partial<CharacterMeta> & Record<string, unknown>): CharacterMeta {
+export function normalizeCharacterMeta(input: unknown): CharacterMeta {
+  const raw = asRawRecord<CharacterMeta>(input)
   const relationships: CharacterRelationship[] = Array.isArray(raw.relationships)
     ? raw.relationships.map((entry) => {
         const rel = entry as Partial<CharacterRelationship> & { description?: string }
@@ -922,7 +935,8 @@ export const DEFAULT_LOCATION_META: LocationMeta = {
   imageFocus: { ...DEFAULT_IMAGE_FOCUS }
 }
 
-export function normalizeLocationMeta(raw: Partial<LocationMeta> & Record<string, unknown>): LocationMeta {
+export function normalizeLocationMeta(input: unknown): LocationMeta {
+  const raw = asRawRecord<LocationMeta>(input)
   const parsed = { ...DEFAULT_LOCATION_META, ...raw }
   const imagePath =
     typeof raw.imagePath === 'string'
@@ -953,7 +967,8 @@ export const DEFAULT_LORE_META: LoreMeta = {
   imageFocus: { ...DEFAULT_IMAGE_FOCUS }
 }
 
-export function normalizeLoreMeta(raw: Partial<LoreMeta> & Record<string, unknown>): LoreMeta {
+export function normalizeLoreMeta(input: unknown): LoreMeta {
+  const raw = asRawRecord<LoreMeta>(input)
   const imagePath =
     typeof raw.imagePath === 'string'
       ? raw.imagePath
@@ -994,7 +1009,8 @@ export const DEFAULT_PEOPLE_META: PeopleMeta = {
   notes: ''
 }
 
-export function normalizePeopleMeta(raw: Partial<PeopleMeta> & Record<string, unknown>): PeopleMeta {
+export function normalizePeopleMeta(input: unknown): PeopleMeta {
+  const raw = asRawRecord<PeopleMeta>(input)
   const relationships: PeopleRelationship[] = Array.isArray(raw.relationships)
     ? raw.relationships.map((entry) => {
         const rel = entry as Partial<PeopleRelationship>
@@ -1057,7 +1073,8 @@ export const DEFAULT_BESTIARY_META: BestiaryMeta = {
   notes: ''
 }
 
-export function normalizeBestiaryMeta(raw: Partial<BestiaryMeta> & Record<string, unknown>): BestiaryMeta {
+export function normalizeBestiaryMeta(input: unknown): BestiaryMeta {
+  const raw = asRawRecord<BestiaryMeta>(input)
   const imagePath =
     typeof raw.imagePath === 'string'
       ? raw.imagePath
@@ -1088,7 +1105,8 @@ export function normalizeBestiaryMeta(raw: Partial<BestiaryMeta> & Record<string
   }
 }
 
-export function normalizeNoteMeta(raw: Partial<NoteMeta> & Record<string, unknown>): NoteMeta {
+export function normalizeNoteMeta(input: unknown): NoteMeta {
+  const raw = asRawRecord<NoteMeta>(input)
   const tags = Array.isArray(raw.tags) ? raw.tags.filter((t): t is string => typeof t === 'string') : []
   const height = raw.contentHeightPx
   const contentHeightPx =

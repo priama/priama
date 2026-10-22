@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
+import { SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { ComboField } from '@/components/UI/ComboField'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
