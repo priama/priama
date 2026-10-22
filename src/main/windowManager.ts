@@ -3,11 +3,18 @@ import { join } from 'path'
 import type { DevicePreviewRequestOptions, WindowBounds, WindowLayoutState } from '@shared/types'
 import { TRAFFIC_LIGHT_POSITION } from '@shared/windowChrome'
 
-/** Hidden title bar with traffic lights where the renderer's insets expect them (macOS only). */
+/**
+ * macOS: hidden title bar with traffic lights where the renderer's insets expect them.
+ *
+ * Elsewhere: a normal title bar, but with the menu bar hidden. The app draws its
+ * own menu instead, so the File/Edit/View strip would be a second row of chrome
+ * above the UI. The Menu object stays registered, so all of its accelerators
+ * (Ctrl+S, Ctrl+P, …) keep working and Alt still reveals the bar.
+ */
 export function titleBarOptions(): Electron.BrowserWindowConstructorOptions {
   return process.platform === 'darwin'
     ? { titleBarStyle: 'hiddenInset', trafficLightPosition: TRAFFIC_LIGHT_POSITION }
-    : { titleBarStyle: 'default' }
+    : { titleBarStyle: 'default', autoHideMenuBar: true }
 }
 
 type ChildWindowKind = 'workspace' | 'imageViewer' | 'devicePreview'

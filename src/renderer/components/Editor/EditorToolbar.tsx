@@ -15,6 +15,7 @@ import { Separator } from '@/components/UI/separator'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/UI/tooltip'
 import { useAppStore } from '@/store/appStore'
 import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
+import { isMac } from '@/lib/platform'
 import { StyleDropdown } from './StyleDropdown'
 import { ColorPickerButton, TEXT_COLORS, HIGHLIGHT_COLORS } from './ColorPicker'
 import { cn } from '@/lib/utils'
@@ -56,9 +57,10 @@ function ToolbarButton({
 const TOOLBAR_PADDING_X = 12
 
 export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbarProps): React.JSX.Element {
-  // A collapsed sidebar is narrower than the traffic lights; start the controls past them.
+  // A collapsed sidebar is narrower than the traffic lights; start the controls
+  // past them. Only macOS has them, so elsewhere this is just normal padding.
   const paddingLeft = useAppStore((s) =>
-    Math.max(TOOLBAR_PADDING_X, TITLEBAR_BUTTONS_INSET - s.sidebarWidth)
+    isMac ? Math.max(TOOLBAR_PADDING_X, TITLEBAR_BUTTONS_INSET - s.sidebarWidth) : TOOLBAR_PADDING_X
   )
 
   if (!editor) return <div className="h-10 border-b border-border" />

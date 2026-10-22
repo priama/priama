@@ -106,6 +106,37 @@ let appUpdateStatus: AppUpdateStatus = {
 }
 let appUpdateCheckPromise: Promise<AppUpdateStatus> | null = null
 
+/**
+ * Menu actions the in-app menu may fire. Windows has no menu bar, so the app
+ * draws its own; this is the allowlist for that bridge, kept in step with
+ * buildMenu below.
+ */
+const MAIN_WINDOW_MENU_CHANNELS = new Set([
+  'menu:newProject',
+  'menu:openProject',
+  'menu:devicePreview'
+])
+
+const IN_APP_MENU_CHANNELS = new Set([
+  ...MAIN_WINDOW_MENU_CHANNELS,
+  'menu:save',
+  'menu:backups',
+  'menu:export',
+  'menu:closeProject',
+  'menu:undo',
+  'menu:redo',
+  'menu:quickOpen',
+  'menu:findInProject',
+  'menu:splitDocument',
+  'menu:mergeWithNext',
+  'menu:toggleSidebar',
+  'menu:toggleFocusMode',
+  'menu:setTypewriterScrolling',
+  'menu:setEntityHighlights',
+  'menu:editorAppearance',
+  'menu:editorSize'
+])
+
 let writingMenuState: WritingMenuState = {
   focusMode: false,
   focusModeEnabled: false,
@@ -690,6 +721,25 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('app:setWritingMenuState', async (_, state: WritingMenuState) => {
     applyWritingMenuState(state)
+    return { success: true }
+  })
+
+  // Lets the in-app menu (Windows, where there is no menu bar) fire the same
+  // actions as the native menu items, so every existing renderer listener keeps
+  // working unchanged. Allowlisted: this must not become a way to emit arbitrary
+  // channels into a window.
+  ipcMain.handle('app:menuAction', async (_, channel: string, arg?: unknown) => {
+    if (!IN_APP_MENU_CHANNELS.has(channel)) {
+      console.error('[menu-action] ignoring unknown channel:', channel)
+      return { success: false }
+    }
+    // These three target the main window specifically, matching their menu items.
+    const args = arg === undefined ? [] : [arg]
+    if (MAIN_WINDOW_MENU_CHANNELS.has(channel)) {
+      sendToWindow(mainWindow, channel, ...args)
+    } else {
+      sendToFocusedWindow(channel, ...args)
+    }
     return { success: true }
   })
 

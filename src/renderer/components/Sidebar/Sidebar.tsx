@@ -64,6 +64,8 @@ import { folderScopeForCategory } from '@shared/categoryPresets'
 import type { CategoryDefinition, ChapterStructure, TrashCategory } from '@shared/types'
 import { SIDEBAR_COLLAPSE_WIDTH, SIDEBAR_EXPAND_WIDTH, SIDEBAR_EXPANDED_MIN_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, TRASH_CATEGORY_LABELS } from '@shared/types'
 import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
+import { isMac } from '@/lib/platform'
+import { AppMenuBar } from './AppMenuBar'
 
 type DragHandleProps = {
   attributes: ReturnType<typeof useSortable>['attributes']
@@ -396,10 +398,17 @@ export function Sidebar(): React.JSX.Element {
           )}
           style={{ width }}
         >
+          {/* macOS: empty band clearing the traffic lights. Elsewhere: the same
+              band, carrying the app menu that has no system menu bar to live in. */}
           <div
-            className="drag-region flex h-9 shrink-0 items-center justify-end px-2"
-            style={{ paddingLeft: TITLEBAR_BUTTONS_INSET }}
-          />
+            className={cn(
+              'drag-region flex h-9 shrink-0 items-center px-2',
+              isMac ? 'justify-end' : 'justify-start'
+            )}
+            style={isMac ? { paddingLeft: TITLEBAR_BUTTONS_INSET } : undefined}
+          >
+            {!isMac && <AppMenuBar iconOnly={iconOnly} />}
+          </div>
           <div className="relative flex min-h-0 flex-1 flex-col border-r border-sidebar-border">
             <div className="sidebar-scroll flex-1 overflow-x-hidden overflow-y-auto py-2">
               {projectTitle !== null && (
