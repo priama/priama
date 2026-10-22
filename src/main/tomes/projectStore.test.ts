@@ -24,12 +24,13 @@ import {
   updateProjectMeta,
   updateBookSettings,
   updateCategories,
+  deleteProject,
   getEntityNodes,
   saveProject,
   getUiState,
   updateUiState
 } from './projectStore'
-import type { CreateProjectInput } from '@shared/types'
+import type { CategoryDefinition, CreateProjectInput } from '@shared/types'
 import { PROJECT_FILENAME } from '@shared/types'
 import { getRecoveryDir } from './paths'
 
@@ -235,7 +236,7 @@ describe('openProject / closeProject', () => {
     const secondDir = join(tmpdir(), `priama-test-${uuidv4()}`)
     await fse.ensureDir(secondDir)
     try {
-      const second = await createProject(makeInput({ title: 'Second', primaryParentDir: secondDir }))
+      await createProject(makeInput({ title: 'Second', primaryParentDir: secondDir }))
       expect(getProjectMeta()!.title).toBe('Second')
       closeProject()
 
@@ -1160,9 +1161,22 @@ describe('updateCategories', () => {
   })
 
   it('replaces categories', async () => {
-    const newCats = [{ id: 'custom', name: 'Custom', nodeType: 'entry' as const, view: 'panel' as const }]
+    const newCats: CategoryDefinition[] = [
+      {
+        id: 'custom',
+        name: 'Custom',
+        icon: 'Sparkles',
+        mode: 'panel',
+        sortOrder: 0,
+        builtIn: false,
+        nodeKind: 'entry'
+      }
+    ]
     const meta = await updateCategories(newCats)
-    expect(meta.categories.some((c) => c.id === 'custom')).toBe(true)
+    const saved = meta.categories.find((c) => c.id === 'custom')
+    expect(saved).toBeDefined()
+    expect(saved?.mode).toBe('panel')
+    expect(saved?.nodeKind).toBe('entry')
   })
 })
 
@@ -1257,5 +1271,34 @@ describe('edge cases', () => {
       ids.add(node.id)
     }
     expect(getAllNodes()).toHaveLength(50)
+  })
+})
+
+describe('deleteProject guards', () => {
+  it('refuses a directory that is not a Priama project', async () => {
+    const stray = join(testDir, 'not-a-project')
+    await fse.ensureDir(stray)
+    await fse.writeFile(join(stray, 'important.txt'), 'user data', 'utf-8')
+
+    await expect(deleteProject(join(stray, PROJECT_FILENAME))).rejects.toThrow(
+      /no readable project file/
+    )
+    expect(await fse.pathExists(stray)).toBe(true)
+  })
+
+  it('refuses when the project id does not match', async () => {
+    const created = await createProject(makeInput({ title: 'Guarded' }))
+
+    await expect(deleteProject(created.path, 'some-other-id')).rejects.toThrow(
+      /project id does not match/
+    )
+    expect(await fse.pathExists(created.projectRoot)).toBe(true)
+  })
+
+  it('deletes when the id matches', async () => {
+    const created = await createProject(makeInput({ title: 'Removable' }))
+
+    await deleteProject(created.path, created.meta.id)
+    expect(await fse.pathExists(created.projectRoot)).toBe(false)
   })
 })

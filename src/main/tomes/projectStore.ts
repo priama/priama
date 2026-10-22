@@ -28,16 +28,13 @@ import {
 } from '@shared/categoryPresets'
 import {
   DEFAULT_CHARACTER_META,
-  DEFAULT_BOOK_SETTINGS,
   DEFAULT_LOCATION_META,
   DEFAULT_LORE_META,
   DEFAULT_NOTE_META,
   DEFAULT_CHAPTER_META,
   DEFAULT_SCENE_META,
   DEFAULT_FOLDER_META,
-  DEFAULT_SECTION_ORDER,
   TOMES_MAGIC,
-  PROJECT_FILENAME,
   TXD_EXT,
   TRASH_RETENTION_DAYS,
   serializeMetadata,
@@ -233,22 +230,6 @@ function getFolderScopeFromNode(node: TreeNode): FolderScope {
   return parseMetadata<FolderMeta>(node.metadata, DEFAULT_FOLDER_META).scope
 }
 
-function txdToNode(txd: TxDFile, entry?: TomesIndexEntry): TreeNode {
-  return {
-    id: txd.id,
-    parentId: txd.parentId,
-    type: txd.type,
-    title: txd.title,
-    sortOrder: txd.sortOrder,
-    content: txd.content,
-    metadata: txd.metadata,
-    createdAt: txd.createdAt,
-    updatedAt: txd.updatedAt,
-    deletedAt: txd.deletedAt ?? entry?.deletedAt ?? null,
-    originalParentId: txd.originalParentId ?? entry?.originalParentId ?? null,
-    categoryId: txd.categoryId ?? entry?.categoryId ?? null
-  }
-}
 
 function nodeToTxd(node: TreeNode): TxDFile {
   return {
@@ -265,11 +246,6 @@ function nodeToTxd(node: TreeNode): TxDFile {
     originalParentId: node.originalParentId ?? null,
     categoryId: node.categoryId ?? null
   }
-}
-
-async function readTxdFile(filePath: string): Promise<TxDFile> {
-  const raw = await fse.readFile(filePath, 'utf-8')
-  return JSON.parse(raw) as TxDFile
 }
 
 async function writeTxdFile(filePath: string, txd: TxDFile): Promise<void> {
@@ -562,11 +538,33 @@ export function closeProject(): void {
   nodeUpdateChains.clear()
 }
 
-export async function deleteProject(primaryPath: string): Promise<{ wasOpen: boolean }> {
+export async function deleteProject(
+  primaryPath: string,
+  expectedProjectId?: string
+): Promise<{ wasOpen: boolean }> {
   const currentRoot = getProjectRootPath()
   const normalizedTarget = resolve(dirname(primaryPath))
-  const wasOpen =
-    currentRoot !== null && resolve(currentRoot) === normalizedTarget
+
+  // This is a recursive, permanent delete driven by a path that arrives from the
+  // renderer, so prove the directory is the project we were asked to remove
+  // before touching it. Without this, a bad path deletes whatever it points at.
+  let targetManifest: TomesManifest
+  try {
+    const raw = await fse.readFile(getTomesPath(normalizedTarget), 'utf-8')
+    targetManifest = JSON.parse(raw) as TomesManifest
+  } catch {
+    throw new Error(`Refusing to delete "${normalizedTarget}": no readable project file`)
+  }
+
+  if (targetManifest.__tomes !== TOMES_MAGIC) {
+    throw new Error(`Refusing to delete "${normalizedTarget}": not a Priama project`)
+  }
+
+  if (expectedProjectId && targetManifest.id !== expectedProjectId) {
+    throw new Error(`Refusing to delete "${normalizedTarget}": project id does not match`)
+  }
+
+  const wasOpen = currentRoot !== null && resolve(currentRoot) === normalizedTarget
 
   if (wasOpen) {
     await saveProject({ backup: 'force' })

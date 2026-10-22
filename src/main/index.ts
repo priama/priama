@@ -655,7 +655,7 @@ function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('tomes:deleteProject', async (_, { primaryPath, projectId }: { primaryPath: string; projectId: string }) => {
-    const result = await deleteProject(primaryPath)
+    const result = await deleteProject(primaryPath, projectId)
     await removeFromRecent(projectId)
     if (result.wasOpen) {
       closeAllChildren()
