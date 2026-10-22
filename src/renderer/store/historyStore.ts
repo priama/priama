@@ -30,7 +30,19 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   canRedo: false,
 
   push: async (cmd) => {
-    await cmd.execute()
+    try {
+      await cmd.execute()
+    } catch (err) {
+      // A command that failed must not join the stack: undoing it would either
+      // no-op and silently eat a Cmd+Z, or try to reverse work never done.
+      console.error(`${cmd.description} failed:`, err)
+      useToastStore.getState().addToast({
+        title: `${cmd.description} failed`,
+        variant: 'warning'
+      })
+      return null
+    }
+
     set((s) => ({
       past: [...s.past, cmd],
       future: [],
