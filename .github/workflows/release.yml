@@ -4,6 +4,18 @@ on:
   push:
     tags:
       - 'v*'
+  # Lets a single platform be built on demand, without cutting a new version.
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: Which installers to build
+        type: choice
+        default: linux
+        options:
+          - linux
+          - windows
+          - mac
+          - all
 
 # Needed to create the release and upload installers to it.
 permissions:
@@ -17,6 +29,8 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      tag: ${{ steps.target.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,13 +39,21 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Check tag matches package.json
+      # A tag push has to match package.json. A manual run carries no tag of its
+      # own, so it publishes into the tag for the version package.json already has.
+      - name: Work out which release to publish into
+        id: target
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "Tag v$TAG_VERSION does not match package.json version $PKG_VERSION"
-            exit 1
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+              echo "Tag v$TAG_VERSION does not match package.json version $PKG_VERSION"
+              exit 1
+            fi
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=v$PKG_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
       - run: npm ci
@@ -42,12 +64,12 @@ jobs:
 
       - run: npm test
 
-      # Created here, once, so the three build jobs below do not race to create it.
+      # Created here, once, so the build jobs below do not race to create it.
       - name: Create the release if it does not exist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="$GITHUB_REF_NAME"
+          TAG="${{ steps.target.outputs.tag }}"
           VERSION="${TAG#v}"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists"
@@ -60,6 +82,10 @@ jobs:
 
   windows:
     needs: prepare
+    if: >-
+      github.event_name == 'push'
+      || github.event.inputs.platforms == 'all'
+      || github.event.inputs.platforms == 'windows'
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
@@ -88,6 +114,10 @@ jobs:
 
   linux:
     needs: prepare
+    if: >-
+      github.event_name == 'push'
+      || github.event.inputs.platforms == 'all'
+      || github.event.inputs.platforms == 'linux'
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
@@ -119,6 +149,10 @@ jobs:
 
   mac:
     needs: prepare
+    if: >-
+      github.event_name == 'push'
+      || github.event.inputs.platforms == 'all'
+      || github.event.inputs.platforms == 'mac'
     runs-on: macos-latest
     timeout-minutes: 75
     steps:
