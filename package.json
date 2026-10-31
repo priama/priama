@@ -183,6 +183,7 @@
         }
       ],
       "category": "Office",
+      "maintainer": "Andy Rene Perez Rebollo <andyrenework@gmail.com>",
       "artifactName": "Priama-${version}-linux-${arch}.${ext}",
       "icon": "build/icon.png"
     },
