@@ -3,8 +3,19 @@
   "version": "0.0.10",
   "description": "Local-first desktop writing application for authors",
   "main": "./out/main/index.js",
-  "author": "priama",
+  "author": "Andy Rene Perez Rebollo",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andyrpr/priama.git"
+  },
+  "bugs": {
+    "url": "https://github.com/andyrpr/priama/issues"
+  },
+  "homepage": "https://priama.app",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "env -u ELECTRON_RUN_AS_NODE PRIAMA_DEV=1 electron-vite dev",
     "build": "electron-vite build",

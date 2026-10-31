@@ -1,27 +1,62 @@
 ---
-description: How to publish Priama releases (tag CI → public priama repo)
+description: How to publish Priama releases
 alwaysApply: true
 ---
 
 # Publishing releases
 
-When the user asks to make/ship/publish a release, follow `docs/RELEASING.md`. Do not improvise.
+When the user asks to make/ship/publish a release, follow `docs/RELEASING.md`.
+Do not improvise.
 
 ## Hard rules
 
-- Public installers live in **`andyrpr/priama`**, not `andyrpr/texteditor`.
-- **Never** treat “bump version + push `v*` tag to texteditor” as a finished release.
-- Confirm the public release page has the assets. If Actions never started (startup_failure), build and upload locally.
+- Everything is in **one repo**: `andyrpr/priama` — source, workflows and
+  published installers. The website is `andyrpr/priamaweb` on Vercel.
+- **Check whether Actions runs before promising anything:**
+  `gh run list --repo andyrpr/priama --limit 3`. Completed runs → the workflow
+  publishes. `startup_failure` → build by hand and never wait for a run.
+- **Never** treat "bump version + push `v*` tag" as a finished release.
+- Ship **two** assets: `-win-x64-setup.exe` and `-mac-arm64.dmg`. The Windows
+  build also produces a portable `.exe` — do not publish it.
+- Confirm the release page has both assets and is Latest before saying it is
+  done.
+- Tags `v0.0.1`, `v0.0.2`, `v0.0.5`, `v0.0.9`, `v0.0.10` predate the repo merge
+  and point at the old website commit. **Never move or delete them** — they
+  anchor published releases.
 
 ## Required steps
 
 1. `npm version X.Y.Z --no-git-tag-version` (package.json + lockfile)
-2. `npm test`
-3. Commit/push version bump to `texteditor` (`Ship Priama X.Y.Z.`)
-4. Tag/push `vX.Y.Z` on `texteditor` (starts Windows, Linux, and macOS jobs)
-5. Confirm https://github.com/andyrpr/priama/releases/tag/vX.Y.Z has the installers and is Latest
-6. If Mac is missing: `CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac` then `gh release upload … --repo andyrpr/priama`
+2. `npm run typecheck && npm run lint && npm test` — all three must pass
+3. Commit/push the bump (`Ship Priama X.Y.Z.`), then tag and push `vX.Y.Z`
+4. Either the workflow builds and publishes, or build by hand:
+   - macOS: `CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac`
+   - Windows: over SSH on the Windows machine with `npm run dist:win -- --x64`,
+     then copy the installer back to `release/`. Host, user, key path and
+     directories are in the untracked `docs/RELEASING.local.md`.
+   - `gh release create vX.Y.Z <both files> --repo andyrpr/priama --latest`
+5. Verify: `gh api repos/andyrpr/priama/releases/latest --jq '.tag_name'`
+6. Bump `FALLBACK_ASSETS` in `andyrpr/priamaweb`'s `js/main.js` to the new
+   version so the download page's offline fallback stays correct.
 
-Stopping after step 3 or 4 is wrong. The release is not done until the public assets exist.
+Stopping after step 3 is wrong. The release is not done until the public assets
+exist.
 
-CI needs repo secret `PRIAMA_RELEASE_TOKEN` (fine-grained PAT, Contents write on `andyrpr/priama` only). Setup is in `docs/RELEASING.md`.
+## Gotchas that have cost real time
+
+- **`--x64` is required** on a manual Windows build. `build.win` pins no
+  architecture, so electron-builder follows the host — an ARM machine silently
+  produces an arm64 installer that will not run on a normal PC.
+- **A Mac build stuck at `packaging platform=darwin` with 0% CPU is a corrupt
+  Electron cache**, not a slow build. `rm -rf ~/Library/Caches/electron` and
+  retry.
+- **The Windows machine's VPN must be off.** A kill switch blocks inbound SSH
+  from the Mac. Its IP can also move on a new DHCP lease — run `ipconfig` there
+  if the connection fails.
+- **Use `COPYFILE_DISABLE=1`** when tarring the source for the Windows machine,
+  or macOS writes `._*` files into the checkout.
+- The version is baked into filenames and exe metadata, so installers from an
+  earlier version cannot be republished under a new one. Rebuild after bumping.
+- The release workflow uses the built-in `GITHUB_TOKEN`. No personal access
+  token is needed any more; if you see `PRIAMA_RELEASE_TOKEN` referenced
+  anywhere, it is stale.

@@ -9,3 +9,6 @@ release
 .vscode/*
 !.vscode/extensions.json
 *.tsbuildinfo
+
+# Local, machine-specific release notes — never commit
+docs/RELEASING.local.md

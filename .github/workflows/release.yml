@@ -5,8 +5,9 @@ on:
     tags:
       - 'v*'
 
+# Needed to create the release and upload installers to it.
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -35,22 +36,26 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run typecheck
+
+      - run: npm run lint
+
       - run: npm test
 
-      - name: Create GitHub release on priama
+      # Created here, once, so the three build jobs below do not race to create it.
+      - name: Create the release if it does not exist
         env:
-          GH_TOKEN: ${{ secrets.PRIAMA_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="$GITHUB_REF_NAME"
           VERSION="${TAG#v}"
-          if gh release view "$TAG" --repo andyrpr/priama >/dev/null 2>&1; then
-            echo "Release $TAG already exists on andyrpr/priama"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
           else
             gh release create "$TAG" \
-              --repo andyrpr/priama \
               --title "Priama $VERSION" \
               --latest \
-              --notes "Installers for this version. Windows and Linux come from GitHub Actions. macOS may be attached by CI or uploaded locally. Builds are unsigned."
+              --notes "Installers for this version. Builds are unsigned — on macOS right-click the app and choose Open the first time; on Windows choose More info, then Run anyway."
           fi
 
   windows:
@@ -77,9 +82,9 @@ jobs:
 
       - name: Build, package, and publish
         env:
-          GH_TOKEN: ${{ secrets.PRIAMA_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npm run dist:win -- --publish always
+        run: npm run dist:win -- --x64 --publish always
 
   linux:
     needs: prepare
@@ -108,7 +113,7 @@ jobs:
 
       - name: Build, package, and publish
         env:
-          GH_TOKEN: ${{ secrets.PRIAMA_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npm run dist:linux -- --publish always
 
@@ -136,6 +141,6 @@ jobs:
 
       - name: Build, package, and publish
         env:
-          GH_TOKEN: ${{ secrets.PRIAMA_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npm run dist:mac -- --publish always
