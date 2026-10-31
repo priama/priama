@@ -10,10 +10,10 @@ Do not improvise.
 
 ## Hard rules
 
-- Everything is in **one repo**: `andyrpr/priama` — source, workflows and
-  published installers. The website is `andyrpr/priamaweb` on Vercel.
+- Everything is in **one repo**: `priama/priama` — source, workflows and
+  published installers. The website is `priama/priamaweb` on Vercel.
 - **Check whether Actions runs before promising anything:**
-  `gh run list --repo andyrpr/priama --limit 3`. Completed runs → the workflow
+  `gh run list --repo priama/priama --limit 3`. Completed runs → the workflow
   publishes. `startup_failure` → build by hand and never wait for a run.
 - **Never** treat "bump version + push `v*` tag" as a finished release.
 - Ship **two** assets: `-win-x64-setup.exe` and `-mac-arm64.dmg`. The Windows
@@ -34,9 +34,9 @@ Do not improvise.
    - Windows: over SSH on the Windows machine with `npm run dist:win -- --x64`,
      then copy the installer back to `release/`. Host, user, key path and
      directories are in the untracked `docs/RELEASING.local.md`.
-   - `gh release create vX.Y.Z <both files> --repo andyrpr/priama --latest`
-5. Verify: `gh api repos/andyrpr/priama/releases/latest --jq '.tag_name'`
-6. Bump `FALLBACK_ASSETS` in `andyrpr/priamaweb`'s `js/main.js` to the new
+   - `gh release create vX.Y.Z <both files> --repo priama/priama --latest`
+5. Verify: `gh api repos/priama/priama/releases/latest --jq '.tag_name'`
+6. Bump `FALLBACK_ASSETS` in `priama/priamaweb`'s `js/main.js` to the new
    version so the download page's offline fallback stays correct.
 
 Stopping after step 3 is wrong. The release is not done until the public assets

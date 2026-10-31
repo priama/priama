@@ -7,10 +7,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/andyrpr/priama.git"
+    "url": "git+https://github.com/priama/priama.git"
   },
   "bugs": {
-    "url": "https://github.com/andyrpr/priama/issues"
+    "url": "https://github.com/priama/priama/issues"
   },
   "homepage": "https://priama.app",
   "engines": {
@@ -198,7 +198,7 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "andyrpr",
+      "owner": "priama",
       "repo": "priama",
       "releaseType": "release"
     }

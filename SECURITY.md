@@ -9,7 +9,7 @@ Only the latest release gets fixes. Please upgrade before reporting.
 **Please do not open a public issue.**
 
 Use GitHub's private reporting instead:
-[Report a vulnerability](https://github.com/andyrpr/priama/security/advisories/new).
+[Report a vulnerability](https://github.com/priama/priama/security/advisories/new).
 It is private between you and the maintainer until a fix ships.
 
 What helps:

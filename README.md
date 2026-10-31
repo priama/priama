@@ -41,7 +41,7 @@ MyBook/
 
 ## Download
 
-Installers are on [GitHub Releases](https://github.com/andyrpr/priama/releases/latest),
+Installers are on [GitHub Releases](https://github.com/priama/priama/releases/latest),
 or from [priama.app](https://priama.app).
 
 | Platform | File |

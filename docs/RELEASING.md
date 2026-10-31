@@ -2,9 +2,9 @@
 
 **Read this before every release.** Agents: do not invent a different process.
 
-Everything lives in one repo now — `andyrpr/priama` holds the source, the
+Everything lives in one repo now — `priama/priama` holds the source, the
 workflows and the published installers. The website is separate
-(`andyrpr/priamaweb`, deployed to [priama.app](https://priama.app) by Vercel) and
+(`priama/priamaweb`, deployed to [priama.app](https://priama.app) by Vercel) and
 reads releases from this repo over the public GitHub API.
 
 ## Which path to take
@@ -12,7 +12,7 @@ reads releases from this repo over the public GitHub API.
 There are two, and the first question every release is which one applies:
 
 ```bash
-gh run list --repo andyrpr/priama --limit 3
+gh run list --repo priama/priama --limit 3
 ```
 
 - Runs **complete** → use [path A, the workflow](#path-a-let-the-workflow-do-it).
@@ -84,7 +84,7 @@ personal access token is involved.
 Watch it:
 
 ```bash
-gh run watch --repo andyrpr/priama
+gh run watch --repo priama/priama
 ```
 
 Then go to [verifying](#verifying).
@@ -107,7 +107,7 @@ machine for the installer.
 - **A Windows machine** — builds the `.exe`. Powered on, reachable over SSH on
   the local network, with any VPN kill switch off, since that blocks inbound SSH.
   It needs Node, an SSH server, and a checkout whose `node_modules` is installed.
-- `gh` logged in with write access to `andyrpr/priama`.
+- `gh` logged in with write access to `priama/priama`.
 
 Host, user, key path and directories are in `docs/RELEASING.local.md`, which is
 deliberately untracked. Export them first:
@@ -172,7 +172,7 @@ shasum -a 256 release/Priama-0.0.11-mac-arm64.dmg \
 gh release create v0.0.11 \
   release/Priama-0.0.11-win-x64-setup.exe \
   release/Priama-0.0.11-mac-arm64.dmg \
-  --repo andyrpr/priama \
+  --repo priama/priama \
   --title "Priama 0.0.11" \
   --latest \
   --notes-file notes.md
@@ -185,8 +185,8 @@ Include a short changelog and the SHA-256 hashes in the notes.
 ## Verifying
 
 ```bash
-gh api repos/andyrpr/priama/releases/latest --jq '.tag_name'
-gh release view v0.0.11 --repo andyrpr/priama \
+gh api repos/priama/priama/releases/latest --jq '.tag_name'
+gh release view v0.0.11 --repo priama/priama \
   --json assets --jq '.assets[] | "\(.name) \(.size) \(.state)"'
 ```
 
@@ -197,7 +197,7 @@ marked Latest. Bumping the version and pushing a tag is not a release.
 ## Then update the website
 
 The download page falls back to hardcoded URLs when the GitHub API is slow or
-unreachable. In `andyrpr/priamaweb`, bump `FALLBACK_ASSETS` in `js/main.js` to
+unreachable. In `priama/priamaweb`, bump `FALLBACK_ASSETS` in `js/main.js` to
 the new version and push — Vercel redeploys on its own.
 
 The live buttons read the API, so they work the moment the release is published;

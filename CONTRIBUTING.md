@@ -15,7 +15,7 @@ Small things — a bug fix, a typo, a clearer error message — just send them.
 Needs Node 20 or newer.
 
 ```bash
-git clone https://github.com/andyrpr/priama.git
+git clone https://github.com/priama/priama.git
 cd priama
 npm install
 npm run dev

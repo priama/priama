@@ -1,7 +1,7 @@
 import type { AppUpdateStatus } from '@shared/types'
 
 export const PRIAMA_LATEST_RELEASE_URL =
-  'https://api.github.com/repos/andyrpr/priama/releases/latest'
+  'https://api.github.com/repos/priama/priama/releases/latest'
 
 export interface GitHubReleaseAsset {
   name: string

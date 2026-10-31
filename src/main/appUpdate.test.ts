@@ -7,7 +7,7 @@ import {
 } from './appUpdate'
 
 const ARM64_URL =
-  'https://github.com/andyrpr/priama/releases/download/v0.0.2/Priama-0.0.2-mac-arm64.dmg'
+  'https://github.com/priama/priama/releases/download/v0.0.2/Priama-0.0.2-mac-arm64.dmg'
 
 describe('compareSemanticVersions', () => {
   it('compares numeric versions rather than lexicographic strings', () => {
@@ -33,7 +33,7 @@ describe('selectArm64DmgAsset', () => {
       {
         name: 'Priama-0.0.2-mac-x64.dmg',
         browser_download_url:
-          'https://github.com/andyrpr/priama/releases/download/v0.0.2/Priama-0.0.2-mac-x64.dmg'
+          'https://github.com/priama/priama/releases/download/v0.0.2/Priama-0.0.2-mac-x64.dmg'
       },
       {
         name: 'Priama-0.0.2-mac-arm64.dmg',
@@ -62,7 +62,7 @@ describe('checkForAppUpdate', () => {
       new Response(
         JSON.stringify({
           tag_name: 'v0.0.2',
-          html_url: 'https://github.com/andyrpr/priama/releases/tag/v0.0.2',
+          html_url: 'https://github.com/priama/priama/releases/tag/v0.0.2',
           assets: [
             {
               name: 'Priama-0.0.2-mac-arm64.dmg',
@@ -80,7 +80,7 @@ describe('checkForAppUpdate', () => {
       currentVersion: '0.0.1',
       latestVersion: '0.0.2',
       downloadUrl: ARM64_URL,
-      releaseUrl: 'https://github.com/andyrpr/priama/releases/tag/v0.0.2'
+      releaseUrl: 'https://github.com/priama/priama/releases/tag/v0.0.2'
     })
   })
 
