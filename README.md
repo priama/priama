@@ -3,6 +3,12 @@
 A local-first desktop writing application for authors. Built with Electron, React,
 TypeScript, TipTap, and a file-based `.tomes` project format.
 
+![A chapter open in the editor, with the manuscript, characters, locations and lore in the sidebar](docs/screenshots/editor.jpg)
+
+| Wiki | Export |
+|---|---|
+| ![A character entry open beside the chapter it appears in](docs/screenshots/wiki.jpg) | ![Exporting a manuscript to DOCX, EPUB or PDF](docs/screenshots/export.jpg) |
+
 ## Features
 
 - **Book projects** — each project is a portable folder with a `project.tomes` entry file
@@ -48,10 +54,13 @@ or from [priama.app](https://priama.app).
 |---|---|
 | macOS, Apple Silicon | `Priama-<version>-mac-arm64.dmg` |
 | Windows, 64-bit | `Priama-<version>-win-x64-setup.exe` |
+| Linux, any distribution | `Priama-<version>-linux-x86_64.AppImage` |
+| Linux, Debian and Ubuntu | `Priama-<version>-linux-amd64.deb` |
 
 Builds are **not** code-signed yet. On macOS, right-click the app and choose
 **Open** the first time. On Windows, SmartScreen will warn you — choose **More
-info → Run anyway**. There is no Intel Mac or Linux build published yet.
+info → Run anyway**. The AppImage needs `chmod +x` before it will run. There is
+no Intel Mac build yet.
 
 ## Development
 
