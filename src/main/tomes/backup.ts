@@ -1,10 +1,14 @@
 import { createWriteStream } from 'fs'
 import { pipeline } from 'stream/promises'
-import { join, resolve, relative, sep } from 'path'
+import { basename, join, resolve, relative, sep } from 'path'
 import fse from 'fs-extra'
 import archiver from 'archiver'
 import yauzl from 'yauzl'
+import { v4 as uuidv4 } from 'uuid'
 import type {
+  BackupImportResult,
+  BackupInspection,
+  BackupInspectionCounts,
   BackupKind,
   BackupLocationStatus,
   BackupRecord,
@@ -23,12 +27,23 @@ import {
   getBackupsDir,
   getManuscriptDir,
   getProjectFolderName,
+  getProjectRoot,
   getTomesPath,
-  getWikiDir
+  getWikiDir,
+  sanitizeFolderName
 } from './paths'
 import { getBackupLocations } from '../config'
 
 const PROJECT_TOMES_ENTRY = 'project.tomes'
+
+/**
+ * A project manifest is JSON a few hundred KB at most. Refusing anything larger
+ * keeps a hand-made zip from being read into memory just because it is named right.
+ */
+const MAX_MANIFEST_BYTES = 8 * 1024 * 1024
+
+/** Folders an imported copy must have for the project to open. */
+const IMPORT_REQUIRED_DIRS = ['manuscript', 'wiki', 'assets', 'backups'] as const
 
 /** How many of the most recent automatic interval zips to keep (per location). */
 export const AUTOMATIC_INTERVAL_KEEP = 16
@@ -128,13 +143,17 @@ export function shouldCreateAutomaticBackup(
   return now - last >= gateMs
 }
 
-async function extractProjectTomesFromZip(zipPath: string, destPath: string): Promise<boolean> {
-  const zipfile = await new Promise<yauzl.ZipFile>((resolveZip, reject) => {
+function openZipFile(zipPath: string): Promise<yauzl.ZipFile> {
+  return new Promise<yauzl.ZipFile>((resolveZip, reject) => {
     yauzl.open(zipPath, { lazyEntries: true }, (err, file) => {
       if (err || !file) reject(err ?? new Error('Failed to open backup archive'))
       else resolveZip(file)
     })
   })
+}
+
+async function extractProjectTomesFromZip(zipPath: string, destPath: string): Promise<boolean> {
+  const zipfile = await openZipFile(zipPath)
 
   try {
     const entry = await new Promise<yauzl.Entry | null>((resolveEntry, reject) => {
@@ -187,6 +206,241 @@ export async function restoreProjectTomesFromLatestBackup(projectRoot: string): 
     }
   }
   return false
+}
+
+interface BackupManifestSubset {
+  __tomes?: string
+  id?: string
+  title?: string
+  author?: string
+  version?: string
+  createdAt?: string
+  lastSavedAt?: string
+  index?: Record<string, unknown>
+}
+
+type ManifestCheck =
+  | { ok: true; manifest: BackupManifestSubset & { id: string; title: string } }
+  | { ok: false; message: string }
+
+/**
+ * The single gate that decides whether some JSON is a Priama project manifest.
+ * Used for both a zip read in place and an already-extracted folder.
+ */
+export function validateBackupManifestJson(raw: string): ManifestCheck {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return {
+      ok: false,
+      message: `The ${PROJECT_FILENAME} inside this zip is corrupted or invalid JSON.`
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ok: false, message: `The ${PROJECT_FILENAME} inside this zip is not a project file.` }
+  }
+
+  const manifest = parsed as BackupManifestSubset
+  if (manifest.__tomes !== TOMES_MAGIC) {
+    return { ok: false, message: 'This zip is not a Priama project backup.' }
+  }
+  if (!manifest.id || !manifest.title) {
+    return {
+      ok: false,
+      message: `The ${PROJECT_FILENAME} inside this zip is missing its project id or title.`
+    }
+  }
+
+  return { ok: true, manifest: manifest as BackupManifestSubset & { id: string; title: string } }
+}
+
+function countIndexEntries(manifest: BackupManifestSubset): BackupInspectionCounts {
+  const index = manifest.index ?? {}
+  const count = (key: string): number => {
+    const value = (index as Record<string, unknown>)[key]
+    return Array.isArray(value) ? value.length : 0
+  }
+  return {
+    chapters: count('chapters'),
+    scenes: count('scenes'),
+    characters: count('characters'),
+    locations: count('locations'),
+    lore: count('lore'),
+    notes: count('notes'),
+    entries: count('entries')
+  }
+}
+
+function readZipEntryText(
+  zipfile: yauzl.ZipFile,
+  entry: yauzl.Entry,
+  maxBytes: number
+): Promise<string> {
+  return new Promise<string>((resolveText, reject) => {
+    zipfile.openReadStream(entry, (err, stream) => {
+      if (err || !stream) {
+        reject(err ?? new Error('Failed to read zip entry'))
+        return
+      }
+      const chunks: Buffer[] = []
+      let total = 0
+      stream.on('data', (chunk: Buffer) => {
+        total += chunk.length
+        if (total > maxBytes) {
+          reject(new Error('Zip entry is larger than expected'))
+          stream.destroy()
+          return
+        }
+        chunks.push(chunk)
+      })
+      stream.on('error', reject)
+      stream.on('end', () => resolveText(Buffer.concat(chunks).toString('utf-8')))
+    })
+  })
+}
+
+interface ZipScan {
+  manifestRaw: string | null
+  manifestTooLarge: boolean
+  roots: string[]
+}
+
+/** One pass over the archive: grab `project.tomes` and note the top-level folders. */
+async function scanBackupZip(zipPath: string): Promise<ZipScan> {
+  const zipfile = await openZipFile(zipPath)
+  const roots = new Set<string>()
+  let manifestRaw: string | null = null
+  let manifestTooLarge = false
+
+  try {
+    await new Promise<void>((resolveDone, reject) => {
+      let settled = false
+      const fail = (err: unknown): void => {
+        if (settled) return
+        settled = true
+        reject(err instanceof Error ? err : new Error(String(err)))
+      }
+
+      zipfile.on('error', fail)
+      zipfile.on('end', () => {
+        if (settled) return
+        settled = true
+        resolveDone()
+      })
+      zipfile.on('entry', (entry: yauzl.Entry) => {
+        void (async () => {
+          try {
+            const name = entry.fileName.replace(/\\/g, '/')
+            if (name.includes('/')) {
+              const top = name.split('/')[0]
+              if (top) roots.add(top)
+            }
+
+            if (name === PROJECT_TOMES_ENTRY && manifestRaw === null && !manifestTooLarge) {
+              if (entry.uncompressedSize > MAX_MANIFEST_BYTES) {
+                manifestTooLarge = true
+              } else {
+                manifestRaw = await readZipEntryText(zipfile, entry, MAX_MANIFEST_BYTES)
+              }
+            }
+
+            zipfile.readEntry()
+          } catch (err) {
+            fail(err)
+          }
+        })()
+      })
+      zipfile.readEntry()
+    })
+  } finally {
+    try {
+      zipfile.close()
+    } catch {
+      // ignore
+    }
+  }
+
+  return { manifestRaw, manifestTooLarge, roots: [...roots].sort() }
+}
+
+/**
+ * Decide whether a zip is a Priama backup — without extracting it — and report
+ * what is inside so the user can recognise the project before overwriting anything.
+ * A valid backup for a *different* project is still `valid: true`; the caller
+ * compares `projectId` (see `matchesOpenProject`) to decide what may be done with it.
+ */
+export async function inspectBackupZip(
+  zipPath: string,
+  options?: { expectedProjectId?: string }
+): Promise<BackupInspection> {
+  const resolved = resolve(zipPath)
+  const base: BackupInspection = {
+    valid: false,
+    path: resolved,
+    fileName: basename(resolved),
+    sizeBytes: 0
+  }
+
+  let stat: import('fs').Stats
+  try {
+    stat = await fse.stat(resolved)
+  } catch {
+    return { ...base, message: 'That file could not be found on disk.' }
+  }
+  if (!stat.isFile()) {
+    return { ...base, message: 'That is a folder, not a backup zip.' }
+  }
+  const sizeBytes = stat.size
+
+  let scan: ZipScan
+  try {
+    scan = await scanBackupZip(resolved)
+  } catch {
+    return { ...base, sizeBytes, message: 'This file could not be opened as a zip archive.' }
+  }
+
+  if (scan.manifestTooLarge) {
+    return {
+      ...base,
+      sizeBytes,
+      roots: scan.roots,
+      message: `The ${PROJECT_FILENAME} inside this zip is far too large to be a project file.`
+    }
+  }
+  if (scan.manifestRaw === null) {
+    return {
+      ...base,
+      sizeBytes,
+      roots: scan.roots,
+      message: `This zip has no ${PROJECT_FILENAME} at its top level, so it is not a Priama backup.`
+    }
+  }
+
+  const check = validateBackupManifestJson(scan.manifestRaw)
+  if (!check.ok) {
+    return { ...base, sizeBytes, roots: scan.roots, message: check.message }
+  }
+
+  const { manifest } = check
+  return {
+    valid: true,
+    path: resolved,
+    fileName: basename(resolved),
+    sizeBytes,
+    roots: scan.roots,
+    projectId: manifest.id,
+    title: manifest.title,
+    counts: countIndexEntries(manifest),
+    ...(manifest.author ? { author: manifest.author } : {}),
+    ...(manifest.version ? { version: manifest.version } : {}),
+    ...(manifest.createdAt ? { createdAt: manifest.createdAt } : {}),
+    ...(manifest.lastSavedAt ? { lastSavedAt: manifest.lastSavedAt } : {}),
+    ...(options?.expectedProjectId
+      ? { matchesOpenProject: manifest.id === options.expectedProjectId }
+      : {})
+  }
 }
 
 async function checkPathReachable(targetPath: string): Promise<BackupLocationStatus> {
@@ -535,12 +789,7 @@ function isPathInside(parent: string, child: string): boolean {
 export async function extractZipToDir(zipPath: string, destDir: string): Promise<void> {
   await fse.emptyDir(destDir)
 
-  const zipfile = await new Promise<yauzl.ZipFile>((resolveZip, reject) => {
-    yauzl.open(zipPath, { lazyEntries: true }, (err, file) => {
-      if (err || !file) reject(err ?? new Error('Failed to open backup archive'))
-      else resolveZip(file)
-    })
-  })
+  const zipfile = await openZipFile(zipPath)
 
   try {
     await new Promise<void>((resolveDone, reject) => {
@@ -625,31 +874,27 @@ async function validateExtractedManifest(
 ): Promise<{ ok: true; title: string; id: string } | { ok: false; message: string }> {
   const tomesPath = join(tmpRoot, PROJECT_FILENAME)
   if (!(await fse.pathExists(tomesPath))) {
-    return { ok: false, message: 'Backup is missing project.tomes' }
+    return { ok: false, message: `Backup is missing ${PROJECT_FILENAME}` }
   }
+
+  let raw: string
   try {
-    const raw = await fse.readFile(tomesPath, 'utf-8')
-    const manifest = JSON.parse(raw) as {
-      __tomes?: string
-      id?: string
-      title?: string
-    }
-    if (manifest.__tomes !== TOMES_MAGIC) {
-      return { ok: false, message: 'Backup is not a valid Priama project' }
-    }
-    if (!manifest.id || !manifest.title) {
-      return { ok: false, message: 'Backup project file is missing required fields' }
-    }
-    if (expectedProjectId && manifest.id !== expectedProjectId) {
-      return {
-        ok: false,
-        message: 'This backup belongs to a different project and cannot be restored here'
-      }
-    }
-    return { ok: true, title: manifest.title, id: manifest.id }
+    raw = await fse.readFile(tomesPath, 'utf-8')
   } catch {
-    return { ok: false, message: 'Backup project file is corrupted or invalid JSON' }
+    return { ok: false, message: `Could not read ${PROJECT_FILENAME} from the backup` }
   }
+
+  const check = validateBackupManifestJson(raw)
+  if (!check.ok) {
+    return check
+  }
+  if (expectedProjectId && check.manifest.id !== expectedProjectId) {
+    return {
+      ok: false,
+      message: 'This backup belongs to a different project and cannot be restored here'
+    }
+  }
+  return { ok: true, title: check.manifest.title, id: check.manifest.id }
 }
 
 async function swapRestoreRoots(projectRoot: string, tmpRoot: string): Promise<void> {
@@ -702,6 +947,12 @@ export interface RestoreProjectOptions {
   projectRoot: string
   backupZipPath: string
   projectId: string
+  /**
+   * Accept a zip from anywhere on disk instead of only this project's `backups/`
+   * folder. Set when the user picked the file themselves; the manifest id check
+   * below still has to pass, so another book can never overwrite this one.
+   */
+  allowExternalSource?: boolean
   /** Called after pre-restore zip + extract/validate, before swap — release handles. */
   beforeSwap: () => Promise<void>
   /** Write current manifest before pre-restore zip. */
@@ -716,17 +967,26 @@ export interface RestoreProjectOptions {
 export async function restoreProjectFromBackup(
   options: RestoreProjectOptions
 ): Promise<{ success: boolean; message?: string; preRestorePath?: string }> {
-  const { projectRoot, backupZipPath, projectId, beforeSwap, writeManifest, getExternalDestinations } =
-    options
+  const {
+    projectRoot,
+    backupZipPath,
+    projectId,
+    beforeSwap,
+    writeManifest,
+    getExternalDestinations,
+    allowExternalSource = false
+  } = options
 
   if (!(await fse.pathExists(backupZipPath))) {
     return { success: false, message: 'Backup file not found' }
   }
 
   const resolvedBackup = resolve(backupZipPath)
-  const backupsDir = resolve(getBackupsDir(projectRoot))
-  if (!isPathInside(backupsDir, resolvedBackup)) {
-    return { success: false, message: 'Backup is not in this project’s backups folder' }
+  if (!allowExternalSource) {
+    const backupsDir = resolve(getBackupsDir(projectRoot))
+    if (!isPathInside(backupsDir, resolvedBackup)) {
+      return { success: false, message: 'Backup is not in this project’s backups folder' }
+    }
   }
 
   await writeManifest()
@@ -787,6 +1047,116 @@ export async function restoreProjectFromBackup(
   }
 
   return { success: true, preRestorePath }
+}
+
+/**
+ * Does an imported copy need a fresh project id? Only when some *other* folder
+ * this install already knows carries the same id — two folders sharing one id
+ * would collide in the recent-projects list and in per-project backup settings.
+ * On a fresh machine (nothing known yet) the copy keeps its original id, so the
+ * rest of that drive’s zips still restore into it in place.
+ */
+export function shouldReassignImportedId(
+  backupProjectId: string,
+  knownProjects: { id: string; primaryPath: string }[],
+  destProjectRoot: string
+): boolean {
+  const dest = resolve(destProjectRoot)
+  return knownProjects.some(
+    (entry) => entry.id === backupProjectId && resolve(getProjectRoot(entry.primaryPath)) !== dest
+  )
+}
+
+async function findFreeProjectFolder(parentDir: string, title: string): Promise<string> {
+  const base = sanitizeFolderName(title)
+  let candidate = join(parentDir, base)
+  for (let n = 2; n <= 200 && (await fse.pathExists(candidate)); n++) {
+    candidate = join(parentDir, `${base} (${n})`)
+  }
+  if (await fse.pathExists(candidate)) {
+    throw new Error(`Too many folders named “${base}” already exist in that location`)
+  }
+  return candidate
+}
+
+export interface ImportBackupOptions {
+  zipPath: string
+  /** Folder the new project folder is created inside. */
+  parentDir: string
+  /** Recent projects, used only to avoid handing two folders the same id. */
+  knownProjects?: { id: string; primaryPath: string }[]
+}
+
+/**
+ * Unpack a backup zip into a new project folder beside the user’s other books.
+ * This is the path for a zip that is not from the open project — an external
+ * drive, a new machine — so nothing already on disk is touched or replaced.
+ */
+export async function importBackupAsProject(
+  options: ImportBackupOptions
+): Promise<BackupImportResult> {
+  const { zipPath, parentDir, knownProjects = [] } = options
+
+  const inspection = await inspectBackupZip(zipPath)
+  if (!inspection.valid || !inspection.title || !inspection.projectId) {
+    return {
+      success: false,
+      message: inspection.message ?? 'This zip is not a Priama project backup.'
+    }
+  }
+
+  const parentStatus = await checkPathReachable(parentDir)
+  if (!parentStatus.reachable || !parentStatus.writable) {
+    return {
+      success: false,
+      message: `Couldn’t write to “${parentStatus.label || parentDir}”. Choose a folder you can write to.`
+    }
+  }
+
+  let destRoot: string
+  try {
+    destRoot = await findFreeProjectFolder(parentDir, inspection.title)
+  } catch (err) {
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Could not name the folder for the copy'
+    }
+  }
+
+  const reassignedId = shouldReassignImportedId(inspection.projectId, knownProjects, destRoot)
+
+  try {
+    await extractZipToDir(inspection.path, destRoot)
+    for (const dir of IMPORT_REQUIRED_DIRS) {
+      await fse.ensureDir(join(destRoot, dir))
+    }
+
+    const tomesPath = getTomesPath(destRoot)
+    const check = validateBackupManifestJson(await fse.readFile(tomesPath, 'utf-8'))
+    if (!check.ok) {
+      await fse.remove(destRoot).catch(() => {})
+      return { success: false, message: check.message }
+    }
+
+    if (reassignedId) {
+      const manifest = { ...check.manifest, id: uuidv4() }
+      await fse.writeFile(tomesPath, JSON.stringify(manifest, null, 2), 'utf-8')
+    }
+
+    return {
+      success: true,
+      path: tomesPath,
+      projectRoot: destRoot,
+      title: check.manifest.title,
+      reassignedId
+    }
+  } catch (err) {
+    await fse.remove(destRoot).catch(() => {})
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Could not extract the backup archive'
+    }
+  }
 }
 
 /** Test helper — reset in-flight state between tests. */

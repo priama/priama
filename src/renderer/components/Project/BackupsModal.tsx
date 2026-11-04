@@ -17,7 +17,8 @@ import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty } from '@/lib/contentPersistence'
 import type { BackupRecord, BackupStatus } from '@shared/types'
 import { cn } from '@/lib/utils'
-import { FolderOpen, Plus, Trash2, RotateCcw, HardDrive } from 'lucide-react'
+import { FolderOpen, Plus, Trash2, RotateCcw, HardDrive, FileArchive } from 'lucide-react'
+import { RestoreBackupModal } from '@/components/Project/RestoreBackupModal'
 
 interface BackupsModalProps {
   open: boolean
@@ -74,6 +75,7 @@ export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.J
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [pickingFolder, setPickingFolder] = useState(false)
+  const [restoreFileOpen, setRestoreFileOpen] = useState(false)
 
   const refresh = useCallback(async () => {
     const api = window.electronAPI.backup
@@ -101,6 +103,7 @@ export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.J
     setConfirmText('')
     setBackupName('')
     setSelectedPath(null)
+    setRestoreFileOpen(false)
     void refresh()
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps -- refresh on open only
 
@@ -205,13 +208,14 @@ export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.J
 
   return (
     <>
-      <Dialog open={open && !confirmOpen} onOpenChange={onOpenChange}>
+      <Dialog open={open && !confirmOpen && !restoreFileOpen} onOpenChange={onOpenChange}>
         <DialogContent presentation="sheet" className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Backups</DialogTitle>
             <DialogDescription>
               Local zip copies of this project for disaster recovery. Restoring replaces the whole
-              project on disk.
+              project on disk. A zip kept elsewhere — external drive, cloud folder, another
+              machine — can be restored with Restore from file.
             </DialogDescription>
           </DialogHeader>
 
@@ -276,6 +280,15 @@ export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.J
                 >
                   <RotateCcw className="mr-1 h-3.5 w-3.5" />
                   Restore project…
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => setRestoreFileOpen(true)}
+                >
+                  <FileArchive className="mr-1 h-3.5 w-3.5" />
+                  Restore from file…
                 </Button>
               </div>
             </div>
@@ -352,6 +365,15 @@ export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.J
           </div>
         </DialogContent>
       </Dialog>
+
+      <RestoreBackupModal
+        open={restoreFileOpen}
+        onOpenChange={(v) => {
+          setRestoreFileOpen(v)
+          if (!v) void refresh()
+        }}
+        openProject={projectId && projectMeta ? { id: projectId, title: projectMeta.title } : null}
+      />
 
       <Dialog open={confirmOpen} onOpenChange={(v) => !v && setConfirmOpen(false)}>
         <DialogContent>

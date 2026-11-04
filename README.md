@@ -17,7 +17,8 @@ TypeScript, TipTap, and a file-based `.tomes` project format.
 - **Rich text editor** — TipTap with entity mentions, autosave and export
 - **Export** — DOCX, EPUB and PDF; imports DOCX back in
 - **Spell check** — offline dictionaries for English, Spanish and Russian
-- **Disaster recovery** — automatic zip copies in `backups/`; restore from File → Backups
+- **Disaster recovery** — automatic zip copies in `backups/`; restore from File → Backups,
+  or rebuild a whole project from any backup zip, including one off an external drive
 - **Works offline** — no account, no sign-in, no analytics, no telemetry
 
 ## Privacy

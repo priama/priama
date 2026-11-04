@@ -42,6 +42,7 @@ import { validateTomesFile } from './tomes/validate'
 import {
   showOpenTomesDialog,
   showChooseFolderDialog,
+  showSelectBackupZipDialog,
   showSelectImageDialog,
   showSelectDocxDialog,
   showSaveExportDialog
@@ -49,6 +50,8 @@ import {
 import {
   checkBackupLocations,
   getBackupStatus,
+  importBackupAsProject,
+  inspectBackupZip,
   listLocalBackups,
   restoreProjectFromBackup,
   toBackupResultPayload
@@ -870,6 +873,12 @@ function registerIpcHandlers(): void {
     return showOpenTomesDialog(mainWindow)
   })
 
+  ipcMain.handle('dialog:selectBackupZip', async () => {
+    const win = aliveWindow(mainWindow)
+    if (!win) return null
+    return showSelectBackupZipDialog(win)
+  })
+
   ipcMain.handle('dialog:chooseFolder', async (_, title?: string) => {
     const win = BrowserWindow.getFocusedWindow() ?? mainWindow
     if (!win) return null
@@ -994,44 +1003,62 @@ function registerIpcHandlers(): void {
     return payload
   })
 
-  ipcMain.handle('backup:restore', async (_, { path: zipPath }: { path: string }) => {
-    const root = getProjectRootPath()
+  ipcMain.handle('backup:inspect', async (_, { path: zipPath }: { path: string }) => {
     const meta = getProjectMeta()
-    const tomes = getProjectPath()
-    if (!root || !meta || !tomes) {
+    return inspectBackupZip(zipPath, meta ? { expectedProjectId: meta.id } : undefined)
+  })
+
+  ipcMain.handle('backup:restore', async (_, { path: zipPath }: { path: string }) => {
+    return restoreOpenProject(zipPath, false)
+  })
+
+  /** Restore from a zip the user picked anywhere on disk (external drive, cloud folder). */
+  ipcMain.handle('backup:restoreFromFile', async (_, { path: zipPath }: { path: string }) => {
+    const meta = getProjectMeta()
+    if (!meta) {
       return { success: false, message: 'No project open' }
     }
 
-    const result = await restoreProjectFromBackup({
-      projectRoot: root,
-      backupZipPath: zipPath,
-      projectId: meta.id,
-      writeManifest: writeProjectManifest,
-      getExternalDestinations: () => getBackupLocations(meta.id),
-      beforeSwap: async () => {
-        closeAllChildren()
-        await requestRendererRestoreReady()
-        closeProject()
-        resetNavigationState()
-      }
-    })
-
-    if (!result.success) {
-      return result
-    }
-
-    try {
-      const opened = await openProject(tomes)
-      sendToWindow(mainWindow, 'tomes:projectOpened', opened)
-      broadcastSync()
-      return { success: true }
-    } catch (err) {
+    const inspection = await inspectBackupZip(zipPath, { expectedProjectId: meta.id })
+    if (!inspection.valid) {
       return {
         success: false,
-        message: err instanceof Error ? err.message : 'Could not reopen the project after restore'
+        message: inspection.message ?? 'This zip is not a Priama project backup.'
       }
     }
+    if (!inspection.matchesOpenProject) {
+      return {
+        success: false,
+        message: `This backup is for “${inspection.title}”, a different project. Open it as a separate project instead.`
+      }
+    }
+
+    return restoreOpenProject(zipPath, true)
   })
+
+  ipcMain.handle(
+    'backup:importAsProject',
+    async (_, { path: zipPath, parentDir }: { path: string; parentDir: string }) => {
+      const config = await getConfig()
+      const result = await importBackupAsProject({
+        zipPath,
+        parentDir,
+        knownProjects: config.recentProjects.map((entry) => ({
+          id: entry.id,
+          primaryPath: entry.primaryPath
+        }))
+      })
+
+      // The renderer opens the copy next; windows of the project being left behind
+      // would otherwise keep editing nodes that are no longer on screen.
+      if (result.success && isOpen()) {
+        closeAllChildren()
+        resetNavigationState()
+      }
+
+      return result
+    }
+  )
 
   ipcMain.handle('tomes:forceQuit', async () => {
     isQuitting = true
@@ -1082,6 +1109,54 @@ async function requestRendererFlush(): Promise<void> {
 
     sendToWindow(win, 'app:requestFlush')
   })
+}
+
+/**
+ * Replace the open project with one of its own backups, then reopen it.
+ * `allowExternalSource` is set only for a zip the user picked themselves; the
+ * project id inside the archive must match either way.
+ */
+async function restoreOpenProject(
+  zipPath: string,
+  allowExternalSource: boolean
+): Promise<{ success: boolean; message?: string }> {
+  const root = getProjectRootPath()
+  const meta = getProjectMeta()
+  const tomes = getProjectPath()
+  if (!root || !meta || !tomes) {
+    return { success: false, message: 'No project open' }
+  }
+
+  const result = await restoreProjectFromBackup({
+    projectRoot: root,
+    backupZipPath: zipPath,
+    projectId: meta.id,
+    allowExternalSource,
+    writeManifest: writeProjectManifest,
+    getExternalDestinations: () => getBackupLocations(meta.id),
+    beforeSwap: async () => {
+      closeAllChildren()
+      await requestRendererRestoreReady()
+      closeProject()
+      resetNavigationState()
+    }
+  })
+
+  if (!result.success) {
+    return result
+  }
+
+  try {
+    const opened = await openProject(tomes)
+    sendToWindow(mainWindow, 'tomes:projectOpened', opened)
+    broadcastSync()
+    return { success: true }
+  } catch (err) {
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Could not reopen the project after restore'
+    }
+  }
 }
 
 async function requestRendererRestoreReady(): Promise<void> {

@@ -604,6 +604,51 @@ export interface BackupResultPayload {
   kind: BackupKind
 }
 
+export interface BackupInspectionCounts {
+  chapters: number
+  scenes: number
+  characters: number
+  locations: number
+  lore: number
+  notes: number
+  entries: number
+}
+
+/**
+ * What a zip must prove before Priama treats it as one of its own backups.
+ * Produced by inspecting the archive, without extracting it.
+ */
+export interface BackupInspection {
+  valid: boolean
+  /** Plain-language reason the zip is not a usable Priama backup. */
+  message?: string
+  path: string
+  fileName: string
+  sizeBytes: number
+  projectId?: string
+  title?: string
+  author?: string
+  version?: string
+  createdAt?: string
+  lastSavedAt?: string
+  /** Project roots found inside the archive, e.g. `manuscript`, `wiki`, `assets`. */
+  roots?: string[]
+  counts?: BackupInspectionCounts
+  /** True when the archive carries the id of the project that is open right now. */
+  matchesOpenProject?: boolean
+}
+
+export interface BackupImportResult {
+  success: boolean
+  message?: string
+  /** Path of the imported copy's `project.tomes`. */
+  path?: string
+  projectRoot?: string
+  title?: string
+  /** True when the copy was given a fresh project id so it cannot clash with the original. */
+  reassignedId?: boolean
+}
+
 export interface SaveResult {
   success: boolean
   lastSaved: string

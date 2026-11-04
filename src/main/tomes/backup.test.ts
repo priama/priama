@@ -12,11 +12,15 @@ import {
   createAwaitedBackup,
   extractZipToDir,
   getLastAutomaticBackupAt,
+  importBackupAsProject,
+  inspectBackupZip,
   listLocalBackups,
   parseBackupFileName,
   pruneOldBackups,
   restoreProjectFromBackup,
-  shouldCreateAutomaticBackup
+  shouldCreateAutomaticBackup,
+  shouldReassignImportedId,
+  validateBackupManifestJson
 } from './backup'
 import {
   formatBackupZipName,
@@ -418,5 +422,357 @@ describe('getLastAutomaticBackupAt', () => {
       'a'
     )
     expect(await getLastAutomaticBackupAt(root)).toBe('2026-08-21T10:00:00.000Z')
+  })
+})
+
+async function writeManifestField(
+  root: string,
+  mutate: (manifest: Record<string, unknown>) => void
+): Promise<void> {
+  const tomes = getTomesPath(root)
+  const manifest = JSON.parse(await fse.readFile(tomes, 'utf-8')) as Record<string, unknown>
+  mutate(manifest)
+  await fse.writeFile(tomes, JSON.stringify(manifest, null, 2), 'utf-8')
+}
+
+describe('validateBackupManifestJson', () => {
+  it('accepts a real manifest', () => {
+    const check = validateBackupManifestJson(
+      JSON.stringify({ __tomes: TOMES_MAGIC, id: 'abc', title: 'Book' })
+    )
+    expect(check.ok).toBe(true)
+  })
+
+  it('rejects invalid JSON, a foreign file and a manifest without id or title', () => {
+    expect(validateBackupManifestJson('{ nope').ok).toBe(false)
+    expect(validateBackupManifestJson('[]').ok).toBe(false)
+    expect(validateBackupManifestJson(JSON.stringify({ __tomes: 'other', id: 'a', title: 'b' })).ok).toBe(
+      false
+    )
+    expect(validateBackupManifestJson(JSON.stringify({ __tomes: TOMES_MAGIC, title: 'b' })).ok).toBe(
+      false
+    )
+  })
+})
+
+describe('inspectBackupZip', () => {
+  it('accepts a project backup and reports what is inside', async () => {
+    const root = join(testDir, 'book')
+    const projectId = uuidv4()
+    await seedProject(root, { id: projectId })
+    await writeManifestField(root, (m) => {
+      const index = m.index as Record<string, unknown[]>
+      index.chapters = [{ id: 'a' }, { id: 'b' }]
+      index.characters = [{ id: 'c' }]
+    })
+
+    const backup = await createAwaitedBackup(root, [], { kind: 'named', name: 'Milestone' })
+    const inspection = await inspectBackupZip(backup.localBackupPath!, {
+      expectedProjectId: projectId
+    })
+
+    expect(inspection.valid).toBe(true)
+    expect(inspection.message).toBeUndefined()
+    expect(inspection.projectId).toBe(projectId)
+    expect(inspection.title).toBe('Test Book')
+    expect(inspection.author).toBe('Author')
+    expect(inspection.matchesOpenProject).toBe(true)
+    expect(inspection.counts).toMatchObject({ chapters: 2, characters: 1, notes: 0 })
+    expect(inspection.roots).toContain('manuscript')
+    expect(inspection.sizeBytes).toBeGreaterThan(0)
+  })
+
+  it('reports another project\u2019s backup as valid but not a match', async () => {
+    const root = join(testDir, 'book')
+    await seedProject(root, { id: uuidv4() })
+    const backup = await createAwaitedBackup(root, [], { kind: 'auto' })
+
+    const inspection = await inspectBackupZip(backup.localBackupPath!, {
+      expectedProjectId: uuidv4()
+    })
+
+    expect(inspection.valid).toBe(true)
+    expect(inspection.matchesOpenProject).toBe(false)
+  })
+
+  it('rejects a zip with no project file', async () => {
+    const stray = join(testDir, 'stray')
+    await fse.ensureDir(stray)
+    await fse.writeFile(join(stray, 'notes.txt'), 'hello', 'utf-8')
+    const zipped = await createProjectBackup(stray, [], { kind: 'auto' })
+
+    const inspection = await inspectBackupZip(zipped.localBackupPath!)
+    expect(inspection.valid).toBe(false)
+    expect(inspection.message).toMatch(/not a Priama backup/)
+  })
+
+  it('rejects a corrupted project file inside the zip', async () => {
+    const root = join(testDir, 'book')
+    await seedProject(root)
+    await fse.writeFile(getTomesPath(root), '{ not json', 'utf-8')
+    const backup = await createAwaitedBackup(root, [], { kind: 'auto' })
+
+    const inspection = await inspectBackupZip(backup.localBackupPath!)
+    expect(inspection.valid).toBe(false)
+    expect(inspection.message).toMatch(/invalid JSON/)
+  })
+
+  it('rejects a zip whose project file is not Priama\u2019s', async () => {
+    const root = join(testDir, 'book')
+    await seedProject(root)
+    await writeManifestField(root, (m) => {
+      m.__tomes = 'something-else'
+    })
+    const backup = await createAwaitedBackup(root, [], { kind: 'auto' })
+
+    const inspection = await inspectBackupZip(backup.localBackupPath!)
+    expect(inspection.valid).toBe(false)
+    expect(inspection.message).toMatch(/not a Priama project backup/)
+  })
+
+  it('rejects a file that is not a zip, and a path that is missing', async () => {
+    const fake = join(testDir, 'notes.zip')
+    await fse.writeFile(fake, 'just text, not an archive', 'utf-8')
+    const notZip = await inspectBackupZip(fake)
+    expect(notZip.valid).toBe(false)
+    expect(notZip.message).toMatch(/zip archive/)
+
+    const missing = await inspectBackupZip(join(testDir, 'gone.zip'))
+    expect(missing.valid).toBe(false)
+    expect(missing.message).toMatch(/could not be found/)
+  })
+})
+
+describe('restoreProjectFromBackup from a picked file', () => {
+  async function stageExternalZip(root: string): Promise<string> {
+    const backup = await createAwaitedBackup(root, [], { kind: 'auto' })
+    const usb = join(testDir, 'usb')
+    await fse.ensureDir(usb)
+    const external = join(usb, 'my-book-copy.zip')
+    await fse.copy(backup.localBackupPath!, external)
+    return external
+  }
+
+  async function ruinChapter(root: string): Promise<void> {
+    await fse.writeFile(
+      join(getManuscriptDir(root), 'chapter-01.txd'),
+      JSON.stringify({
+        id: uuidv4(),
+        parentId: null,
+        type: 'chapter',
+        title: 'Ch1',
+        sortOrder: 0,
+        content: '<p>Ruined</p>',
+        metadata: '{}',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }),
+      'utf-8'
+    )
+  }
+
+  async function chapterContent(root: string): Promise<string> {
+    const raw = await fse.readFile(join(getManuscriptDir(root), 'chapter-01.txd'), 'utf-8')
+    return (JSON.parse(raw) as { content: string }).content
+  }
+
+  it('refuses a zip outside the project backups folder by default', async () => {
+    const root = join(testDir, 'book')
+    const projectId = uuidv4()
+    await seedProject(root, { content: '<p>Old</p>', id: projectId })
+    const external = await stageExternalZip(root)
+    await ruinChapter(root)
+
+    const result = await restoreProjectFromBackup({
+      projectRoot: root,
+      backupZipPath: external,
+      projectId,
+      writeManifest: async () => {},
+      getExternalDestinations: async () => [],
+      beforeSwap: async () => {
+        throw new Error('should not swap')
+      }
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/backups folder/)
+    expect(await chapterContent(root)).toBe('<p>Ruined</p>')
+  })
+
+  it('restores from a picked zip when the source is allowed', async () => {
+    const root = join(testDir, 'book')
+    const projectId = uuidv4()
+    await seedProject(root, { content: '<p>Old</p>', id: projectId })
+    const external = await stageExternalZip(root)
+    await ruinChapter(root)
+
+    let swapped = false
+    const result = await restoreProjectFromBackup({
+      projectRoot: root,
+      backupZipPath: external,
+      projectId,
+      allowExternalSource: true,
+      writeManifest: async () => {},
+      getExternalDestinations: async () => [],
+      beforeSwap: async () => {
+        swapped = true
+      }
+    })
+
+    expect(result.success).toBe(true)
+    expect(swapped).toBe(true)
+    expect(result.preRestorePath).toBeTruthy()
+    expect(await chapterContent(root)).toBe('<p>Old</p>')
+  })
+
+  it('still refuses a picked zip that belongs to another project', async () => {
+    const mine = join(testDir, 'mine')
+    const theirs = join(testDir, 'theirs')
+    const projectId = uuidv4()
+    await seedProject(mine, { content: '<p>Mine</p>', id: projectId })
+    await seedProject(theirs, { content: '<p>Theirs</p>', id: uuidv4() })
+    const external = await stageExternalZip(theirs)
+
+    const result = await restoreProjectFromBackup({
+      projectRoot: mine,
+      backupZipPath: external,
+      projectId,
+      allowExternalSource: true,
+      writeManifest: async () => {},
+      getExternalDestinations: async () => [],
+      beforeSwap: async () => {
+        throw new Error('should not swap')
+      }
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/different project/)
+    expect(await chapterContent(mine)).toBe('<p>Mine</p>')
+  })
+})
+
+describe('importBackupAsProject', () => {
+  async function stageZip(root: string): Promise<string> {
+    const backup = await createAwaitedBackup(root, [], { kind: 'auto' })
+    const usb = join(testDir, 'usb')
+    await fse.ensureDir(usb)
+    const external = join(usb, `${uuidv4()}.zip`)
+    await fse.copy(backup.localBackupPath!, external)
+    return external
+  }
+
+  it('rebuilds a whole project in a new folder', async () => {
+    const root = join(testDir, 'book')
+    const projectId = uuidv4()
+    await seedProject(root, { content: '<p>Chapter from backup</p>', id: projectId })
+    const zip = await stageZip(root)
+    const library = join(testDir, 'library')
+    await fse.ensureDir(library)
+
+    const result = await importBackupAsProject({ zipPath: zip, parentDir: library })
+
+    expect(result.success).toBe(true)
+    expect(result.projectRoot).toBe(join(library, 'Test Book'))
+    expect(result.title).toBe('Test Book')
+    expect(result.reassignedId).toBe(false)
+
+    const manifest = JSON.parse(await fse.readFile(result.path!, 'utf-8')) as { id: string }
+    expect(manifest.id).toBe(projectId)
+
+    const raw = await fse.readFile(
+      join(getManuscriptDir(result.projectRoot!), 'chapter-01.txd'),
+      'utf-8'
+    )
+    expect((JSON.parse(raw) as { content: string }).content).toBe('<p>Chapter from backup</p>')
+
+    for (const dir of ['manuscript', 'wiki', 'assets', 'backups']) {
+      expect(await fse.pathExists(join(result.projectRoot!, dir))).toBe(true)
+    }
+  })
+
+  it('gives the copy a fresh id when the original is still on this machine', async () => {
+    const root = join(testDir, 'book')
+    const projectId = uuidv4()
+    await seedProject(root, { id: projectId })
+    const zip = await stageZip(root)
+    const library = join(testDir, 'library')
+    await fse.ensureDir(library)
+
+    const result = await importBackupAsProject({
+      zipPath: zip,
+      parentDir: library,
+      knownProjects: [{ id: projectId, primaryPath: getTomesPath(root) }]
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.reassignedId).toBe(true)
+    const manifest = JSON.parse(await fse.readFile(result.path!, 'utf-8')) as {
+      id: string
+      title: string
+    }
+    expect(manifest.id).not.toBe(projectId)
+    expect(manifest.title).toBe('Test Book')
+  })
+
+  it('never overwrites a folder that is already there', async () => {
+    const root = join(testDir, 'book')
+    await seedProject(root, { id: uuidv4() })
+    const zip = await stageZip(root)
+    const library = join(testDir, 'library')
+    await fse.ensureDir(library)
+
+    const first = await importBackupAsProject({ zipPath: zip, parentDir: library })
+    const second = await importBackupAsProject({ zipPath: zip, parentDir: library })
+
+    expect(first.projectRoot).toBe(join(library, 'Test Book'))
+    expect(second.projectRoot).toBe(join(library, 'Test Book (2)'))
+    expect(await fse.pathExists(getTomesPath(second.projectRoot!))).toBe(true)
+  })
+
+  it('refuses a zip that is not a Priama backup and leaves nothing behind', async () => {
+    const stray = join(testDir, 'stray')
+    await fse.ensureDir(stray)
+    await fse.writeFile(join(stray, 'notes.txt'), 'hello', 'utf-8')
+    const zipped = await createProjectBackup(stray, [], { kind: 'auto' })
+    const library = join(testDir, 'library')
+    await fse.ensureDir(library)
+
+    const result = await importBackupAsProject({
+      zipPath: zipped.localBackupPath!,
+      parentDir: library
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/not a Priama backup/)
+    expect(await fse.readdir(library)).toEqual([])
+  })
+})
+
+describe('shouldReassignImportedId', () => {
+  it('keeps the id when nothing else claims it', () => {
+    expect(shouldReassignImportedId('id-1', [], '/books/My Book')).toBe(false)
+    expect(
+      shouldReassignImportedId('id-1', [{ id: 'id-2', primaryPath: '/books/Other/project.tomes' }], '/books/My Book')
+    ).toBe(false)
+  })
+
+  it('keeps the id when the known project is the destination itself', () => {
+    expect(
+      shouldReassignImportedId(
+        'id-1',
+        [{ id: 'id-1', primaryPath: '/books/My Book/project.tomes' }],
+        '/books/My Book'
+      )
+    ).toBe(false)
+  })
+
+  it('reassigns when another folder already holds that id', () => {
+    expect(
+      shouldReassignImportedId(
+        'id-1',
+        [{ id: 'id-1', primaryPath: '/books/Original/project.tomes' }],
+        '/books/My Book'
+      )
+    ).toBe(true)
   })
 })

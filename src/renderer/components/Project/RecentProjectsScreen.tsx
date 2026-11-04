@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, FolderOpen, Heart, Plus } from 'lucide-react'
+import { Download, FileArchive, FolderOpen, Heart, Plus } from 'lucide-react'
 import { Button } from '@/components/UI/button'
 import {
   Dialog,
@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/UI/input'
 import { Label } from '@/components/UI/label'
 import { NewProjectModal } from '@/components/Project/NewProjectModal'
+import { RestoreBackupModal } from '@/components/Project/RestoreBackupModal'
 import { DeleteProjectModal } from '@/components/Project/DeleteProjectModal'
 import { ProjectCard } from '@/components/Project/ProjectCard'
 import { PriamaWordmark } from '@/components/Project/PriamaWordmark'
@@ -26,6 +27,7 @@ const launchBtnBase =
 export function RecentProjectsScreen(): React.JSX.Element {
   const { openProject, openProjectAtPath, removeFromRecent, renameRecentProject, locateProject } =
     useProject()
+  const [showRestoreBackup, setShowRestoreBackup] = useState(false)
   const showNewProjectModal = useAppStore((s) => s.showNewProjectModal)
   const setShowNewProjectModal = useAppStore((s) => s.setShowNewProjectModal)
   const [recents, setRecents] = useState<RecentProjectWithStatus[]>([])
@@ -136,6 +138,15 @@ export function RecentProjectsScreen(): React.JSX.Element {
           <button
             type="button"
             className={`${launchBtnBase} border-[var(--launch-hairline)] bg-transparent text-[var(--launch-ink-dim)] hover:border-[var(--launch-btn-secondary-hover-border)] hover:text-[var(--launch-ink)]`}
+            onClick={() => setShowRestoreBackup(true)}
+            title="Rebuild a project from a backup zip"
+          >
+            <FileArchive className="h-3.5 w-3.5 shrink-0" />
+            Restore Backup
+          </button>
+          <button
+            type="button"
+            className={`${launchBtnBase} border-[var(--launch-hairline)] bg-transparent text-[var(--launch-ink-dim)] hover:border-[var(--launch-btn-secondary-hover-border)] hover:text-[var(--launch-ink)]`}
             onClick={openProject}
           >
             <FolderOpen className="h-3.5 w-3.5 shrink-0" />
@@ -215,6 +226,14 @@ export function RecentProjectsScreen(): React.JSX.Element {
       </div>
 
       <NewProjectModal open={showNewProjectModal} onOpenChange={setShowNewProjectModal} />
+
+      <RestoreBackupModal
+        open={showRestoreBackup}
+        onOpenChange={(v) => {
+          setShowRestoreBackup(v)
+          if (!v) void loadRecents()
+        }}
+      />
 
       <DeleteProjectModal
         project={deleteProject}

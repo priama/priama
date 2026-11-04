@@ -12,6 +12,11 @@ const IMAGE_FILTER = {
   extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp']
 }
 
+const BACKUP_ZIP_FILTER = {
+  name: 'Priama Backup',
+  extensions: ['zip']
+}
+
 export async function showOpenTomesDialog(window: BrowserWindow): Promise<string | null> {
   const result = await dialog.showOpenDialog(window, {
     title: 'Open Priama Project',
@@ -36,6 +41,22 @@ export async function showChooseFolderDialog(
     defaultPath: join(homedir(), 'Documents'),
     properties: ['openDirectory', 'createDirectory'],
     buttonLabel: 'Select Folder'
+  })
+
+  if (result.canceled || result.filePaths.length === 0) return null
+  return result.filePaths[0]
+}
+
+export async function showSelectBackupZipDialog(window: BrowserWindow): Promise<string | null> {
+  const parent = BrowserWindow.getFocusedWindow() ?? window
+  parent.focus()
+  app.focus({ steal: true })
+
+  const result = await dialog.showOpenDialog(parent, {
+    title: 'Choose Backup Zip',
+    filters: [BACKUP_ZIP_FILTER],
+    properties: ['openFile'],
+    buttonLabel: 'Choose Backup'
   })
 
   if (result.canceled || result.filePaths.length === 0) return null

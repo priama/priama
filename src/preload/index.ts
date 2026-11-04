@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppUpdateStatus,
   BackupLocationStatus,
+  BackupImportResult,
+  BackupInspection,
   BackupRecord,
   BackupResultPayload,
   BackupStatus,
@@ -73,6 +75,7 @@ export interface ElectronAPI {
   dialog: {
     openTomes: () => Promise<string | null>
     chooseFolder: (title?: string) => Promise<string | null>
+    selectBackupZip: () => Promise<string | null>
     selectImage: () => Promise<string | null>
     selectDocx: () => Promise<string | null>
   }
@@ -116,6 +119,9 @@ export interface ElectronAPI {
     status: () => Promise<BackupStatus | null>
     create: (name?: string) => Promise<BackupResultPayload>
     restore: (path: string) => Promise<{ success: boolean; message?: string }>
+    inspect: (path: string) => Promise<BackupInspection>
+    restoreFromFile: (path: string) => Promise<{ success: boolean; message?: string }>
+    importAsProject: (path: string, parentDir: string) => Promise<BackupImportResult>
   }
   export: {
     document: (options: ExportOptions) => Promise<{ success: boolean; message?: string; path?: string }>
@@ -185,6 +191,7 @@ const api: ElectronAPI = {
   dialog: {
     openTomes: () => ipcRenderer.invoke('dialog:openTomes'),
     chooseFolder: (title) => ipcRenderer.invoke('dialog:chooseFolder', title),
+    selectBackupZip: () => ipcRenderer.invoke('dialog:selectBackupZip'),
     selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
     selectDocx: () => ipcRenderer.invoke('dialog:selectDocx')
   },
@@ -220,7 +227,11 @@ const api: ElectronAPI = {
     list: () => ipcRenderer.invoke('backup:list'),
     status: () => ipcRenderer.invoke('backup:status'),
     create: (name) => ipcRenderer.invoke('backup:create', { name }),
-    restore: (path) => ipcRenderer.invoke('backup:restore', { path })
+    restore: (path) => ipcRenderer.invoke('backup:restore', { path }),
+    inspect: (path) => ipcRenderer.invoke('backup:inspect', { path }),
+    restoreFromFile: (path) => ipcRenderer.invoke('backup:restoreFromFile', { path }),
+    importAsProject: (path, parentDir) =>
+      ipcRenderer.invoke('backup:importAsProject', { path, parentDir })
   },
   export: {
     document: (options) => ipcRenderer.invoke('export:document', options)
