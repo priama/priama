@@ -4,8 +4,9 @@
 
 Everything lives in one repo now — `priama/priama` holds the source, the
 workflows and the published installers. The website is separate
-(`priama/priamaweb`, deployed to [priama.app](https://priama.app) by Vercel) and
-reads releases from this repo over the public GitHub API.
+(`priama/priamaweb`, a Cloudflare Worker serving `public/` to
+[priama.app](https://priama.app) — see its `wrangler.jsonc`) and reads releases
+from this repo over the public GitHub API.
 
 ## Which path to take
 
@@ -196,12 +197,42 @@ marked Latest. Bumping the version and pushing a tag is not a release.
 
 ## Then update the website
 
-The download page falls back to hardcoded URLs when the GitHub API is slow or
-unreachable. In `priama/priamaweb`, bump `FALLBACK_ASSETS` in `js/main.js` to
-the new version and push — Vercel redeploys on its own.
+The download buttons read the GitHub API, so they point at the new installers
+the moment the release is published. What goes stale is everything the site
+hardcodes as a fallback or as plain text, and there is more of it than the one
+constant this doc used to name. In `priama/priamaweb`, replace every occurrence
+of the old version number:
 
-The live buttons read the API, so they work the moment the release is published;
-this only keeps the fallback honest.
+```bash
+grep -rn "0\.0\.0" public/          # the version you are replacing
+sed -i '' 's/0\.0\.0/X.Y.Z/g' public/home/index.html public/js/main.js public/download/index.html
+grep -rn "0\.0\.0" public/          # must come back empty
+```
+
+That covers `FALLBACK_ASSETS` in `public/js/main.js` (used until the API answers
+and whenever GitHub is unreachable), the `.appimage-file` / `.deb-file` /
+`#deb-download` / `#again-download` fallbacks on the download page, the
+"Version X.Y.Z." line under the hero, and `softwareVersion` in the home page's
+JSON-LD. The last two are plain text that no script rewrites, so they are what
+visitors actually read.
+
+Then check each fallback URL really resolves before pushing:
+
+```bash
+for u in $(grep -o 'https://github.com/priama/priama/releases/download/[^"]*' public/js/main.js); do
+  printf '%s  %s\n' "$(curl -s -o /dev/null -w '%{http_code}' -L -I "$u")" "$u"
+done
+```
+
+All four must print `200`.
+
+Pushing to `priamaweb`'s `main` is the deploy. Cloudflare builds and rolls it
+out on its own; on 0.1.11 the live site served the new version about fifteen
+seconds after the push. Confirm it rather than assuming:
+
+```bash
+curl -s https://priama.app/home | grep -o "Version 0\.[0-9.]*"
+```
 
 ## Checklist
 
@@ -210,9 +241,11 @@ this only keeps the fallback honest.
 - [ ] Version commit and `vX.Y.Z` tag pushed
 - [ ] macOS DMG built (CI or locally)
 - [ ] Windows `-x64-setup.exe` built (CI or on the Windows machine)
-- [ ] Both attached to the release, with hashes in the notes
+- [ ] Linux AppImage and `.deb` built
+- [ ] All attached to the release, every asset `state=uploaded`
 - [ ] That release is **Latest**
-- [ ] `FALLBACK_ASSETS` bumped in `priamaweb`
+- [ ] Every `0.0.0` string bumped in `priamaweb/public/`, fallback URLs return `200`
+- [ ] priama.app serves the new version
 
 ## Install notes for users
 
