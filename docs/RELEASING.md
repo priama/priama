@@ -29,14 +29,25 @@ runners for free, so path A is expected to work. Confirm rather than assume.
 |---|---|
 | `Priama-<version>-mac-arm64.dmg` | macOS, Apple Silicon |
 | `Priama-<version>-win-x64-setup.exe` | Windows, 64-bit Intel/AMD |
+| `Priama-<version>-win-x64-portable.exe` | Windows, no installer |
+| `Priama-<version>-linux-x86_64.AppImage` | Linux, any distribution |
+| `Priama-<version>-linux-amd64.deb` | Linux, Debian and Ubuntu |
 
-The Windows build also emits a portable `.exe`. **We do not publish it** — the
-installer is what we ship.
+Plus `.blockmap` and `latest*.yml` files, which electron-builder emits for
+delta downloads and auto-update. Nothing reads them today — there is no
+`electron-updater` in `package.json` — so they are harmless noise on the
+release page.
+
+This doc used to say the portable `.exe` was not published. That was wrong:
+`build.win.target` is `["nsis", "portable"]` and the `windows` job runs
+`--publish always`, so electron-builder uploads both, and every release since
+has carried it. If we do not want to ship it, the fix is to drop `portable`
+from the target list, not to leave the doc disagreeing with the release page.
 
 One Windows build is enough: x64 covers every Intel/AMD machine, and Windows on
 ARM runs it under emulation. There is no Intel Mac build; `build.mac.target` is
-`arm64` only. The workflow also builds Linux (AppImage + `.deb`), which the
-manual path cannot produce.
+`arm64` only. The Linux installers come only from the workflow; the manual path
+cannot produce them.
 
 Builds are unsigned — ad-hoc signed on macOS, not notarised.
 
@@ -179,7 +190,14 @@ gh release create v0.0.11 \
   --notes-file notes.md
 ```
 
-Include a short changelog and the SHA-256 hashes in the notes.
+Include a short changelog in the notes. You do not have to write the hashes by
+hand: the `notes` job in the release workflow adds a SHA-256 table, reading the
+digest GitHub publishes for every stored asset rather than downloading ~600MB
+to hash it. It runs after all three build jobs, so it is the last thing to
+finish, and it keeps everything you wrote above its marker — a changelog typed
+on the release page survives a re-run. On a release you published by hand,
+trigger it with a `workflow_dispatch` run, or hash the files yourself with
+`shasum -a 256 release/*`.
 
 ---
 
@@ -211,10 +229,10 @@ grep -rn "0\.0\.0" public/          # must come back empty
 
 That covers `FALLBACK_ASSETS` in `public/js/main.js` (used until the API answers
 and whenever GitHub is unreachable), the `.appimage-file` / `.deb-file` /
-`#deb-download` / `#again-download` fallbacks on the download page, the
-"Version X.Y.Z." line under the hero, and `softwareVersion` in the home page's
-JSON-LD. The last two are plain text that no script rewrites, so they are what
-visitors actually read.
+`#deb-download` / `#again-download` fallbacks on the download page, and
+`softwareVersion` in the home page's JSON-LD. The hero used to print the version
+as plain text too; it no longer does, precisely so there is one less string a
+release has to remember.
 
 Then check each fallback URL really resolves before pushing:
 
@@ -231,7 +249,8 @@ out on its own; on 0.1.11 the live site served the new version about fifteen
 seconds after the push. Confirm it rather than assuming:
 
 ```bash
-curl -s https://priama.app/home | grep -o "Version 0\.[0-9.]*"
+curl -s https://priama.app/home | grep -o '"softwareVersion": "[0-9.]*"'
+curl -s https://priama.app/js/main.js | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' | sort -u
 ```
 
 ## Checklist
@@ -243,6 +262,7 @@ curl -s https://priama.app/home | grep -o "Version 0\.[0-9.]*"
 - [ ] Windows `-x64-setup.exe` built (CI or on the Windows machine)
 - [ ] Linux AppImage and `.deb` built
 - [ ] All attached to the release, every asset `state=uploaded`
+- [ ] The notes carry a SHA-256 table (the `notes` job writes it; check it ran)
 - [ ] That release is **Latest**
 - [ ] Every `0.0.0` string bumped in `priamaweb/public/`, fallback URLs return `200`
 - [ ] priama.app serves the new version

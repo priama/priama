@@ -77,7 +77,7 @@ jobs:
             gh release create "$TAG" \
               --title "Priama $VERSION" \
               --latest \
-              --notes "Installers for this version. Builds are unsigned — on macOS right-click the app and choose Open the first time; on Windows choose More info, then Run anyway."
+              --notes-file .github/release-notes.md
           fi
 
   windows:
@@ -184,3 +184,84 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npm run dist:mac -- --publish always
+
+  # The three build jobs finish at different times, so none of them can own the
+  # release notes — three concurrent edits would clobber each other. This runs
+  # once, last, and describes whatever actually ended up attached.
+  notes:
+    needs: [prepare, windows, linux, mac]
+    # A manual single-platform run skips the other two build jobs, and a failed
+    # build should still leave honest notes for the installers that did upload.
+    # Only a cancelled run or a failed `prepare` means there is nothing to say.
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # No checkout: GH_REPO is all `gh` needs to find the release, and this job
+      # reads nothing out of the tree.
+      - name: Give every installer a checksum in the release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          # Fences off the block this job owns, so a changelog written by hand
+          # survives a re-run. Invisible in the rendered notes.
+          MARK: '<!-- checksums: written by the release workflow, replaced on every run -->'
+        run: |
+          # GitHub publishes a sha256 for every asset it stores, so the hashes
+          # come from the API rather than from pulling ~600MB back down. That
+          # also means no half-finished download can ever put the hash of a
+          # truncated file into the notes.
+          gh api "repos/$GH_REPO/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name | test("\\.(dmg|exe|AppImage|deb)$")) | [.name, .digest] | @tsv' \
+            | sort > assets.tsv
+
+          if [ ! -s assets.tsv ]; then
+            echo "No installers are attached to $TAG, so there is nothing to checksum."
+            exit 0
+          fi
+
+          # Fail loudly rather than publish a table that quietly skips a file:
+          # the heading promises a hash for everything a reader can download.
+          if cut -f2 assets.tsv | grep -qvx 'sha256:[0-9a-f]\{64\}'; then
+            echo "GitHub reported no usable sha256 for at least one asset:"
+            cat assets.tsv
+            exit 1
+          fi
+
+          # The body belongs to whoever wrote it. A changelog typed on the
+          # release page exists nowhere else and GitHub keeps no history of it,
+          # so keep everything above the marker and replace only what follows.
+          gh release view "$TAG" --json body --jq '.body' > body.md
+          # Stop at the marker, or at a bare "## Checksums" — notes written
+          # before the marker existed, or by hand, end the same way.
+          awk -v m="$MARK" '$0 == m || $0 == "## Checksums" { exit } { print }' \
+            body.md > kept.md
+          printf '%s\n' "$(cat kept.md)" > notes.md
+
+          {
+            printf '\n%s\n\n' "$MARK"
+            cat <<'EOF'
+          ## Checksums
+
+          Check a download before you install it:
+
+          ```
+          shasum -a 256 <file>              # macOS
+          sha256sum <file>                  # Linux
+          certutil -hashfile <file> SHA256  # Windows
+          ```
+
+          | File | SHA-256 |
+          | --- | --- |
+          EOF
+            while IFS="$(printf '\t')" read -r name digest; do
+              # The backticks are literal markdown for the table cell, not an
+              # attempt at command substitution.
+              # shellcheck disable=SC2016
+              printf '| `%s` | `%s` |\n' "$name" "${digest#sha256:}"
+            done < assets.tsv
+          } >> notes.md
+
+          cat notes.md
+          gh release edit "$TAG" --notes-file notes.md
