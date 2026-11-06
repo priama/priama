@@ -7,9 +7,11 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/UI/dialog'
-import { Label } from '@/components/UI/label'
+import { Button } from '@/components/UI/button'
 import { AutoGrowTextarea } from '@/components/UI/auto-grow-textarea'
+import { Switch } from '@/components/UI/switch'
 import { useAppStore } from '@/store/appStore'
+import { formatChapterLabel } from '@shared/export/manuscript'
 import {
   DEFAULT_BOOK_SETTINGS,
   type BookSettings,
@@ -29,39 +31,102 @@ interface BookSettingsModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }): React.JSX.Element {
+type TabId = 'cover' | 'structure' | 'typography' | 'frontmatter'
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'cover', label: 'Cover' },
+  { id: 'structure', label: 'Structure' },
+  { id: 'typography', label: 'Typography' },
+  { id: 'frontmatter', label: 'Front matter' }
+]
+
+function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <div className="grid gap-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
       {children}
+    </span>
+  )
+}
+
+/** Label on the left, control on the right — one bordered card per group. */
+function Row({
+  label,
+  hint,
+  children
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-4 px-3 py-2 [&+&]:border-t [&+&]:border-border/60">
+      <span className="flex min-w-0 flex-col">
+        <span className="text-[13px]">{label}</span>
+        {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
+      </span>
+      <span className="shrink-0">{children}</span>
     </div>
   )
 }
 
-function ToggleGroup<T extends string>({
+function Card({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return <div className="overflow-hidden rounded-lg border border-border bg-card">{children}</div>
+}
+
+function Select<T extends string>({
   value,
   options,
   onChange,
-  disabled
+  disabled,
+  ariaLabel
 }: {
   value: T
   options: { id: T; label: string }[]
   onChange: (id: T) => void
   disabled?: boolean
+  ariaLabel: string
 }): React.JSX.Element {
   return (
-    <div className="flex flex-wrap gap-2">
+    <select
+      aria-label={ariaLabel}
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value as T)}
+      className="no-drag h-7 rounded-md border border-input bg-background px-2 text-[13px] shadow-sm outline-none disabled:opacity-50"
+    >
+      {options.map((opt) => (
+        <option key={opt.id} value={opt.id}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel
+}: {
+  value: T
+  options: { id: T; label: string }[]
+  onChange: (id: T) => void
+  ariaLabel: string
+}): React.JSX.Element {
+  return (
+    <div className="flex gap-0.5 rounded-md bg-muted p-0.5" role="group" aria-label={ariaLabel}>
       {options.map((opt) => (
         <button
           key={opt.id}
           type="button"
-          disabled={disabled}
+          aria-pressed={value === opt.id}
           onClick={() => onChange(opt.id)}
           className={cn(
-            'no-drag rounded-md border px-3 py-2 text-sm transition-colors disabled:opacity-50',
+            'no-drag rounded px-2.5 py-1 text-xs font-medium transition-colors',
             value === opt.id
-              ? 'border-primary bg-primary/10 text-foreground'
-              : 'border-border hover:bg-accent/50'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
           )}
         >
           {opt.label}
@@ -71,28 +136,59 @@ function ToggleGroup<T extends string>({
   )
 }
 
-const LABEL_STYLES: { id: ChapterLabelStyle; label: string }[] = [
-  { id: 'number-and-title', label: 'Number + title' },
-  { id: 'number-only', label: 'Number only' },
-  { id: 'title-only', label: 'Title only' },
-  { id: 'none', label: 'None' }
-]
+const SAMPLE_TITLE = 'The Long Walk Beneath Ys'
+const SAMPLE_P1 =
+  'The tide went out of Ys for the last time on a Tuesday, and took the bells with it. Hallow counted nine of them in the mud before the gulls arrived.'
+const SAMPLE_P2 =
+  'Sister Venn had promised twelve. She had promised a great many things that season, and the sea had taken its own view.'
 
-const CHAPTER_LABEL_PREFIX_OPTIONS = [
-  { id: 'Chapter', label: 'Chapter' },
-  { id: 'none', label: 'None' }
-] as const
+/** Built from formatChapterLabel and the same rules chapterSections uses, so it cannot drift. */
+function Preview({ settings }: { settings: BookSettings }): React.JSX.Element {
+  const heading = formatChapterLabel(4, SAMPLE_TITLE, settings)
+  const align = settings.textAlign === 'justify' ? 'justify' : 'left'
+  const indent = settings.paragraphStyle === 'first-line-indent'
 
-const SCENE_BREAK_MARKER_OPTIONS = [
-  { id: '* * *', label: '* * *' },
-  { id: 'none', label: 'None' }
-] as const
+  return (
+    <div className="grid gap-2 min-w-0">
+      <SectionLabel>How it reads</SectionLabel>
+      <div className="overflow-hidden rounded-lg border border-border bg-card px-5 py-5 font-serif">
+        {heading && (
+          <p className="m-0 text-center text-[15px] font-semibold leading-snug">{heading}</p>
+        )}
+        <p
+          className="m-0 mt-3 text-[11.5px] leading-[1.72] text-foreground/80"
+          style={{ textAlign: align }}
+        >
+          {SAMPLE_P1}
+        </p>
+
+        {settings.showSceneTitles ? (
+          <p className="m-0 mt-3 text-[12px] font-semibold">Low Tide</p>
+        ) : settings.sceneBreakMarker ? (
+          <p className="m-0 my-2 text-center text-[11.5px] tracking-[0.3em] text-muted-foreground">
+            {settings.sceneBreakMarker}
+          </p>
+        ) : null}
+
+        <p
+          className={cn('m-0 text-[11.5px] leading-[1.72] text-foreground/80', indent ? '' : 'mt-3')}
+          style={{ textAlign: align, textIndent: indent ? '1.2em' : undefined }}
+        >
+          {SAMPLE_P2}
+        </p>
+      </div>
+      <p className="text-[11.5px] leading-snug text-muted-foreground">
+        The same formatter the export uses.
+      </p>
+    </div>
+  )
+}
 
 export function BookSettingsModal({ open, onOpenChange }: BookSettingsModalProps): React.JSX.Element {
   const projectMeta = useAppStore((s) => s.projectMeta)
   const setProjectMeta = useAppStore((s) => s.setProjectMeta)
   const [settings, setSettings] = useState<BookSettings>(DEFAULT_BOOK_SETTINGS)
-  const [activeTab, setActiveTab] = useState<'cover' | 'structure' | 'typography' | 'frontmatter'>('cover')
+  const [activeTab, setActiveTab] = useState<TabId>('cover')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -142,7 +238,7 @@ export function BookSettingsModal({ open, onOpenChange }: BookSettingsModalProps
     await persist({ coverImagePath: relativePath })
   }
 
-  const numberFormatDisabled =
+  const labelOff =
     settings.chapterLabelStyle === 'title-only' || settings.chapterLabelStyle === 'none'
 
   const coverUrl = settings.coverImagePath ? toAssetUrl(settings.coverImagePath) : null
@@ -154,201 +250,252 @@ export function BookSettingsModal({ open, onOpenChange }: BookSettingsModalProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent presentation="sheet" className="sm:max-w-2xl">
+      <DialogContent hideCloseButton className="no-drag sm:max-w-3xl max-h-[calc(100vh-4rem)] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Book Settings</DialogTitle>
-          <DialogDescription>
-            Cover, chapter labels, front matter, and typography for export and device preview.
-          </DialogDescription>
-          <div className="flex gap-0 border-b border-border">
-            {(
-              [
-                { id: 'cover', label: 'Cover' },
-                { id: 'structure', label: 'Structure' },
-                { id: 'typography', label: 'Typography' },
-                { id: 'frontmatter', label: 'Front matter' }
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'no-drag px-4 py-2 text-sm font-medium transition-colors',
-                  activeTab === tab.id
-                    ? 'border-b-2 border-foreground text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex items-start justify-between gap-5">
+            <div className="flex min-w-0 flex-col gap-1">
+              <DialogTitle>Book Settings</DialogTitle>
+              <DialogDescription>
+                How the book is put together when you export or preview it.
+              </DialogDescription>
+            </div>
+            <Button className="shrink-0" onClick={() => onOpenChange(false)}>
+              Done
+            </Button>
           </div>
         </DialogHeader>
 
-        <div className="pt-4">
-          {activeTab === 'cover' && (
-            <div>
-              <button
-                type="button"
-                onClick={() => void handleCoverClick()}
-                className={cn(
-                  'no-drag mx-auto block aspect-[2/3] w-full max-w-[200px] overflow-hidden rounded-md bg-muted/20 transition-colors',
-                  settings.coverImagePath
-                    ? 'cursor-pointer hover:opacity-95'
-                    : 'cursor-pointer border border-dashed border-input hover:bg-muted/30'
-                )}
-              >
-                {coverUrl ? (
-                  <img src={coverUrl} alt="" className="h-full w-full object-cover" draggable={false} />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center text-muted-foreground">
-                    <Camera className="h-5 w-5" />
-                  </span>
-                )}
-              </button>
-              <p className="mt-2 text-center text-xs text-muted-foreground">Click to upload or replace</p>
-            </div>
-          )}
+        <div className="flex gap-0.5 rounded-lg bg-muted p-0.5" role="group" aria-label="Section">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              aria-pressed={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'no-drag flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                activeTab === tab.id
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {activeTab === 'structure' && (
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <FieldRow label="Chapter label style">
-                <ToggleGroup
-                  value={settings.chapterLabelStyle}
-                  options={LABEL_STYLES}
-                  onChange={(id) => void persist({ chapterLabelStyle: id })}
-                />
-              </FieldRow>
+        {activeTab === 'cover' && (
+          <div>
+            <button
+              type="button"
+              onClick={() => void handleCoverClick()}
+              className={cn(
+                'no-drag mx-auto block aspect-[2/3] w-full max-w-[200px] overflow-hidden rounded-md bg-muted/20 transition-colors',
+                settings.coverImagePath
+                  ? 'cursor-pointer hover:opacity-95'
+                  : 'cursor-pointer border border-dashed border-input hover:bg-muted/30'
+              )}
+            >
+              {coverUrl ? (
+                <img src={coverUrl} alt="" className="h-full w-full object-cover" draggable={false} />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center text-muted-foreground">
+                  <Camera className="h-5 w-5" />
+                </span>
+              )}
+            </button>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Click to upload or replace
+            </p>
+          </div>
+        )}
 
-              <FieldRow label="Chapter number format">
-                <ToggleGroup
-                  value={settings.chapterNumberFormat}
-                  options={[
-                    { id: 'digits' as ChapterNumberFormat, label: 'Digits' },
-                    { id: 'words' as ChapterNumberFormat, label: 'Words' },
-                    { id: 'roman' as ChapterNumberFormat, label: 'Roman numbers' }
-                  ]}
-                  onChange={(id) => void persist({ chapterNumberFormat: id })}
-                  disabled={numberFormatDisabled}
-                />
-              </FieldRow>
-
-              <FieldRow label="Chapter numbering">
-                <ToggleGroup
-                  value={settings.chapterNumberingScope}
-                  options={[
-                    { id: 'manuscript-global' as ChapterNumberingScope, label: 'Manuscript position' },
-                    { id: 'export-relative' as ChapterNumberingScope, label: 'Renumber export' }
-                  ]}
-                  onChange={(id) => void persist({ chapterNumberingScope: id })}
-                />
-              </FieldRow>
-
-              <FieldRow label="Chapter label prefix">
-                <ToggleGroup
-                  value={chapterLabelPrefixValue}
-                  options={[...CHAPTER_LABEL_PREFIX_OPTIONS]}
-                  onChange={(id) => void persist({ chapterLabelPrefix: id === 'none' ? '' : id })}
-                  disabled={settings.chapterLabelStyle === 'title-only' || settings.chapterLabelStyle === 'none'}
-                />
-              </FieldRow>
-
-              <FieldRow label="Show scene titles">
-                <ToggleGroup
-                  value={settings.showSceneTitles ? 'yes' : 'no'}
-                  options={[
-                    { id: 'yes', label: 'Show' },
-                    { id: 'no', label: 'Hide' }
-                  ]}
-                  onChange={(id) => void persist({ showSceneTitles: id === 'yes' })}
-                />
-              </FieldRow>
-
-              <FieldRow label="Scene break marker">
-                <ToggleGroup
-                  value={sceneBreakMarkerValue}
-                  options={[...SCENE_BREAK_MARKER_OPTIONS]}
-                  onChange={(id) => void persist({ sceneBreakMarker: id === 'none' ? '' : id })}
-                  disabled={settings.showSceneTitles}
-                />
-              </FieldRow>
-            </div>
-          )}
-
-          {activeTab === 'typography' && (
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <FieldRow label="Paragraph style">
-                <ToggleGroup
-                  value={settings.paragraphStyle}
-                  options={[
-                    { id: 'first-line-indent' as ParagraphStyle, label: 'First-line indent' },
-                    { id: 'spaced' as ParagraphStyle, label: 'Spaced' }
-                  ]}
-                  onChange={(id) => void persist({ paragraphStyle: id })}
-                />
-              </FieldRow>
-
-              <FieldRow label="Text alignment">
-                <ToggleGroup
-                  value={settings.textAlign}
-                  options={[
-                    { id: 'justify' as TextAlignStyle, label: 'Justify' },
-                    { id: 'left' as TextAlignStyle, label: 'Left' }
-                  ]}
-                  onChange={(id) => void persist({ textAlign: id })}
-                />
-              </FieldRow>
-
-              <FieldRow label="Spell check language">
-                <ToggleGroup
-                  value={projectMeta?.spellCheckLang ?? 'en'}
-                  options={[
-                    { id: 'en' as SpellCheckLang, label: 'English' },
-                    { id: 'es' as SpellCheckLang, label: 'Spanish' },
-                    { id: 'ru' as SpellCheckLang, label: 'Russian' }
-                  ]}
-                  onChange={(id) => void persistSpellCheckLang(id)}
-                />
-              </FieldRow>
-            </div>
-          )}
-
-          {activeTab === 'frontmatter' && (
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <div className="col-span-2">
-                <FieldRow label="Include title page">
-                  <ToggleGroup
-                    value={settings.includeTitlePage ? 'yes' : 'no'}
-                    options={[
-                      { id: 'yes', label: 'Yes' },
-                      { id: 'no', label: 'No' }
-                    ]}
-                    onChange={(id) => void persist({ includeTitlePage: id === 'yes' })}
-                  />
-                </FieldRow>
+        {activeTab === 'structure' && (
+          <div className="grid grid-cols-[minmax(0,1fr)_248px] items-start gap-6">
+            <div className="grid min-w-0 gap-4">
+              <div className="grid gap-2">
+                <SectionLabel>Chapter openings</SectionLabel>
+                <Card>
+                  <Row label="Heading shows">
+                    <Select
+                      ariaLabel="Heading shows"
+                      value={settings.chapterLabelStyle}
+                      options={[
+                        { id: 'number-and-title' as ChapterLabelStyle, label: 'Number and title' },
+                        { id: 'number-only' as ChapterLabelStyle, label: 'Number only' },
+                        { id: 'title-only' as ChapterLabelStyle, label: 'Title only' },
+                        { id: 'none' as ChapterLabelStyle, label: 'Nothing' }
+                      ]}
+                      onChange={(id) => void persist({ chapterLabelStyle: id })}
+                    />
+                  </Row>
+                  <Row label="Numbers as">
+                    <Select
+                      ariaLabel="Numbers as"
+                      value={settings.chapterNumberFormat}
+                      options={[
+                        { id: 'digits' as ChapterNumberFormat, label: 'Digits' },
+                        { id: 'words' as ChapterNumberFormat, label: 'Words' },
+                        { id: 'roman' as ChapterNumberFormat, label: 'Roman numerals' }
+                      ]}
+                      disabled={labelOff}
+                      onChange={(id) => void persist({ chapterNumberFormat: id })}
+                    />
+                  </Row>
+                  <Row label="Prefix word">
+                    <Select
+                      ariaLabel="Prefix word"
+                      value={chapterLabelPrefixValue}
+                      options={[
+                        { id: 'Chapter', label: 'Chapter' },
+                        { id: 'none', label: 'None' }
+                      ]}
+                      disabled={labelOff}
+                      onChange={(id) =>
+                        void persist({ chapterLabelPrefix: id === 'none' ? '' : id })
+                      }
+                    />
+                  </Row>
+                  <Row label="Count from" hint="Where chapter one starts">
+                    <Segmented
+                      ariaLabel="Count from"
+                      value={settings.chapterNumberingScope}
+                      options={[
+                        {
+                          id: 'manuscript-global' as ChapterNumberingScope,
+                          label: 'Manuscript'
+                        },
+                        { id: 'export-relative' as ChapterNumberingScope, label: 'This export' }
+                      ]}
+                      onChange={(id) => void persist({ chapterNumberingScope: id })}
+                    />
+                  </Row>
+                </Card>
               </div>
 
-              <FieldRow label="Dedication">
+              <div className="grid gap-2">
+                <SectionLabel>Between scenes</SectionLabel>
+                <Card>
+                  <Row label="Show scene titles">
+                    <Switch
+                      ariaLabel="Show scene titles"
+                      checked={settings.showSceneTitles}
+                      onChange={(next) => void persist({ showSceneTitles: next })}
+                    />
+                  </Row>
+                  <Row label="Break marker">
+                    <Select
+                      ariaLabel="Break marker"
+                      value={sceneBreakMarkerValue}
+                      options={[
+                        { id: '* * *', label: '* * *' },
+                        { id: 'none', label: 'None' }
+                      ]}
+                      disabled={settings.showSceneTitles}
+                      onChange={(id) =>
+                        void persist({ sceneBreakMarker: id === 'none' ? '' : id })
+                      }
+                    />
+                  </Row>
+                </Card>
+              </div>
+            </div>
+
+            <Preview settings={settings} />
+          </div>
+        )}
+
+        {activeTab === 'typography' && (
+          <div className="grid grid-cols-[minmax(0,1fr)_248px] items-start gap-6">
+            <div className="grid min-w-0 gap-4">
+              <div className="grid gap-2">
+                <SectionLabel>Body text</SectionLabel>
+                <Card>
+                  <Row label="Paragraphs">
+                    <Select
+                      ariaLabel="Paragraphs"
+                      value={settings.paragraphStyle}
+                      options={[
+                        { id: 'first-line-indent' as ParagraphStyle, label: 'First-line indent' },
+                        { id: 'spaced' as ParagraphStyle, label: 'Spaced' }
+                      ]}
+                      onChange={(id) => void persist({ paragraphStyle: id })}
+                    />
+                  </Row>
+                  <Row label="Alignment">
+                    <Select
+                      ariaLabel="Alignment"
+                      value={settings.textAlign}
+                      options={[
+                        { id: 'justify' as TextAlignStyle, label: 'Justify' },
+                        { id: 'left' as TextAlignStyle, label: 'Left' }
+                      ]}
+                      onChange={(id) => void persist({ textAlign: id })}
+                    />
+                  </Row>
+                </Card>
+              </div>
+
+              <div className="grid gap-2">
+                <SectionLabel>While you write</SectionLabel>
+                <Card>
+                  <Row label="Spell check" hint="Not part of the exported book">
+                    <Select
+                      ariaLabel="Spell check language"
+                      value={projectMeta?.spellCheckLang ?? 'en'}
+                      options={[
+                        { id: 'en' as SpellCheckLang, label: 'English' },
+                        { id: 'es' as SpellCheckLang, label: 'Spanish' },
+                        { id: 'ru' as SpellCheckLang, label: 'Russian' }
+                      ]}
+                      onChange={(id) => void persistSpellCheckLang(id)}
+                    />
+                  </Row>
+                </Card>
+              </div>
+            </div>
+
+            <Preview settings={settings} />
+          </div>
+        )}
+
+        {activeTab === 'frontmatter' && (
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <SectionLabel>Front matter</SectionLabel>
+              <Card>
+                <Row label="Title page" hint="Title and author before chapter one">
+                  <Switch
+                    ariaLabel="Include title page"
+                    checked={settings.includeTitlePage}
+                    onChange={(next) => void persist({ includeTitlePage: next })}
+                  />
+                </Row>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <SectionLabel>Dedication</SectionLabel>
                 <AutoGrowTextarea
                   value={settings.dedication}
                   onChange={(e) => persistDebounced({ dedication: e.target.value })}
                   onBlur={() => void persist({ dedication: settings.dedication })}
                   rows={3}
                 />
-              </FieldRow>
-
-              <FieldRow label="Copyright">
+              </div>
+              <div className="grid gap-2">
+                <SectionLabel>Copyright</SectionLabel>
                 <AutoGrowTextarea
                   value={settings.copyrightText}
                   onChange={(e) => persistDebounced({ copyrightText: e.target.value })}
                   onBlur={() => void persist({ copyrightText: settings.copyrightText })}
                   rows={3}
                 />
-              </FieldRow>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

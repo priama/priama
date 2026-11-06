@@ -1,10 +1,17 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { ComboField } from '@/components/UI/ComboField'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { PanelNameField } from '@/components/Wiki/PanelNameField'
+import {
+  FixedFields,
+  PANEL_TITLE_CLASS,
+  ProseRow,
+  ValueRow,
+  type PanelField
+} from '@/components/Wiki/PanelKit'
 import {
   DEFAULT_BESTIARY_META,
   OPTIONAL_BESTIARY_CATEGORY_ID,
@@ -78,6 +85,66 @@ export function BestiaryPanel({
     [name, title, onUpdate]
   )
 
+  const [editing, setEditing] = useState<string | null>(null)
+  const done = (): void => {
+    save()
+    setEditing(null)
+  }
+
+  const combo = (id: string, label: string, value: string, suggestions: string[]): PanelField => ({
+    id,
+    label,
+    filled: Boolean(value),
+    display: <ValueRow label={label} value={value} onEdit={() => setEditing(id)} />,
+    editor: (
+      <Field label={label}>
+        <ComboField
+          value={value}
+          suggestions={suggestions}
+          onChange={(v) => setMeta({ ...meta, [id]: v })}
+          onBlur={save}
+        />
+      </Field>
+    )
+  })
+
+  const prose = (id: string, label: string, value: string, rows = 3): PanelField => ({
+    id,
+    label,
+    filled: Boolean(value),
+    display: <ProseRow label={label} value={value} onEdit={() => setEditing(id)} />,
+    editor: (
+      <Field label={label}>
+        <SpellCheckedTextarea
+          measureKey={id === 'general' ? `${nodeId}-general` : nodeId}
+          value={value}
+          onChange={(e) => setMeta({ ...meta, [id]: e.target.value })}
+          onBlur={save}
+          rows={rows}
+        />
+      </Field>
+    )
+  })
+
+  const atAGlance: PanelField[] = [
+    combo('species', 'Species', meta.species, speciesSuggestions),
+    combo('type', 'Type', meta.type, typeSuggestions),
+    combo('habitat', 'Habitat', meta.habitat, habitatSuggestions)
+  ]
+
+  const description: PanelField[] = [
+    prose('general', 'General', meta.general),
+    prose('physicalDescription', 'Physical description', meta.physicalDescription),
+    prose('behavior', 'Behavior', meta.behavior)
+  ]
+
+  const lore: PanelField[] = [
+    prose('origin', 'Origin', meta.origin),
+    prose('abilities', 'Abilities', meta.abilities),
+    prose('weaknesses', 'Weaknesses', meta.weaknesses),
+    prose('notes', 'Notes', meta.notes)
+  ]
+
   return (
     <div className="space-y-4">
       <EntityImageBanner
@@ -92,112 +159,18 @@ export function BestiaryPanel({
         }
       />
 
-      <Field label="Name">
-        <PanelNameField
-          nodeId={nodeId}
-          name={name}
-          setName={setName}
-          onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
-          onSaveMetaOnly={() => onUpdate(meta)}
-        />
-      </Field>
+      <PanelNameField
+        nodeId={nodeId}
+        name={name}
+        setName={setName}
+        onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
+        onSaveMetaOnly={() => onUpdate(meta)}
+        className={PANEL_TITLE_CLASS}
+      />
 
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="Species">
-          <ComboField
-            value={meta.species}
-            suggestions={speciesSuggestions}
-            onChange={(v) => setMeta({ ...meta, species: v })}
-            onBlur={save}
-          />
-        </Field>
-        <Field label="Type">
-          <ComboField
-            value={meta.type}
-            suggestions={typeSuggestions}
-            onChange={(v) => setMeta({ ...meta, type: v })}
-            onBlur={save}
-          />
-        </Field>
-        <Field label="Habitat">
-          <ComboField
-            value={meta.habitat}
-            suggestions={habitatSuggestions}
-            onChange={(v) => setMeta({ ...meta, habitat: v })}
-            onBlur={save}
-          />
-        </Field>
-      </div>
-
-      <Field label="General">
-        <SpellCheckedTextarea
-          measureKey={`${nodeId}-general`}
-          value={meta.general}
-          onChange={(e) => setMeta({ ...meta, general: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-
-      <Field label="Physical Description">
-        <SpellCheckedTextarea
-          measureKey={`${nodeId}-physical`}
-          value={meta.physicalDescription}
-          onChange={(e) => setMeta({ ...meta, physicalDescription: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-
-      <Field label="Behavior">
-        <SpellCheckedTextarea
-          measureKey={`${nodeId}-behavior`}
-          value={meta.behavior}
-          onChange={(e) => setMeta({ ...meta, behavior: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-
-      <Field label="Origin">
-        <SpellCheckedTextarea
-          measureKey={`${nodeId}-origin`}
-          value={meta.origin}
-          onChange={(e) => setMeta({ ...meta, origin: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-
-      <Field label="Abilities">
-        <SpellCheckedTextarea
-          measureKey={`${nodeId}-abilities`}
-          value={meta.abilities}
-          onChange={(e) => setMeta({ ...meta, abilities: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-
-      <Field label="Weaknesses">
-        <SpellCheckedTextarea
-          measureKey={`${nodeId}-weaknesses`}
-          value={meta.weaknesses}
-          onChange={(e) => setMeta({ ...meta, weaknesses: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-
-      <Field label="Notes">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.notes}
-          onChange={(e) => setMeta({ ...meta, notes: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
+      <FixedFields title="At a glance" fields={atAGlance} editing={editing} setEditing={setEditing} onDone={done} />
+      <FixedFields title="Description" fields={description} editing={editing} setEditing={setEditing} onDone={done} />
+      <FixedFields title="Lore" fields={lore} editing={editing} setEditing={setEditing} onDone={done} />
     </div>
   )
 }

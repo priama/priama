@@ -40,9 +40,10 @@ beforeEach(() => {
 })
 
 describe('resolveRenameTargetsForNode', () => {
-  it('note nodes rename in panel and sidebar', () => {
+  it('notes rename like any other main-editor item, not in the panel', () => {
     const note = node({ id: 'n1', parentId: null, type: 'note' })
-    expect(resolveRenameTargetsForNode(note, 'sidebar')).toEqual(['panel', 'sidebar'])
+    expect(resolveRenameTargetsForNode(note, 'sidebar')).toEqual(['sidebar', 'container'])
+    expect(resolveRenameTargetsForNode(note, 'container')).toEqual(['container', 'sidebar'])
   })
 
   it('panel-mode category nodes rename in panel and sidebar', () => {

@@ -7,6 +7,13 @@ import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
 import { useEntryFieldSuggestions } from '@/hooks/useEntryFieldSuggestions'
+import {
+  FixedFields,
+  PANEL_TITLE_CLASS,
+  ProseRow,
+  ValueRow,
+  type PanelField
+} from '@/components/Wiki/PanelKit'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { PanelNameField } from '@/components/Wiki/PanelNameField'
 import { cn } from '@/lib/utils'
@@ -198,85 +205,97 @@ export function PeoplePanel({
     onUpdate(next, name !== title ? name : undefined)
   }
 
-  return (
-    <div className="space-y-4">
-      <EntityImageBanner
-        nodeId={nodeId}
-        title={name}
-        imagePath={meta.imagePath}
-        secondaryImagePaths={meta.secondaryImagePaths}
-        imageFocus={meta.imageFocus}
-        entityType="entry"
-        onImagesChange={({ imagePath, secondaryImagePaths, imageFocus }) =>
-          saveMeta({ ...meta, imagePath, secondaryImagePaths, imageFocus })
-        }
-      />
+  const [editing, setEditing] = useState<string | null>(null)
+  const done = (): void => {
+    save()
+    setEditing(null)
+  }
 
-      <Field label="Name">
-        <PanelNameField
-          nodeId={nodeId}
-          name={name}
-          setName={setName}
-          onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
-          onSaveMetaOnly={() => onUpdate(meta)}
-        />
-      </Field>
-      <Field label="Known As">
+  const line = (id: string, label: string, value: string): PanelField => ({
+    id,
+    label,
+    filled: Boolean(value),
+    display: <ValueRow label={label} value={value} onEdit={() => setEditing(id)} />,
+    editor: (
+      <Field label={label}>
         <SpellCheckedInput
-          value={meta.knownAs}
-          onChange={(e) => setMeta({ ...meta, knownAs: e.target.value })}
+          value={value}
+          onChange={(e) => setMeta({ ...meta, [id]: e.target.value })}
           onBlur={save}
         />
       </Field>
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="Ethnicity">
-          <ComboField
-            value={meta.ethnicity}
-            suggestions={ethnicitySuggestions}
-            onChange={(v) => setMeta({ ...meta, ethnicity: v })}
-            onBlur={save}
-          />
-        </Field>
-        <Field label="Gender">
-          <ComboField
-            value={meta.gender}
-            suggestions={genderSuggestions}
-            onChange={(v) => setMeta({ ...meta, gender: v })}
-            onBlur={save}
-          />
-        </Field>
-        <Field label="Age">
-          <SpellCheckedInput
-            value={meta.age}
-            onChange={(e) => setMeta({ ...meta, age: e.target.value })}
-            onBlur={save}
-          />
-        </Field>
-      </div>
-      <Field label="General">
+    )
+  })
+
+  const prose = (id: string, label: string, value: string, rows = 3): PanelField => ({
+    id,
+    label,
+    filled: Boolean(value),
+    display: <ProseRow label={label} value={value} onEdit={() => setEditing(id)} />,
+    editor: (
+      <Field label={label}>
         <SpellCheckedTextarea
-          measureKey={`${nodeId}-general`}
-          value={meta.general}
-          onChange={(e) => setMeta({ ...meta, general: e.target.value })}
+          measureKey={id === 'general' ? `${nodeId}-general` : nodeId}
+          value={value}
+          onChange={(e) => setMeta({ ...meta, [id]: e.target.value })}
           onBlur={save}
-          rows={3}
+          rows={rows}
         />
       </Field>
-      <Field label="Role / Title">
-        <SpellCheckedInput
-          value={meta.roleTitle}
-          onChange={(e) => setMeta({ ...meta, roleTitle: e.target.value })}
+    )
+  })
+
+  const combo = (
+    id: string,
+    label: string,
+    value: string,
+    suggestions: string[]
+  ): PanelField => ({
+    id,
+    label,
+    filled: Boolean(value),
+    display: <ValueRow label={label} value={value} onEdit={() => setEditing(id)} />,
+    editor: (
+      <Field label={label}>
+        <ComboField
+          value={value}
+          suggestions={suggestions}
+          onChange={(v) => setMeta({ ...meta, [id]: v })}
           onBlur={save}
         />
       </Field>
-      <Field label="Organization">
-        <SpellCheckedInput
-          value={meta.organization}
-          onChange={(e) => setMeta({ ...meta, organization: e.target.value })}
-          onBlur={save}
-        />
-      </Field>
-      <Field label="Interview Status">
+    )
+  })
+
+  const atAGlance: PanelField[] = [
+    line('knownAs', 'Known as', meta.knownAs),
+    combo('ethnicity', 'Ethnicity', meta.ethnicity, ethnicitySuggestions),
+    combo('gender', 'Gender', meta.gender, genderSuggestions),
+    line('age', 'Age', meta.age),
+    line('roleTitle', 'Role / title', meta.roleTitle),
+    line('organization', 'Organization', meta.organization)
+  ]
+
+  const description: PanelField[] = [
+    prose('general', 'General', meta.general),
+    prose('keyQuotes', 'Key quotes', meta.keyQuotes, 4),
+    prose('relevance', 'Relevance', meta.relevance, 2),
+    prose('notes', 'Notes', meta.notes)
+  ]
+
+  const interview: PanelField = {
+    id: 'interviewStatus',
+    label: 'Interview status',
+    filled: Boolean(meta.interviewStatus),
+    display: (
+      <ValueRow
+        label="Interview status"
+        value={meta.interviewStatus}
+        onEdit={() => setEditing('interviewStatus')}
+      />
+    ),
+    editor: (
+      <Field label="Interview status">
         <select
           value={meta.interviewStatus}
           onChange={(e) => {
@@ -294,25 +313,37 @@ export function PeoplePanel({
           ))}
         </select>
       </Field>
-      <Field label="Key Quotes">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.keyQuotes}
-          onChange={(e) => setMeta({ ...meta, keyQuotes: e.target.value })}
-          onBlur={save}
-          rows={4}
-        />
-      </Field>
-      <Field label="Relevance">
-        <SpellCheckedTextarea
-          measureKey={`${nodeId}-relevance`}
-          value={meta.relevance}
-          onChange={(e) => setMeta({ ...meta, relevance: e.target.value })}
-          onBlur={save}
-          rows={2}
-        />
-      </Field>
+    )
+  }
 
+  // Each link carries its own word — Source, Colleague — so it keeps its own editor.
+  const relationships: PanelField = {
+    id: 'relationships',
+    label: 'Relationships',
+    filled: meta.relationships.length > 0,
+    display: (
+      <button
+        type="button"
+        onClick={() => setEditing('relationships')}
+        className="w-full rounded-md px-1 py-0.5 text-left hover:bg-accent/40"
+      >
+        {meta.relationships.map((rel, i) => {
+          const other = otherPeople.find((c) => c.id === rel.personId)
+          return (
+            <span key={`${rel.personId}-${i}`} className="flex min-w-0 items-center gap-2 py-0.5">
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-muted text-[9px] font-semibold">
+                {(other?.title ?? '?').slice(0, 2).toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm">{other?.title ?? 'Nobody yet'}</span>
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                {rel.type}
+              </span>
+            </span>
+          )
+        })}
+      </button>
+    ),
+    editor: (
       <div className="space-y-2">
         <label className="text-xs font-medium text-muted-foreground">Relationships</label>
         <div className="space-y-2">
@@ -361,16 +392,36 @@ export function PeoplePanel({
           Add relationship
         </Button>
       </div>
+    )
+  }
 
-      <Field label="Notes">
-        <SpellCheckedTextarea
-          measureKey={`${nodeId}-notes`}
-          value={meta.notes}
-          onChange={(e) => setMeta({ ...meta, notes: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
+  return (
+    <div className="space-y-4">
+      <EntityImageBanner
+        nodeId={nodeId}
+        title={name}
+        imagePath={meta.imagePath}
+        secondaryImagePaths={meta.secondaryImagePaths}
+        imageFocus={meta.imageFocus}
+        entityType="entry"
+        onImagesChange={({ imagePath, secondaryImagePaths, imageFocus }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths, imageFocus })
+        }
+      />
+
+      <PanelNameField
+        nodeId={nodeId}
+        name={name}
+        setName={setName}
+        onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
+        onSaveMetaOnly={() => onUpdate(meta)}
+        className={PANEL_TITLE_CLASS}
+      />
+
+      <FixedFields title="At a glance" fields={atAGlance} editing={editing} setEditing={setEditing} onDone={done} />
+      <FixedFields title="Description" fields={description} editing={editing} setEditing={setEditing} onDone={done} />
+      <FixedFields title="Interview" fields={[interview]} editing={editing} setEditing={setEditing} onDone={done} />
+      <FixedFields title="Relationships" fields={[relationships]} editing={editing} setEditing={setEditing} onDone={done} />
     </div>
   )
 }

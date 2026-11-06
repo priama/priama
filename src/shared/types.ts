@@ -232,6 +232,11 @@ type PanelBlockType =
   | 'status'
   | 'tags'
   | 'relationships'
+  | 'heading'
+  | 'number'
+  | 'date'
+  | 'url'
+  | 'images'
 
 interface PanelBlockBase {
   id: string
@@ -253,6 +258,8 @@ export interface PanelBlockTextarea extends PanelBlockBase {
 export interface PanelBlockStatus extends PanelBlockBase {
   type: 'status'
   options: string[]
+  /** Let the writer type a value that is not on the list. */
+  allowCustom?: boolean
 }
 
 export interface PanelBlockTags extends PanelBlockBase {
@@ -264,6 +271,43 @@ export interface PanelBlockRelationships extends PanelBlockBase {
   type: 'relationships'
   /** Which categoryIds the user can link to. Empty means any category. */
   allowedCategoryIds?: string[]
+  /** Carry a word on each link — "Friend", "Held", "Confessor". */
+  allowNote?: boolean
+}
+
+/** A section heading inside the panel. Stores nothing. */
+export interface PanelBlockHeading extends PanelBlockBase {
+  type: 'heading'
+}
+
+export interface PanelBlockNumber extends PanelBlockBase {
+  type: 'number'
+  placeholder?: string
+}
+
+export interface PanelBlockDate extends PanelBlockBase {
+  type: 'date'
+}
+
+export interface PanelBlockUrl extends PanelBlockBase {
+  type: 'url'
+  placeholder?: string
+}
+
+/**
+ * A cover image plus a gallery. Unlike every other block this one does NOT key off
+ * block.id: it reads and writes imagePath / secondaryImagePaths / imageFocus, the keys
+ * the built-in panels have always used, so a category can gain one without losing
+ * pictures that are already on disk. One per category.
+ */
+export interface PanelBlockImages extends PanelBlockBase {
+  type: 'images'
+}
+
+/** A link that carries a word of its own. Older data is a bare id string. */
+export interface PanelLinkValue {
+  id: string
+  note?: string
 }
 
 export type PanelBlock =
@@ -272,6 +316,11 @@ export type PanelBlock =
   | PanelBlockStatus
   | PanelBlockTags
   | PanelBlockRelationships
+  | PanelBlockHeading
+  | PanelBlockNumber
+  | PanelBlockDate
+  | PanelBlockUrl
+  | PanelBlockImages
 
 // ─── Category system ──────────────────────────────────────────────────────────
 

@@ -42,8 +42,6 @@ export function resolveRenameTargetsForNode(
   node: TreeNode,
   source: CreateSource
 ): PendingRenameTarget[] {
-  if (node.type === 'note') return ['panel', 'sidebar']
-
   const { categories } = useAppStore.getState()
   const categoryId = resolveCategoryForNode(node)
   const category = findCategory(categories, categoryId)
@@ -123,11 +121,6 @@ export async function openCategoryItem(
   const categoryId = resolveCategoryForNode(node)
   const category = findCategory(categories, categoryId)
 
-  if (node.type === 'note') {
-    await openPanelCategoryItem(node, categoryId, opts)
-    return
-  }
-
   if (categoryOpensInRightPanel(category)) {
     await openPanelCategoryItem(node, categoryId, opts)
     return
@@ -162,5 +155,7 @@ export async function createCategoryItem(
 export async function openIndexedEntry(entry: IndexedEntry): Promise<void> {
   const node = await ensureNodeInStore(entry.id)
   if (!node) return
-  await openPanelCategoryItem(node, entry.categoryId)
+  // Route by the category's mode. Forcing the panel here sent notes, and any
+  // editor-mode category, somewhere different from where the sidebar sends them.
+  await openCategoryItem(node.id)
 }

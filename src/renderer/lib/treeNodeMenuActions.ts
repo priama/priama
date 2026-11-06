@@ -47,7 +47,10 @@ export function listFoldersWithRoot(
 }
 
 export function listSceneChapters(nodes: TreeNode[]): MoveToFolder[] {
-  return getSceneChapters(nodes).map((n) => ({ id: n.id, title: n.title }))
+  return getSceneChapters(nodes).map((n) => {
+    const parent = n.parentId ? nodes.find((p) => p.id === n.parentId) : null
+    return { id: n.id, title: n.title, sub: parent?.title ?? 'Manuscript' }
+  })
 }
 
 export type TreeContextMenuActionProps = {

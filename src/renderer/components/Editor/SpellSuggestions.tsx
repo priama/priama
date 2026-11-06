@@ -15,6 +15,8 @@ interface SpellSuggestionsProps {
   onClose: () => void
 }
 
+const POPUP_MAX_HEIGHT = 260
+
 export function SpellSuggestions({
   x,
   y,
@@ -49,10 +51,14 @@ export function SpellSuggestions({
     }
   }, [onClose])
 
+  // A known height means we can flip above the caret instead of guessing at a gap
+  // below it — which is what pinning to innerHeight - 300 was doing.
+  const flipUp = y + POPUP_MAX_HEIGHT > window.innerHeight
   const style: React.CSSProperties = {
     position: 'fixed',
     left: Math.min(x, window.innerWidth - 200),
-    top: Math.min(y, window.innerHeight - 300),
+    ...(flipUp ? { bottom: window.innerHeight - y + 6 } : { top: y + 6 }),
+    maxHeight: POPUP_MAX_HEIGHT,
     zIndex: 9999
   }
 
@@ -60,7 +66,7 @@ export function SpellSuggestions({
     <div
       ref={ref}
       style={style}
-      className="min-w-[180px] rounded-md border border-border bg-popover py-1 shadow-md"
+      className="min-w-[180px] overflow-y-auto rounded-md border border-border bg-popover py-1 shadow-md"
     >
       <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground border-b border-border mb-1">
         &ldquo;{word}&rdquo;

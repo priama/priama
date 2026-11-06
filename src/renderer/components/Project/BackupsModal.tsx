@@ -10,15 +10,16 @@ import {
 } from '@/components/UI/dialog'
 import { Button } from '@/components/UI/button'
 import { Input } from '@/components/UI/input'
-import { Label } from '@/components/UI/label'
 import { ScrollArea } from '@/components/UI/scroll-area'
 import { useAppStore } from '@/store/appStore'
 import { useToastStore } from '@/components/UI/toast'
 import { flushAllDirty } from '@/lib/contentPersistence'
 import type { BackupRecord, BackupStatus } from '@shared/types'
 import { cn } from '@/lib/utils'
-import { FolderOpen, Plus, Trash2, RotateCcw, HardDrive, FileArchive } from 'lucide-react'
+import { X } from 'lucide-react'
 import { RestoreBackupModal } from '@/components/Project/RestoreBackupModal'
+
+const MAX_DESTINATIONS = 5
 
 interface BackupsModalProps {
   open: boolean
@@ -60,6 +61,14 @@ function detectPathLabel(path: string): string {
   if (lower.includes('mega')) return 'MEGA'
   if (path.startsWith('/Volumes/')) return 'External Drive'
   return 'Local Folder'
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return (
+    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      {children}
+    </span>
+  )
 }
 
 export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.JSX.Element {
@@ -116,6 +125,9 @@ export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.J
   }, [open, refresh])
 
   const selected = status?.local.find((b) => b.path === selectedPath) ?? null
+  const local = status?.local ?? []
+  const destinations = status?.destinations ?? []
+  const totalBytes = local.reduce((sum, b) => sum + b.sizeBytes, 0)
 
   const handleBackupNow = async (): Promise<void> => {
     setBusy(true)
@@ -183,7 +195,7 @@ export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.J
 
   const handleAddDestination = async (): Promise<void> => {
     if (!projectId || !status) return
-    if (status.destinations.length >= 5) return
+    if (status.destinations.length >= MAX_DESTINATIONS) return
     setPickingFolder(true)
     try {
       const path = await window.electronAPI.dialog.chooseFolder('Choose Backup Location')
@@ -209,160 +221,183 @@ export function BackupsModal({ open, onOpenChange }: BackupsModalProps): React.J
   return (
     <>
       <Dialog open={open && !confirmOpen && !restoreFileOpen} onOpenChange={onOpenChange}>
-        <DialogContent presentation="sheet" className="max-w-xl">
+        <DialogContent className="max-w-[600px] max-h-[calc(100vh-4rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Backups</DialogTitle>
             <DialogDescription>
-              Local zip copies of this project for disaster recovery. Restoring replaces the whole
-              project on disk. A zip kept elsewhere — external drive, cloud folder, another
-              machine — can be restored with Restore from file.
+              Zipped copies of the whole project. Restoring replaces what is on disk.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Local backups</Label>
-              <ScrollArea className="h-48 rounded-md border border-border">
-                {!status?.local.length ? (
-                  <p className="p-4 text-sm text-muted-foreground">
-                    No backup zips yet. Use Backup now.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-border">
-                    {status.local.map((b) => (
-                      <li key={b.path}>
-                        <button
-                          type="button"
-                          className={cn(
-                            'flex w-full flex-col gap-0.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent/50',
-                            selectedPath === b.path && 'bg-accent/60'
-                          )}
-                          onClick={() => setSelectedPath(b.path)}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium">
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <SectionLabel>On this computer</SectionLabel>
+              <div className="overflow-hidden rounded-lg border border-border">
+                <ScrollArea className="h-52">
+                  {local.length === 0 ? (
+                    <p className="p-4 text-sm text-muted-foreground">
+                      No backup zips yet. Make one below.
+                    </p>
+                  ) : (
+                    local.map((b) => (
+                      <button
+                        key={b.path}
+                        type="button"
+                        onClick={() => setSelectedPath(b.path)}
+                        className={cn(
+                          'flex w-full min-w-0 items-center gap-3 px-3 py-2 text-left transition-colors [&+button]:border-t [&+button]:border-border/60',
+                          selectedPath === b.path ? 'bg-accent' : 'hover:bg-accent/50'
+                        )}
+                      >
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span className="truncate text-[13px] font-medium">
                               {formatBackupDate(b.createdAt)}
                             </span>
                             <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                               {kindLabel(b.kind)}
                             </span>
-                          </div>
-                          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                            <span className="truncate">
-                              {b.name ? b.name : formatBackupWhen(b.createdAt)}
-                            </span>
-                            <span>{formatBytes(b.sizeBytes)}</span>
-                          </div>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </ScrollArea>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!selected || busy}
-                  onClick={() => void handleReveal()}
-                >
-                  <FolderOpen className="mr-1 h-3.5 w-3.5" />
-                  Show in Folder
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={!selected || busy}
-                  onClick={() => {
-                    setConfirmText('')
-                    setConfirmOpen(true)
-                  }}
-                >
-                  <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                  Restore project…
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => setRestoreFileOpen(true)}
-                >
-                  <FileArchive className="mr-1 h-3.5 w-3.5" />
-                  Restore from file…
-                </Button>
+                          </span>
+                          <span className="truncate text-xs text-muted-foreground">
+                            {b.name ? b.name : formatBackupWhen(b.createdAt)}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {formatBytes(b.sizeBytes)}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </ScrollArea>
+
+                <div className="flex items-center gap-1 border-t border-border bg-muted/40 px-2 py-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    disabled={!selected || busy}
+                    onClick={() => void handleReveal()}
+                  >
+                    Show in Folder
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                    disabled={!selected || busy}
+                    onClick={() => {
+                      setConfirmText('')
+                      setConfirmOpen(true)
+                    }}
+                  >
+                    Restore…
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    disabled={busy}
+                    onClick={() => setRestoreFileOpen(true)}
+                  >
+                    Restore from file…
+                  </Button>
+                  <span className="ml-auto shrink-0 pr-1 text-xs tabular-nums text-muted-foreground">
+                    {local.length} {local.length === 1 ? 'backup' : 'backups'}
+                    {local.length > 0 && ` · ${formatBytes(totalBytes)}`}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Backup now</Label>
+            <div className="grid gap-2">
+              <SectionLabel>New backup</SectionLabel>
               <div className="flex gap-2">
                 <Input
-                  placeholder="Optional name (e.g. Before rewrite)"
+                  placeholder="Name it, or leave blank"
                   value={backupName}
                   onChange={(e) => setBackupName(e.target.value)}
                   disabled={busy}
                 />
-                <Button disabled={busy || status?.inFlight} onClick={() => void handleBackupNow()}>
-                  <HardDrive className="mr-1 h-3.5 w-3.5" />
-                  Backup
+                <Button
+                  className="shrink-0"
+                  disabled={busy || status?.inFlight}
+                  onClick={() => void handleBackupNow()}
+                >
+                  {busy ? 'Backing up…' : 'Back Up Now'}
                 </Button>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">External copies</Label>
-              <div className="space-y-2">
-                {(status?.destinations ?? []).map((d) => (
-                  <div
-                    key={d.path}
-                    className="flex items-start gap-2 rounded-md border border-border p-2 text-sm"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex flex-wrap items-center gap-2">
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
+            <div className="grid gap-2">
+              <SectionLabel>Copies elsewhere</SectionLabel>
+              <div className="overflow-hidden rounded-lg border border-border">
+                {destinations.map((d) => {
+                  const ok = d.reachable && d.writable
+                  return (
+                    <div
+                      key={d.path}
+                      className="flex min-w-0 items-center gap-2.5 border-b border-border/60 px-3 py-2.5"
+                    >
+                      <span
+                        className={cn(
+                          'h-[7px] w-[7px] shrink-0 rounded-full',
+                          ok ? 'bg-emerald-500' : 'bg-amber-500'
+                        )}
+                        aria-hidden
+                      />
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate text-[13px] font-medium">
                           {d.label || detectPathLabel(d.path)}
                         </span>
-                        <span
-                          className={cn(
-                            'text-xs',
-                            d.reachable && d.writable ? 'text-muted-foreground' : 'text-amber-500'
-                          )}
-                        >
-                          {d.reachable && d.writable ? 'Available' : 'Unavailable'}
+                        <span className="truncate text-xs text-muted-foreground" title={d.path}>
+                          {d.path}
                         </span>
-                      </div>
-                      <p className="truncate text-xs text-muted-foreground">{d.path}</p>
-                      {d.lastSuccessfulCopyAt && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          Last copy: {formatBackupWhen(d.lastSuccessfulCopyAt)}
-                        </p>
-                      )}
+                        {d.lastSuccessfulCopyAt && (
+                          <span className="truncate text-xs text-muted-foreground">
+                            Last copy {formatBackupWhen(d.lastSuccessfulCopyAt)}
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={cn(
+                          'shrink-0 text-xs',
+                          ok ? 'text-muted-foreground' : 'text-amber-600'
+                        )}
+                      >
+                        {ok ? 'Available' : !d.reachable ? 'Not found' : 'Not writable'}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0 text-muted-foreground"
+                        onClick={() => void handleRemoveDestination(d.path)}
+                        disabled={busy}
+                        aria-label={`Remove ${d.path}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0"
-                      onClick={() => void handleRemoveDestination(d.path)}
-                      disabled={busy}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
-                {(status?.destinations.length ?? 0) < 5 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void handleAddDestination()}
-                    disabled={pickingFolder || busy}
-                  >
-                    <Plus className="mr-1 h-3 w-3" />
-                    Add location
-                  </Button>
-                )}
+                  )
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => void handleAddDestination()}
+                  disabled={pickingFolder || busy || destinations.length >= MAX_DESTINATIONS}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-accent/50 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <span className="text-[13px] font-medium">Add a location…</span>
+                  <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                    {destinations.length} of {MAX_DESTINATIONS}
+                  </span>
+                </button>
               </div>
             </div>
           </div>
+
+          <DialogFooter>
+            <Button onClick={() => onOpenChange(false)}>Done</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

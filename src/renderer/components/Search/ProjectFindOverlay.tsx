@@ -152,6 +152,10 @@ export function ProjectFindOverlay(): React.JSX.Element {
   // Group visually: show title/breadcrumb when nodeId changes in the list.
   let lastGroupNodeId: string | null = null
 
+  const perDocument = new Map<string, number>()
+  for (const hit of hits) perDocument.set(hit.nodeId, (perDocument.get(hit.nodeId) ?? 0) + 1)
+  const documentCount = perDocument.size
+
   return (
     <Dialog
       open={projectFindOpen}
@@ -232,15 +236,23 @@ export function ProjectFindOverlay(): React.JSX.Element {
                 return (
                   <div key={hit.id}>
                     {showHeader && (
-                      <div className="px-4 pb-0.5 pt-2">
-                        <div className="truncate text-xs font-medium text-foreground">
-                          {hit.title}
-                        </div>
-                        {hit.breadcrumb && hit.breadcrumb !== hit.title && (
-                          <div className="truncate text-[11px] text-muted-foreground">
-                            {hit.breadcrumb}
+                      <div className="flex min-w-0 items-center gap-3 px-4 pb-0.5 pt-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-xs font-medium text-foreground">
+                            {hit.title}
                           </div>
-                        )}
+                          {hit.breadcrumb && hit.breadcrumb !== hit.title && (
+                            <div
+                              className="truncate-start text-[11px] text-muted-foreground"
+                              title={hit.breadcrumb}
+                            >
+                              {hit.breadcrumb}
+                            </div>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                          {perDocument.get(hit.nodeId)}
+                        </span>
                       </div>
                     )}
                     <button
@@ -288,7 +300,7 @@ export function ProjectFindOverlay(): React.JSX.Element {
             {truncated
               ? '200+ — narrow the query'
               : hits.length > 0
-                ? `${hits.length} match${hits.length === 1 ? '' : 'es'}`
+                ? `${hits.length} match${hits.length === 1 ? '' : 'es'} in ${documentCount} document${documentCount === 1 ? '' : 's'}`
                 : ''}
           </span>
         </div>

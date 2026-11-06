@@ -5,6 +5,7 @@ import type {
   TypewriterScrolling
 } from '@shared/types'
 import { findCategory, categoryOpensInMainEditor } from '@shared/categoryView'
+import { resolveCategoryForNode } from '@shared/categoryNodeKind'
 import { isChapterFolder, isSimpleChapter } from '@/lib/treeUtils'
 
 /** True when this node is an editable main-editor document (scene, simple chapter, or editor-mode entry). */
@@ -15,8 +16,9 @@ export function isWritingSurfaceNode(
   if (!node || node.deletedAt) return false
   if (node.type === 'scene') return true
   if (node.type === 'chapter' && isSimpleChapter(node)) return true
-  if (node.type === 'entry' && categoryOpensInMainEditor(findCategory(categories, node.categoryId))) {
-    return true
+  if (node.type === 'entry' || node.type === 'note') {
+    const categoryId = resolveCategoryForNode(node)
+    if (categoryOpensInMainEditor(findCategory(categories, categoryId))) return true
   }
   return false
 }

@@ -7,6 +7,8 @@ type TreeMenuVariant = 'manuscript' | 'wiki' | 'folder' | 'trash' | 'wikiRow'
 export interface MoveToFolder {
   id: string
   title: string
+  /** Where it sits — shown under the title so a long name can shorten alone. */
+  sub?: string
 }
 
 interface TreeContextMenuProps {
@@ -133,14 +135,21 @@ export function TreeContextMenu({
                     Move to chapter
                   </ContextMenu.SubTrigger>
                   <ContextMenu.Portal>
-                    <ContextMenu.SubContent className="z-50 min-w-[160px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
+                    <ContextMenu.SubContent className="z-50 w-[216px] max-w-[216px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
                       {moveToChapters!.map((c) => (
                         <ContextMenu.Item
                           key={c.id}
-                          className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                          className="flex min-w-0 cursor-pointer flex-col items-start rounded-sm px-2 py-1 outline-none hover:bg-accent"
                           onSelect={() => onMoveToChapter!(c.id)}
                         >
-                          {c.title}
+                          <span className="w-full truncate text-sm" title={c.title}>
+                            {c.title}
+                          </span>
+                          {c.sub && (
+                            <span className="w-full truncate text-[10.5px] text-muted-foreground">
+                              {c.sub}
+                            </span>
+                          )}
                         </ContextMenu.Item>
                       ))}
                     </ContextMenu.SubContent>
@@ -160,24 +169,30 @@ export function TreeContextMenu({
                 <ContextMenu.Sub>
                   <ContextMenu.SubTrigger className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent data-[state=open]:bg-accent">
                     <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />
-                    Convert to chapter
+                    Turn into a chapter
                   </ContextMenu.SubTrigger>
                   <ContextMenu.Portal>
                     <ContextMenu.SubContent className="z-50 min-w-[160px] rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
                       {onConvertToSimpleChapter && (
                         <ContextMenu.Item
-                          className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                          className="flex cursor-pointer flex-col items-start rounded-sm px-2 py-1 outline-none hover:bg-accent"
                           onSelect={onConvertToSimpleChapter}
                         >
-                          Simple chapter
+                          <span className="text-sm">One document</span>
+                          <span className="text-[10.5px] text-muted-foreground">
+                            Write the whole chapter in one go
+                          </span>
                         </ContextMenu.Item>
                       )}
                       {onConvertToSceneChapter && (
                         <ContextMenu.Item
-                          className="flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                          className="flex cursor-pointer flex-col items-start rounded-sm px-2 py-1 outline-none hover:bg-accent"
                           onSelect={onConvertToSceneChapter}
                         >
-                          Chapter with scenes
+                          <span className="text-sm">Scenes</span>
+                          <span className="text-[10.5px] text-muted-foreground">
+                            Separate documents that export as one
+                          </span>
                         </ContextMenu.Item>
                       )}
                     </ContextMenu.SubContent>
@@ -190,7 +205,7 @@ export function TreeContextMenu({
                   onSelect={onConvertSimpleToSceneChapter}
                 >
                   <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />
-                  Convert to chapter with scenes
+                  Split into scenes
                 </ContextMenu.Item>
               )}
               {onConvertScenesChapterToSimple && (
@@ -199,7 +214,7 @@ export function TreeContextMenu({
                   onSelect={onConvertScenesChapterToSimple}
                 >
                   <ArrowRightLeft className="mr-2 h-3.5 w-3.5" />
-                  Convert to simple chapter
+                  Merge into one document
                 </ContextMenu.Item>
               )}
               {onMergeWithNext && (

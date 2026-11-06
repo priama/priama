@@ -12,7 +12,8 @@ export function PanelNameField({
   name,
   setName,
   onSave,
-  onSaveMetaOnly
+  onSaveMetaOnly,
+  className
 }: {
   nodeId: string
   name: string
@@ -21,6 +22,7 @@ export function PanelNameField({
   onSave: (name: string) => void
   /** Persist metadata only — title already committed by the rename session. */
   onSaveMetaOnly: () => void
+  className?: string
 }): React.JSX.Element {
   const {
     inputRef,
@@ -49,6 +51,7 @@ export function PanelNameField({
   return (
     <SpellCheckedInput
       ref={inputRef}
+      className={className}
       value={value}
       onChange={shouldRename ? onDraftChange : (e) => setName(e.target.value)}
       onFocus={handleFocus}

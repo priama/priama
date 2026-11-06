@@ -72,7 +72,7 @@ export function PasteMenu({
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground focus:outline-none"
       >
         <ClipboardPaste className="h-3.5 w-3.5 text-muted-foreground" />
-        Paste and match style
+        Paste without formatting
       </button>
     </div>,
     document.body

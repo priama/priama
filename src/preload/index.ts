@@ -91,7 +91,7 @@ export interface ElectronAPI {
       options?: { metadata?: string; scope?: FolderScope; categoryId?: string }
     ) => Promise<TreeNode>
     createFolder: (scope: FolderScope, parentId: string | null, title: string) => Promise<TreeNode>
-    update: (id: string, updates: Partial<Pick<TreeNode, 'title' | 'content' | 'metadata' | 'parentId' | 'sortOrder'>>) => Promise<TreeNode>
+    update: (id: string, updates: Partial<Pick<TreeNode, 'title' | 'content' | 'metadata' | 'parentId' | 'sortOrder' | 'categoryId'>>) => Promise<TreeNode>
     delete: (id: string) => Promise<{ success: boolean }>
     moveToTrash: (id: string) => Promise<TreeNode[]>
     restore: (id: string, targetParentId?: string | null) => Promise<TreeNode[]>

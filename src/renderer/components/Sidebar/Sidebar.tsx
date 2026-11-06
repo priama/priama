@@ -429,7 +429,8 @@ export function Sidebar(): React.JSX.Element {
                 </div>
               )}
 
-              <div>
+              {/* The book gets its own card; the wiki categories stay plain rows below. */}
+              <div className="mx-2 overflow-hidden rounded-lg border border-sidebar-border bg-sidebar-section">
                 <SectionHeader
                   label="Manuscript"
                   icon={BookOpen}
@@ -445,12 +446,16 @@ export function Sidebar(): React.JSX.Element {
                 />
                 {!iconOnly && (
                   <SidebarSectionBody open={expandedSections.has('manuscript')}>
-                    <SidebarTree
-                      scope="manuscript"
-                      parentId={null}
-                      menuActions={manuscriptMenuActions}
-                      onAddScene={handleAddScene}
-                    />
+                    {/* Takes only the room it needs, and stops at ~55% down the panel so the
+                        categories below never get pushed off by a long book. */}
+                    <div className="max-h-[calc(55vh-7.5rem)] overflow-y-auto overflow-x-hidden">
+                      <SidebarTree
+                        scope="manuscript"
+                        parentId={null}
+                        menuActions={manuscriptMenuActions}
+                        onAddScene={handleAddScene}
+                      />
+                    </div>
                   </SidebarSectionBody>
                 )}
               </div>

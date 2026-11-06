@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/UI/scroll-area'
 import { useAppStore } from '@/store/appStore'
 import { openCategoryItem } from '@/lib/categoryNavigation'
 import { listQuickOpenCandidates, searchQuickOpen, type QuickOpenHit } from '@/lib/quickOpen'
+import { countNodeWords } from '@/lib/treeUtils'
 import { cn } from '@/lib/utils'
 
 const LIST_ID = 'quick-open-results'
@@ -134,6 +135,15 @@ export function QuickOpenOverlay(): React.JSX.Element {
     }
   }
 
+  // Right-hand column: what the row is worth knowing at a glance.
+  const metaFor = (hit: QuickOpenHit): string => {
+    if (hit.matchedAlias) return hit.matchedPhrase
+    const node = nodes.find((n) => n.id === hit.nodeId)
+    if (!node) return ''
+    const words = countNodeWords(node)
+    return words > 0 ? words.toLocaleString() : ''
+  }
+
   const trimmed = query.trim()
   const emptyMessage = hits.length === 0 ? (trimmed ? 'No matching titles' : 'No titles to open') : ''
 
@@ -213,7 +223,7 @@ export function QuickOpenOverlay(): React.JSX.Element {
                       aria-selected={index === activeIndex}
                       data-hit-index={index}
                       className={cn(
-                        'flex w-full flex-col items-start px-4 py-1.5 text-left',
+                        'flex w-full items-center gap-3 px-4 py-1.5 text-left',
                         index === activeIndex
                           ? 'bg-accent text-accent-foreground'
                           : 'hover:bg-muted/60'
@@ -221,21 +231,22 @@ export function QuickOpenOverlay(): React.JSX.Element {
                       onMouseEnter={() => setActiveIndex(index)}
                       onClick={() => openHit(hit)}
                     >
-                      <span className="w-full truncate text-sm">
-                        <HighlightedText text={hit.title} positions={hit.positions} />
-                        {hit.matchedAlias ? (
-                          <span className="text-muted-foreground">
-                            {' · '}
-                            <HighlightedText
-                              text={hit.matchedPhrase}
-                              positions={hit.aliasPositions}
-                            />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="w-full truncate text-sm">
+                          <HighlightedText text={hit.title} positions={hit.positions} />
+                        </span>
+                        {hit.breadcrumb && hit.breadcrumb !== hit.title ? (
+                          <span
+                            className="truncate-start w-full text-[11px] text-muted-foreground"
+                            title={hit.breadcrumb}
+                          >
+                            {hit.breadcrumb}
                           </span>
                         ) : null}
                       </span>
-                      {hit.breadcrumb && hit.breadcrumb !== hit.title ? (
-                        <span className="w-full truncate text-[11px] text-muted-foreground">
-                          {hit.breadcrumb}
+                      {metaFor(hit) ? (
+                        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                          {metaFor(hit)}
                         </span>
                       ) : null}
                     </button>

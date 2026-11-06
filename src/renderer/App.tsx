@@ -11,6 +11,7 @@ import { EditorAppearanceModal } from '@/components/Settings/EditorAppearanceMod
 import { RecentProjectsScreen } from '@/components/Project/RecentProjectsScreen'
 import { QuitWarningModal } from '@/components/Project/QuitWarningModal'
 import { BackupsModal } from '@/components/Project/BackupsModal'
+import { RestoreBackupModal } from '@/components/Project/RestoreBackupModal'
 import { Toaster } from '@/components/UI/toast'
 import { useProject } from '@/hooks/useProject'
 import { useStructuralUndoShortcuts } from '@/hooks/useStructuralUndoShortcuts'
@@ -49,7 +50,10 @@ export function AppLayout(): React.JSX.Element {
   const showBookSettingsModal = useAppStore((s) => s.showBookSettingsModal)
   const showEditorAppearanceModal = useAppStore((s) => s.showEditorAppearanceModal)
   const showBackupsModal = useAppStore((s) => s.showBackupsModal)
+  const showRestoreBackupModal = useAppStore((s) => s.showRestoreBackupModal)
+  const projectMeta = useAppStore((s) => s.projectMeta)
   const setShowNewProjectModal = useAppStore((s) => s.setShowNewProjectModal)
+  const setShowRestoreBackupModal = useAppStore((s) => s.setShowRestoreBackupModal)
   const setShowExportDialog = useAppStore((s) => s.setShowExportDialog)
   const setShowBookSettingsModal = useAppStore((s) => s.setShowBookSettingsModal)
   const setShowEditorAppearanceModal = useAppStore((s) => s.setShowEditorAppearanceModal)
@@ -115,6 +119,9 @@ export function AppLayout(): React.JSX.Element {
     const unsubNew = window.electronAPI.on('menu:newProject', () => {
       if (!isProjectOpen && !isSecondary) setShowNewProjectModal(true)
     })
+    const unsubRestoreBackup = window.electronAPI.on('menu:restoreBackup', () => {
+      if (!isSecondary) setShowRestoreBackupModal(true)
+    })
     const unsubExport = window.electronAPI.on('menu:export', () => {
       if (isProjectOpen && !isSecondary) setShowExportDialog(true)
     })
@@ -160,12 +167,14 @@ export function AppLayout(): React.JSX.Element {
       unsubToggleSidebar()
       unsubOpened()
       unsubBeforeQuit()
+      unsubRestoreBackup()
     }
   }, [
     openProject,
     closeProject,
     isSecondary,
     setShowNewProjectModal,
+    setShowRestoreBackupModal,
     setShowExportDialog,
     setShowBackupsModal,
     isProjectOpen,
@@ -233,10 +242,16 @@ export function AppLayout(): React.JSX.Element {
           <BackupsModal open={showBackupsModal} onOpenChange={setShowBackupsModal} />
         </ErrorBoundary>
       ) : null}
+      {/* The launch screen mounts its own copy; this one serves the File menu with a project open. */}
+      <RestoreBackupModal
+        open={showRestoreBackupModal}
+        onOpenChange={setShowRestoreBackupModal}
+        openProject={projectMeta ? { id: projectMeta.id, title: projectMeta.title } : null}
+      />
       <Toaster />
-      {!isSecondary && (
+      {/* Mounted only while it has something to say, so each quit starts the flow fresh. */}
+      {!isSecondary && quitWarningPaths.length > 0 && (
         <QuitWarningModal
-          open={quitWarningPaths.length > 0}
           unreachablePaths={quitWarningPaths}
           onCancel={() => setQuitWarningPaths([])}
           onQuitAnyway={async () => {

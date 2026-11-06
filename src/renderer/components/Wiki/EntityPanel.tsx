@@ -11,6 +11,15 @@ import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { NotePanel } from '@/components/Wiki/NotePanel'
 import { ManuscriptPanel } from '@/components/Editor/ManuscriptPanel'
 import { AppearsInSection } from '@/components/Wiki/AppearsInSection'
+import {
+  FixedFields,
+  LinkEditor,
+  LinkList,
+  PANEL_TITLE_CLASS,
+  ProseRow,
+  ValueRow,
+  type PanelField
+} from '@/components/Wiki/PanelKit'
 import { ensureNodeInStore } from '@/lib/categoryNavigation'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
 import { useManuscriptAppearances } from '@/hooks/useManuscriptAppearances'
@@ -70,6 +79,7 @@ function LocationPanel({
     metadataSource
   })
   const typeSuggestions = useFieldSuggestions('location', 'type', nodeId)
+  const [editing, setEditing] = useState<string | null>(null)
 
   const save = useCallback(() => {
     onUpdate(meta, name !== title ? name : undefined)
@@ -82,6 +92,132 @@ function LocationPanel({
     },
     [name, title, onUpdate]
   )
+
+  const done = (): void => {
+    save()
+    setEditing(null)
+  }
+
+  // Every field LocationMeta stores. connectedLocations and notableCharacters were
+  // saved but never drawn — they appear here for the first time.
+  const fields: PanelField[] = [
+    {
+      id: 'type',
+      label: 'Type',
+      filled: Boolean(meta.type),
+      display: <ValueRow label="Type" value={meta.type} onEdit={() => setEditing('type')} />,
+      editor: (
+        <Field label="Type">
+          <ComboField
+            value={meta.type}
+            suggestions={typeSuggestions}
+            onChange={(v) => setMeta({ ...meta, type: v })}
+            onBlur={save}
+            placeholder="city, forest, dungeon..."
+          />
+        </Field>
+      )
+    },
+    {
+      id: 'general',
+      label: 'General',
+      filled: Boolean(meta.general),
+      display: (
+        <ProseRow label="General" value={meta.general} onEdit={() => setEditing('general')} />
+      ),
+      editor: (
+        <Field label="General">
+          <SpellCheckedTextarea
+            measureKey={`${nodeId}-general`}
+            value={meta.general}
+            onChange={(e) => setMeta({ ...meta, general: e.target.value })}
+            onBlur={save}
+            rows={3}
+          />
+        </Field>
+      )
+    },
+    {
+      id: 'description',
+      label: 'Description',
+      filled: Boolean(meta.description),
+      display: (
+        <ProseRow
+          label="Description"
+          value={meta.description}
+          onEdit={() => setEditing('description')}
+        />
+      ),
+      editor: (
+        <Field label="Description">
+          <SpellCheckedTextarea
+            measureKey={nodeId}
+            value={meta.description}
+            onChange={(e) => setMeta({ ...meta, description: e.target.value })}
+            onBlur={save}
+            rows={4}
+          />
+        </Field>
+      )
+    },
+    {
+      id: 'connectedLocations',
+      label: 'Connected Locations',
+      filled: meta.connectedLocations.length > 0,
+      display: (
+        <LinkList
+          label="Connected Locations"
+          ids={meta.connectedLocations}
+          onEdit={() => setEditing('connectedLocations')}
+        />
+      ),
+      editor: (
+        <LinkEditor
+          label="Connected Locations"
+          ids={meta.connectedLocations}
+          types={['location']}
+          onChange={(next) => saveMeta({ ...meta, connectedLocations: next })}
+        />
+      )
+    },
+    {
+      id: 'notableCharacters',
+      label: 'Notable Characters',
+      filled: meta.notableCharacters.length > 0,
+      display: (
+        <LinkList
+          label="Notable Characters"
+          ids={meta.notableCharacters}
+          onEdit={() => setEditing('notableCharacters')}
+        />
+      ),
+      editor: (
+        <LinkEditor
+          label="Notable Characters"
+          ids={meta.notableCharacters}
+          types={['character']}
+          onChange={(next) => saveMeta({ ...meta, notableCharacters: next })}
+        />
+      )
+    },
+    {
+      id: 'notes',
+      label: 'Notes',
+      filled: Boolean(meta.notes),
+      display: <ProseRow label="Notes" value={meta.notes} onEdit={() => setEditing('notes')} />,
+      editor: (
+        <Field label="Notes">
+          <SpellCheckedTextarea
+            measureKey={nodeId}
+            value={meta.notes}
+            onChange={(e) => setMeta({ ...meta, notes: e.target.value })}
+            onBlur={save}
+            rows={3}
+          />
+        </Field>
+      )
+    }
+  ]
 
   return (
     <div className="space-y-4">
@@ -97,33 +233,16 @@ function LocationPanel({
         }
       />
 
-      <Field label="Name">
-        <PanelNameField
-          nodeId={nodeId}
-          name={name}
-          setName={setName}
-          onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
-          onSaveMetaOnly={() => onUpdate(meta)}
-        />
-      </Field>
-      <Field label="Type">
-        <ComboField
-          value={meta.type}
-          suggestions={typeSuggestions}
-          onChange={(v) => setMeta({ ...meta, type: v })}
-          onBlur={save}
-          placeholder="city, forest, dungeon..."
-        />
-      </Field>
-      <Field label="General">
-        <SpellCheckedTextarea measureKey={`${nodeId}-general`} value={meta.general} onChange={(e) => setMeta({ ...meta, general: e.target.value })} onBlur={save} rows={3} />
-      </Field>
-      <Field label="Description">
-        <SpellCheckedTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
-      </Field>
-      <Field label="Notes">
-        <SpellCheckedTextarea measureKey={nodeId} value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
-      </Field>
+      <PanelNameField
+        nodeId={nodeId}
+        name={name}
+        setName={setName}
+        onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
+        onSaveMetaOnly={() => onUpdate(meta)}
+        className={PANEL_TITLE_CLASS}
+      />
+
+      <FixedFields fields={fields} editing={editing} setEditing={setEditing} onDone={done} />
     </div>
   )
 }
@@ -148,6 +267,7 @@ function LorePanel({
     metadataSource
   })
   const categorySuggestions = useFieldSuggestions('lore', 'category', nodeId)
+  const [editing, setEditing] = useState<string | null>(null)
 
   const save = useCallback(() => {
     onUpdate(meta, name !== title ? name : undefined)
@@ -160,6 +280,133 @@ function LorePanel({
     },
     [name, title, onUpdate]
   )
+
+  const done = (): void => {
+    save()
+    setEditing(null)
+  }
+
+  // relatedCharacters and relatedLocations were saved but never drawn.
+  const fields: PanelField[] = [
+    {
+      id: 'category',
+      label: 'Category',
+      filled: Boolean(meta.category),
+      display: (
+        <ValueRow label="Category" value={meta.category} onEdit={() => setEditing('category')} />
+      ),
+      editor: (
+        <Field label="Category">
+          <ComboField
+            value={meta.category}
+            suggestions={categorySuggestions}
+            onChange={(v) => setMeta({ ...meta, category: v })}
+            onBlur={save}
+            placeholder="magic, religion, history..."
+          />
+        </Field>
+      )
+    },
+    {
+      id: 'general',
+      label: 'General',
+      filled: Boolean(meta.general),
+      display: (
+        <ProseRow label="General" value={meta.general} onEdit={() => setEditing('general')} />
+      ),
+      editor: (
+        <Field label="General">
+          <SpellCheckedTextarea
+            measureKey={`${nodeId}-general`}
+            value={meta.general}
+            onChange={(e) => setMeta({ ...meta, general: e.target.value })}
+            onBlur={save}
+            rows={3}
+          />
+        </Field>
+      )
+    },
+    {
+      id: 'description',
+      label: 'Description',
+      filled: Boolean(meta.description),
+      display: (
+        <ProseRow
+          label="Description"
+          value={meta.description}
+          onEdit={() => setEditing('description')}
+        />
+      ),
+      editor: (
+        <Field label="Description">
+          <SpellCheckedTextarea
+            measureKey={nodeId}
+            value={meta.description}
+            onChange={(e) => setMeta({ ...meta, description: e.target.value })}
+            onBlur={save}
+            rows={4}
+          />
+        </Field>
+      )
+    },
+    {
+      id: 'relatedCharacters',
+      label: 'Related Characters',
+      filled: meta.relatedCharacters.length > 0,
+      display: (
+        <LinkList
+          label="Related Characters"
+          ids={meta.relatedCharacters}
+          onEdit={() => setEditing('relatedCharacters')}
+        />
+      ),
+      editor: (
+        <LinkEditor
+          label="Related Characters"
+          ids={meta.relatedCharacters}
+          types={['character']}
+          onChange={(next) => saveMeta({ ...meta, relatedCharacters: next })}
+        />
+      )
+    },
+    {
+      id: 'relatedLocations',
+      label: 'Related Locations',
+      filled: meta.relatedLocations.length > 0,
+      display: (
+        <LinkList
+          label="Related Locations"
+          ids={meta.relatedLocations}
+          onEdit={() => setEditing('relatedLocations')}
+        />
+      ),
+      editor: (
+        <LinkEditor
+          label="Related Locations"
+          ids={meta.relatedLocations}
+          types={['location']}
+          onChange={(next) => saveMeta({ ...meta, relatedLocations: next })}
+        />
+      )
+    },
+    {
+      id: 'notes',
+      label: 'Notes',
+      filled: Boolean(meta.notes),
+      display: <ProseRow label="Notes" value={meta.notes} onEdit={() => setEditing('notes')} />,
+      editor: (
+        <Field label="Notes">
+          <SpellCheckedTextarea
+            measureKey={nodeId}
+            value={meta.notes}
+            onChange={(e) => setMeta({ ...meta, notes: e.target.value })}
+            onBlur={save}
+            rows={3}
+          />
+        </Field>
+      )
+    }
+  ]
 
   return (
     <div className="space-y-4">
@@ -175,33 +422,16 @@ function LorePanel({
         }
       />
 
-      <Field label="Name">
-        <PanelNameField
-          nodeId={nodeId}
-          name={name}
-          setName={setName}
-          onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
-          onSaveMetaOnly={() => onUpdate(meta)}
-        />
-      </Field>
-      <Field label="Category">
-        <ComboField
-          value={meta.category}
-          suggestions={categorySuggestions}
-          onChange={(v) => setMeta({ ...meta, category: v })}
-          onBlur={save}
-          placeholder="magic, religion, history..."
-        />
-      </Field>
-      <Field label="General">
-        <SpellCheckedTextarea measureKey={`${nodeId}-general`} value={meta.general} onChange={(e) => setMeta({ ...meta, general: e.target.value })} onBlur={save} rows={3} />
-      </Field>
-      <Field label="Description">
-        <SpellCheckedTextarea measureKey={nodeId} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} onBlur={save} rows={4} />
-      </Field>
-      <Field label="Notes">
-        <SpellCheckedTextarea measureKey={nodeId} value={meta.notes} onChange={(e) => setMeta({ ...meta, notes: e.target.value })} onBlur={save} rows={3} />
-      </Field>
+      <PanelNameField
+        nodeId={nodeId}
+        name={name}
+        setName={setName}
+        onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
+        onSaveMetaOnly={() => onUpdate(meta)}
+        className={PANEL_TITLE_CLASS}
+      />
+
+      <FixedFields fields={fields} editing={editing} setEditing={setEditing} onDone={done} />
     </div>
   )
 }
@@ -519,7 +749,7 @@ export function EntityPanel(): React.JSX.Element | null {
               </div>
             </div>
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1" hideScrollbar>
               <div className="p-4">
                 {(resolvedPanelType === 'chapter' || resolvedPanelType === 'scene') && (
                   <ManuscriptPanel key={node.id} node={node} />

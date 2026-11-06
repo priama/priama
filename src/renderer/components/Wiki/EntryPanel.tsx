@@ -1,18 +1,29 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { SpellCheckedInput, SpellCheckedTextarea } from '@/components/UI/spell-checked-field'
 import { useAppStore } from '@/store/appStore'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { PanelNameField } from '@/components/Wiki/PanelNameField'
+import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
+import { resolveCategoryForNode } from '@shared/categoryNodeKind'
+import { DEFAULT_IMAGE_FOCUS } from '@shared/types'
 import type {
   CategoryDefinition,
+  ImageFocus,
   PanelBlock,
+  PanelBlockDate,
+  PanelBlockNumber,
   PanelBlockRelationships,
   PanelBlockStatus,
   PanelBlockTags,
   PanelBlockText,
-  PanelBlockTextarea
+  PanelBlockTextarea,
+  PanelBlockUrl,
+  PanelLinkValue
 } from '@shared/types'
+
+const FIELD_INPUT =
+  'h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
 function Field({
   label,
@@ -144,89 +155,190 @@ function TagsBlock({
   )
 }
 
+/** Older projects stored a bare id; newer ones store an id with a word on it. */
+function normalizeLinks(raw: unknown): PanelLinkValue[] {
+  if (!Array.isArray(raw)) return []
+  const out: PanelLinkValue[] = []
+  for (const item of raw) {
+    if (typeof item === 'string') {
+      out.push({ id: item })
+    } else if (item && typeof item === 'object' && typeof (item as PanelLinkValue).id === 'string') {
+      const link = item as PanelLinkValue
+      out.push(link.note ? { id: link.id, note: link.note } : { id: link.id })
+    }
+  }
+  return out
+}
+
 function RelationshipsBlock({
   block,
   value,
   onChange
 }: {
   block: PanelBlockRelationships
-  value: string[]
-  onChange: (v: string[]) => void
+  value: PanelLinkValue[]
+  onChange: (v: PanelLinkValue[]) => void
 }): React.JSX.Element {
   const nodes = useAppStore((s) => s.nodes)
   const categories = useAppStore((s) => s.categories)
 
+  const allowed = block.allowedCategoryIds ?? []
+
+  // Every wiki node can be linked to, not only entries — a Faction's leader is a Character.
   const candidates = nodes.filter((n) => {
     if (n.deletedAt) return false
-    if (n.type !== 'entry') return false
-    if (!block.allowedCategoryIds || block.allowedCategoryIds.length === 0) return true
-    return n.categoryId ? block.allowedCategoryIds.includes(n.categoryId) : false
+    const categoryId = resolveCategoryForNode(n)
+    if (!categoryId) return false
+    return allowed.length === 0 || allowed.includes(categoryId)
   })
 
-  const linked = value
-    .map((id) => nodes.find((n) => n.id === id))
-    .filter(Boolean) as typeof nodes
-
-  const unlinked = candidates.filter((n) => !value.includes(n.id))
+  const linkedIds = new Set(value.map((v) => v.id))
+  const unlinked = candidates.filter((n) => !linkedIds.has(n.id))
 
   const addLink = (id: string): void => {
-    if (!value.includes(id)) onChange([...value, id])
+    if (!linkedIds.has(id)) onChange([...value, { id }])
   }
 
   const removeLink = (id: string): void => {
-    onChange(value.filter((v) => v !== id))
+    onChange(value.filter((v) => v.id !== id))
   }
 
-  const getCategoryName = (categoryId: string | null | undefined): string => {
-    if (!categoryId) return ''
+  const setNote = (id: string, note: string): void => {
+    onChange(value.map((v) => (v.id === id ? { ...v, note } : v)))
+  }
+
+  const categoryNameOf = (nodeId: string): string => {
+    const node = nodes.find((n) => n.id === nodeId)
+    if (!node) return ''
+    const categoryId = resolveCategoryForNode(node)
     return categories.find((c) => c.id === categoryId)?.name ?? ''
   }
 
   return (
     <Field label={block.label}>
       <div className="space-y-1.5">
-        {linked.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {linked.map((n) => (
-              <span
-                key={n.id}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs"
-              >
-                {n.title}
-                <button
-                  type="button"
-                  onClick={() => removeLink(n.id)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+        {value.map((link) => {
+          const node = nodes.find((n) => n.id === link.id)
+          if (!node) return null
+          return (
+            <div key={link.id} className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm">{node.title}</span>
+              {block.allowNote && (
+                <input
+                  type="text"
+                  value={link.note ?? ''}
+                  placeholder="—"
+                  aria-label={`A word on ${node.title}`}
+                  onChange={(e) => setNote(link.id, e.target.value)}
+                  className="h-7 w-24 shrink-0 rounded-md border border-input bg-background px-2 text-xs shadow-sm outline-none"
+                />
+              )}
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                {categoryNameOf(link.id)}
               </span>
-            ))}
-          </div>
-        )}
+              <button
+                type="button"
+                onClick={() => removeLink(link.id)}
+                aria-label={`Unlink ${node.title}`}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )
+        })}
 
-        {unlinked.length > 0 && (
+        {unlinked.length > 0 ? (
           <select
             value=""
+            aria-label={`Add to ${block.label}`}
             onChange={(e) => {
               if (e.target.value) addLink(e.target.value)
             }}
-            className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm text-muted-foreground shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm outline-none"
           >
             <option value="">+ Add link…</option>
             {unlinked.map((n) => (
               <option key={n.id} value={n.id}>
                 {n.title}
-                {getCategoryName(n.categoryId) ? ` (${getCategoryName(n.categoryId)})` : ''}
               </option>
             ))}
           </select>
-        )}
-
-        {candidates.length === 0 && (
-          <p className="text-xs italic text-muted-foreground/60">No entries to link yet.</p>
+        ) : (
+          <p className="text-xs italic text-muted-foreground/60">Nothing left to link.</p>
         )}
       </div>
+    </Field>
+  )
+}
+
+function NumberBlock({
+  block,
+  value,
+  onChange,
+  onBlur
+}: {
+  block: PanelBlockNumber
+  value: string
+  onChange: (v: string) => void
+  onBlur: () => void
+}): React.JSX.Element {
+  return (
+    <Field label={block.label}>
+      <input
+        type="number"
+        value={value}
+        placeholder={block.placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        className={FIELD_INPUT}
+      />
+    </Field>
+  )
+}
+
+function DateBlock({
+  block,
+  value,
+  onChange
+}: {
+  block: PanelBlockDate
+  value: string
+  onChange: (v: string) => void
+}): React.JSX.Element {
+  return (
+    <Field label={block.label}>
+      <input
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={FIELD_INPUT}
+      />
+    </Field>
+  )
+}
+
+function UrlBlock({
+  block,
+  value,
+  onChange,
+  onBlur
+}: {
+  block: PanelBlockUrl
+  value: string
+  onChange: (v: string) => void
+  onBlur: () => void
+}): React.JSX.Element {
+  return (
+    <Field label={block.label}>
+      <input
+        type="url"
+        value={value}
+        placeholder={block.placeholder ?? 'https://'}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        className={FIELD_INPUT}
+      />
     </Field>
   )
 }
@@ -261,6 +373,31 @@ function getArrayValue(meta: MetaRecord, key: string): string[] {
   return Array.isArray(v) ? (v as string[]) : []
 }
 
+/** Wraps a field while it is being edited: focuses it, and closes when focus leaves. */
+function EditShell({
+  onDone,
+  children
+}: {
+  onDone: () => void
+  children: React.ReactNode
+}): React.JSX.Element {
+  const ref = useRef<HTMLFieldSetElement>(null)
+  useEffect(() => {
+    const el = ref.current?.querySelector('input, textarea, select') as HTMLElement | null
+    el?.focus()
+  }, [])
+  return (
+    <fieldset
+      ref={ref}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onDone()
+      }}
+    >
+      {children}
+    </fieldset>
+  )
+}
+
 export function EntryPanel({
   nodeId,
   title,
@@ -293,74 +430,312 @@ export function EntryPanel({
     save(next)
   }
 
+  /** Images write three fixed keys at once, not one keyed by block id. */
+  const updateFields = (patch: MetaRecord): void => {
+    const next = { ...meta, ...patch }
+    setMeta(next)
+    save(next)
+  }
+
+  const allNodes = useAppStore((s) => s.nodes)
+  const allCategories = useAppStore((s) => s.categories)
+  const [editingId, setEditingId] = useState<string | null>(null)
+
   const blocks = category.panelBlocks ?? []
+  const imagesBlock = blocks.find((b) => b.type === 'images')
+  const fieldBlocks = blocks.filter((b) => b.type !== 'images')
+
+  /** A heading cuts the list; whatever comes before the first one is the opening section. */
+  const sections: { id: string; title: string | null; blocks: PanelBlock[] }[] = []
+  let current: { id: string; title: string | null; blocks: PanelBlock[] } = {
+    id: '__opening',
+    title: null,
+    blocks: []
+  }
+  for (const block of fieldBlocks) {
+    if (block.type === 'heading') {
+      if (current.blocks.length > 0 || current.title) sections.push(current)
+      current = { id: block.id, title: block.label, blocks: [] }
+    } else {
+      current.blocks.push(block)
+    }
+  }
+  sections.push(current)
+
+  const hasValue = (block: PanelBlock): boolean => {
+    switch (block.type) {
+      case 'tags':
+        return getArrayValue(meta, block.id).length > 0
+      case 'relationships':
+        return normalizeLinks(meta[block.id]).length > 0
+      default:
+        return getStringValue(meta, block.id).trim().length > 0
+    }
+  }
+
+  const stopEditing = (): void => {
+    save()
+    setEditingId(null)
+  }
+
+  /** The editors are unchanged — a field in edit mode is exactly what it always was. */
+  const editorFor = (block: PanelBlock): React.ReactNode => {
+    switch (block.type) {
+      case 'text':
+        return (
+          <TextBlock
+            block={block as PanelBlockText}
+            value={getStringValue(meta, block.id)}
+            onChange={(v) => setMeta({ ...meta, [block.id]: v })}
+            onBlur={() => save()}
+          />
+        )
+      case 'textarea':
+        return (
+          <TextareaBlock
+            block={block as PanelBlockTextarea}
+            measureKey={nodeId}
+            value={getStringValue(meta, block.id)}
+            onChange={(v) => setMeta({ ...meta, [block.id]: v })}
+            onBlur={() => save()}
+          />
+        )
+      case 'status':
+        return (
+          <StatusBlock
+            block={block as PanelBlockStatus}
+            value={getStringValue(meta, block.id)}
+            onChange={(v) => updateField(block.id, v)}
+          />
+        )
+      case 'tags':
+        return (
+          <TagsBlock
+            block={block as PanelBlockTags}
+            value={getArrayValue(meta, block.id)}
+            onChange={(v) => setMeta({ ...meta, [block.id]: v })}
+            onBlur={() => save()}
+          />
+        )
+      case 'relationships':
+        return (
+          <RelationshipsBlock
+            block={block as PanelBlockRelationships}
+            value={normalizeLinks(meta[block.id])}
+            onChange={(v) => updateField(block.id, v)}
+          />
+        )
+      case 'number':
+        return (
+          <NumberBlock
+            block={block as PanelBlockNumber}
+            value={getStringValue(meta, block.id)}
+            onChange={(v) => setMeta({ ...meta, [block.id]: v })}
+            onBlur={() => save()}
+          />
+        )
+      case 'date':
+        return (
+          <DateBlock
+            block={block as PanelBlockDate}
+            value={getStringValue(meta, block.id)}
+            onChange={(v) => updateField(block.id, v)}
+          />
+        )
+      case 'url':
+        return (
+          <UrlBlock
+            block={block as PanelBlockUrl}
+            value={getStringValue(meta, block.id)}
+            onChange={(v) => setMeta({ ...meta, [block.id]: v })}
+            onBlur={() => save()}
+          />
+        )
+      default:
+        return null
+    }
+  }
+
+  const displayFor = (block: PanelBlock): React.ReactNode => {
+    const open = (): void => setEditingId(block.id)
+
+    if (block.type === 'textarea') {
+      return (
+        <button
+          key={block.id}
+          type="button"
+          onClick={open}
+          className="w-full rounded-md px-1 py-0.5 text-left hover:bg-accent/40"
+        >
+          <span className="block text-xs font-medium text-muted-foreground">{block.label}</span>
+          <span className="mt-0.5 block whitespace-pre-wrap text-sm leading-relaxed">
+            {getStringValue(meta, block.id)}
+          </span>
+        </button>
+      )
+    }
+
+    if (block.type === 'tags') {
+      return (
+        <button
+          key={block.id}
+          type="button"
+          onClick={open}
+          className="w-full rounded-md px-1 py-0.5 text-left hover:bg-accent/40"
+        >
+          <span className="block text-xs font-medium text-muted-foreground">{block.label}</span>
+          <span className="mt-1 flex flex-wrap gap-1">
+            {getArrayValue(meta, block.id).map((t) => (
+              <span key={t} className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                {t}
+              </span>
+            ))}
+          </span>
+        </button>
+      )
+    }
+
+    if (block.type === 'relationships') {
+      const links = normalizeLinks(meta[block.id])
+      return (
+        <button
+          key={block.id}
+          type="button"
+          onClick={open}
+          className="w-full rounded-md px-1 py-0.5 text-left hover:bg-accent/40"
+        >
+          <span className="block text-xs font-medium text-muted-foreground">{block.label}</span>
+          <span className="mt-0.5 block">
+            {links.map((link) => {
+              const node = allNodes.find((n) => n.id === link.id)
+              if (!node) return null
+              const categoryId = resolveCategoryForNode(node)
+              const categoryName = allCategories.find((c) => c.id === categoryId)?.name ?? ''
+              return (
+                <span key={link.id} className="flex min-w-0 items-center gap-2 py-0.5">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-muted text-[9px] font-semibold">
+                    {node.title.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">{node.title}</span>
+                  {link.note && (
+                    <span className="shrink-0 text-xs text-muted-foreground">{link.note}</span>
+                  )}
+                  <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                    {categoryName}
+                  </span>
+                </span>
+              )
+            })}
+          </span>
+        </button>
+      )
+    }
+
+    // text, number, date, url, status — label left, value right
+    const raw = getStringValue(meta, block.id)
+    return (
+      <button
+        key={block.id}
+        type="button"
+        onClick={open}
+        className="flex w-full min-w-0 items-baseline gap-3 rounded-md px-1 py-1 text-left hover:bg-accent/40"
+      >
+        <span className="shrink-0 text-xs font-medium text-muted-foreground">{block.label}</span>
+        <span className="min-w-0 flex-1 truncate text-right text-sm">
+          {block.type === 'status' ? (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{raw}</span>
+          ) : (
+            raw
+          )}
+        </span>
+      </button>
+    )
+  }
 
   return (
     <div className="space-y-4">
-      <Field label="Name">
-        <PanelNameField
+      {imagesBlock && (
+        <EntityImageBanner
           nodeId={nodeId}
-          name={name}
-          setName={setName}
-          onSave={(n) => save(undefined, n)}
-          onSaveMetaOnly={() => onUpdate({ metadata: JSON.stringify(meta) })}
+          title={name}
+          imagePath={typeof meta.imagePath === 'string' ? meta.imagePath : null}
+          secondaryImagePaths={
+            Array.isArray(meta.secondaryImagePaths) ? (meta.secondaryImagePaths as string[]) : []
+          }
+          imageFocus={
+            meta.imageFocus && typeof meta.imageFocus === 'object'
+              ? (meta.imageFocus as ImageFocus)
+              : DEFAULT_IMAGE_FOCUS
+          }
+          entityType="entry"
+          onImagesChange={(next) =>
+            updateFields({
+              imagePath: next.imagePath,
+              secondaryImagePaths: next.secondaryImagePaths,
+              imageFocus: next.imageFocus
+            })
+          }
         />
-      </Field>
+      )}
 
-      {blocks.map((block: PanelBlock) => {
-        switch (block.type) {
-          case 'text':
-            return (
-              <TextBlock
-                key={block.id}
-                block={block}
-                value={getStringValue(meta, block.id)}
-                onChange={(v) => setMeta({ ...meta, [block.id]: v })}
-                onBlur={() => save()}
-              />
-            )
-          case 'textarea':
-            return (
-              <TextareaBlock
-                key={block.id}
-                block={block}
-                measureKey={nodeId}
-                value={getStringValue(meta, block.id)}
-                onChange={(v) => setMeta({ ...meta, [block.id]: v })}
-                onBlur={() => save()}
-              />
-            )
-          case 'status':
-            return (
-              <StatusBlock
-                key={block.id}
-                block={block}
-                value={getStringValue(meta, block.id)}
-                onChange={(v) => updateField(block.id, v)}
-              />
-            )
-          case 'tags':
-            return (
-              <TagsBlock
-                key={block.id}
-                block={block as PanelBlockTags}
-                value={getArrayValue(meta, block.id)}
-                onChange={(v) => setMeta({ ...meta, [block.id]: v })}
-                onBlur={() => save()}
-              />
-            )
-          case 'relationships':
-            return (
-              <RelationshipsBlock
-                key={block.id}
-                block={block as PanelBlockRelationships}
-                value={getArrayValue(meta, block.id)}
-                onChange={(v) => updateField(block.id, v)}
-              />
-            )
-          default:
-            return null
-        }
+      {/* The title, once. It used to be a field labelled "Name" under the header. */}
+      <PanelNameField
+        nodeId={nodeId}
+        name={name}
+        setName={setName}
+        onSave={(n) => save(undefined, n)}
+        onSaveMetaOnly={() => onUpdate({ metadata: JSON.stringify(meta) })}
+        className="h-auto border-0 bg-transparent px-0 text-lg font-semibold leading-snug shadow-none focus-visible:ring-0"
+      />
+
+      {sections.map((section) => {
+        const filled = section.blocks.filter(hasValue)
+        const blank = section.blocks.filter((b) => !hasValue(b))
+        const chips = blank.filter((b) => b.id !== editingId)
+        if (section.blocks.length === 0) return null
+
+        return (
+          <section key={section.id} className="space-y-1.5">
+            {section.title && (
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {section.title}
+              </h3>
+            )}
+
+            {filled.map((block) =>
+              editingId === block.id ? (
+                <EditShell key={block.id} onDone={stopEditing}>
+                  {editorFor(block)}
+                </EditShell>
+              ) : (
+                displayFor(block)
+              )
+            )}
+
+            {blank
+              .filter((b) => b.id === editingId)
+              .map((block) => (
+                <EditShell key={block.id} onDone={stopEditing}>
+                  {editorFor(block)}
+                </EditShell>
+              ))}
+
+            {chips.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {chips.map((block) => (
+                  <button
+                    key={block.id}
+                    type="button"
+                    onClick={() => setEditingId(block.id)}
+                    className="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+                  >
+                    + {block.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )
       })}
     </div>
   )

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, FileArchive, FolderOpen, Heart, Plus } from 'lucide-react'
+import { Download, FolderOpen, Heart, Plus } from 'lucide-react'
 import { Button } from '@/components/UI/button'
 import {
   Dialog,
@@ -27,9 +27,10 @@ const launchBtnBase =
 export function RecentProjectsScreen(): React.JSX.Element {
   const { openProject, openProjectAtPath, removeFromRecent, renameRecentProject, locateProject } =
     useProject()
-  const [showRestoreBackup, setShowRestoreBackup] = useState(false)
   const showNewProjectModal = useAppStore((s) => s.showNewProjectModal)
   const setShowNewProjectModal = useAppStore((s) => s.setShowNewProjectModal)
+  const showRestoreBackupModal = useAppStore((s) => s.showRestoreBackupModal)
+  const setShowRestoreBackupModal = useAppStore((s) => s.setShowRestoreBackupModal)
   const [recents, setRecents] = useState<RecentProjectWithStatus[]>([])
   const [missingProject, setMissingProject] = useState<RecentProjectWithStatus | null>(null)
   const [renameProject, setRenameProject] = useState<RecentProjectWithStatus | null>(null)
@@ -138,15 +139,6 @@ export function RecentProjectsScreen(): React.JSX.Element {
           <button
             type="button"
             className={`${launchBtnBase} border-[var(--launch-hairline)] bg-transparent text-[var(--launch-ink-dim)] hover:border-[var(--launch-btn-secondary-hover-border)] hover:text-[var(--launch-ink)]`}
-            onClick={() => setShowRestoreBackup(true)}
-            title="Rebuild a project from a backup zip"
-          >
-            <FileArchive className="h-3.5 w-3.5 shrink-0" />
-            Restore Backup
-          </button>
-          <button
-            type="button"
-            className={`${launchBtnBase} border-[var(--launch-hairline)] bg-transparent text-[var(--launch-ink-dim)] hover:border-[var(--launch-btn-secondary-hover-border)] hover:text-[var(--launch-ink)]`}
             onClick={openProject}
           >
             <FolderOpen className="h-3.5 w-3.5 shrink-0" />
@@ -227,10 +219,11 @@ export function RecentProjectsScreen(): React.JSX.Element {
 
       <NewProjectModal open={showNewProjectModal} onOpenChange={setShowNewProjectModal} />
 
+      {/* Opened from the macOS File menu, or from New Project on Windows and Linux. */}
       <RestoreBackupModal
-        open={showRestoreBackup}
+        open={showRestoreBackupModal}
         onOpenChange={(v) => {
-          setShowRestoreBackup(v)
+          setShowRestoreBackupModal(v)
           if (!v) void loadRecents()
         }}
       />

@@ -9,6 +9,14 @@ import { Button } from '@/components/UI/button'
 import { EntityImageBanner } from '@/components/Wiki/EntityImageBanner'
 import { useAppStore } from '@/store/appStore'
 import { useFieldSuggestions } from '@/hooks/useFieldSuggestions'
+import {
+  FixedFields,
+  PANEL_TITLE_CLASS,
+  ProseRow,
+  TagsRow,
+  ValueRow,
+  type PanelField
+} from '@/components/Wiki/PanelKit'
 import { usePanelNodeState } from '@/hooks/usePanelNodeState'
 import { PanelNameField } from '@/components/Wiki/PanelNameField'
 import { useArrayFieldSuggestions } from '@/hooks/useArrayFieldSuggestions'
@@ -182,49 +190,69 @@ export function CharacterPanel({
     onUpdate(next, name !== title ? name : undefined)
   }
 
-  return (
-    <div className="space-y-4">
-      <EntityImageBanner
-        nodeId={nodeId}
-        title={name}
-        imagePath={meta.imagePath}
-        secondaryImagePaths={meta.secondaryImagePaths}
-        imageFocus={meta.imageFocus}
-        entityType="character"
-        onImagesChange={({ imagePath, secondaryImagePaths, imageFocus }) =>
-          saveMeta({ ...meta, imagePath, secondaryImagePaths, imageFocus })
-        }
-      />
+  const [editing, setEditing] = useState<string | null>(null)
+  const done = (): void => {
+    save()
+    setEditing(null)
+  }
 
-      <Field label="Name">
-        <PanelNameField
-          nodeId={nodeId}
-          name={name}
-          setName={setName}
-          onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
-          onSaveMetaOnly={() => onUpdate(meta)}
-        />
-      </Field>
-      <Field label="Also known as">
-        <CommaSeparatedField
-          value={meta.aliases}
-          onChange={(aliases) => setMeta({ ...meta, aliases })}
-          onBlur={save}
-        />
-      </Field>
-      <Field label="General">
+  const prose = (id: string, label: string, value: string, rows = 3): PanelField => ({
+    id,
+    label,
+    filled: Boolean(value),
+    display: <ProseRow label={label} value={value} onEdit={() => setEditing(id)} />,
+    editor: (
+      <Field label={label}>
         <SpellCheckedTextarea
-          measureKey={`${nodeId}-general`}
-          value={meta.general}
-          onChange={(e) => setMeta({ ...meta, general: e.target.value })}
+          measureKey={id === 'general' ? `${nodeId}-general` : nodeId}
+          value={value}
+          onChange={(e) => setMeta({ ...meta, [id]: e.target.value })}
           onBlur={save}
-          rows={3}
+          rows={rows}
         />
       </Field>
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="Age">
-          <SpellCheckedInput value={meta.age} onChange={(e) => setMeta({ ...meta, age: e.target.value })} onBlur={save} />
+    )
+  })
+
+  const atAGlance: PanelField[] = [
+    {
+      id: 'aliases',
+      label: 'Also known as',
+      filled: meta.aliases.length > 0,
+      display: (
+        <TagsRow label="Also known as" values={meta.aliases} onEdit={() => setEditing('aliases')} />
+      ),
+      editor: (
+        <Field label="Also known as">
+          <CommaSeparatedField
+            value={meta.aliases}
+            onChange={(aliases) => setMeta({ ...meta, aliases })}
+            onBlur={save}
+          />
         </Field>
+      )
+    },
+    {
+      id: 'age',
+      label: 'Age',
+      filled: Boolean(meta.age),
+      display: <ValueRow label="Age" value={meta.age} onEdit={() => setEditing('age')} />,
+      editor: (
+        <Field label="Age">
+          <SpellCheckedInput
+            value={meta.age}
+            onChange={(e) => setMeta({ ...meta, age: e.target.value })}
+            onBlur={save}
+          />
+        </Field>
+      )
+    },
+    {
+      id: 'race',
+      label: 'Race',
+      filled: Boolean(meta.race),
+      display: <ValueRow label="Race" value={meta.race} onEdit={() => setEditing('race')} />,
+      editor: (
         <Field label="Race">
           <ComboField
             value={meta.race}
@@ -233,6 +261,14 @@ export function CharacterPanel({
             onBlur={save}
           />
         </Field>
+      )
+    },
+    {
+      id: 'gender',
+      label: 'Gender',
+      filled: Boolean(meta.gender),
+      display: <ValueRow label="Gender" value={meta.gender} onEdit={() => setEditing('gender')} />,
+      editor: (
         <Field label="Gender">
           <ComboField
             value={meta.gender}
@@ -241,61 +277,76 @@ export function CharacterPanel({
             onBlur={save}
           />
         </Field>
-      </div>
-      <Field label="Profession">
-        <ComboTagsField
-          value={meta.professions}
-          suggestions={professionSuggestions}
-          onChange={(professions) => setMeta({ ...meta, professions })}
-          onBlur={save}
+      )
+    },
+    {
+      id: 'professions',
+      label: 'Profession',
+      filled: meta.professions.length > 0,
+      display: (
+        <TagsRow
+          label="Profession"
+          values={meta.professions}
+          onEdit={() => setEditing('professions')}
         />
-      </Field>
-      <Field label="Physical Description">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.physicalDescription}
-          onChange={(e) => setMeta({ ...meta, physicalDescription: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-      <Field label="Personality">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.personality}
-          onChange={(e) => setMeta({ ...meta, personality: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-      <Field label="Background">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.background}
-          onChange={(e) => setMeta({ ...meta, background: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-      <Field label="Role in Story">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.role}
-          onChange={(e) => setMeta({ ...meta, role: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-      <Field label="Notes">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.notes}
-          onChange={(e) => setMeta({ ...meta, notes: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
+      ),
+      editor: (
+        <Field label="Profession">
+          <ComboTagsField
+            value={meta.professions}
+            suggestions={professionSuggestions}
+            onChange={(professions) => setMeta({ ...meta, professions })}
+            onBlur={save}
+          />
+        </Field>
+      )
+    },
+    prose('role', 'Role in story', meta.role)
+  ]
 
+  const description: PanelField[] = [
+    prose('general', 'General', meta.general),
+    prose('physicalDescription', 'Physical description', meta.physicalDescription),
+    prose('personality', 'Personality', meta.personality),
+    prose('background', 'Background', meta.background),
+    prose('notes', 'Notes', meta.notes)
+  ]
+
+  const arc: PanelField[] = [
+    prose('startsAs', 'Starts as', meta.startsAs),
+    prose('endsAs', 'Ends as', meta.endsAs)
+  ]
+
+  // Relationships carry a word of their own — Friend, Rival — so they are their own shape.
+  const relationships: PanelField = {
+    id: 'relationships',
+    label: 'Relationships',
+    filled: meta.relationships.length > 0,
+    display: (
+      <button
+        type="button"
+        onClick={() => setEditing('relationships')}
+        className="w-full rounded-md px-1 py-0.5 text-left hover:bg-accent/40"
+      >
+        {meta.relationships.map((rel, i) => {
+          const other = otherCharacters.find((c) => c.id === rel.characterId)
+          return (
+            <span key={`${rel.characterId}-${i}`} className="flex min-w-0 items-center gap-2 py-0.5">
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-muted text-[9px] font-semibold">
+                {(other?.title ?? '?').slice(0, 2).toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm">
+                {other?.title ?? 'Nobody yet'}
+              </span>
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                {rel.type}
+              </span>
+            </span>
+          )
+        })}
+      </button>
+    ),
+    editor: (
       <div className="space-y-2">
         <label className="text-xs font-medium text-muted-foreground">Relationships</label>
         <div className="space-y-2">
@@ -344,25 +395,60 @@ export function CharacterPanel({
           Add relationship
         </Button>
       </div>
+    )
+  }
 
-      <Field label="Starts as">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.startsAs}
-          onChange={(e) => setMeta({ ...meta, startsAs: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
-      <Field label="Ends as">
-        <SpellCheckedTextarea
-          measureKey={nodeId}
-          value={meta.endsAs}
-          onChange={(e) => setMeta({ ...meta, endsAs: e.target.value })}
-          onBlur={save}
-          rows={3}
-        />
-      </Field>
+  return (
+    <div className="space-y-4">
+      <EntityImageBanner
+        nodeId={nodeId}
+        title={name}
+        imagePath={meta.imagePath}
+        secondaryImagePaths={meta.secondaryImagePaths}
+        imageFocus={meta.imageFocus}
+        entityType="character"
+        onImagesChange={({ imagePath, secondaryImagePaths, imageFocus }) =>
+          saveMeta({ ...meta, imagePath, secondaryImagePaths, imageFocus })
+        }
+      />
+
+      <PanelNameField
+        nodeId={nodeId}
+        name={name}
+        setName={setName}
+        onSave={(n) => onUpdate(meta, n !== title ? n : undefined)}
+        onSaveMetaOnly={() => onUpdate(meta)}
+        className={PANEL_TITLE_CLASS}
+      />
+
+      <FixedFields
+        title="At a glance"
+        fields={atAGlance}
+        editing={editing}
+        setEditing={setEditing}
+        onDone={done}
+      />
+      <FixedFields
+        title="Description"
+        fields={description}
+        editing={editing}
+        setEditing={setEditing}
+        onDone={done}
+      />
+      <FixedFields
+        title="Relationships"
+        fields={[relationships]}
+        editing={editing}
+        setEditing={setEditing}
+        onDone={done}
+      />
+      <FixedFields
+        title="Arc"
+        fields={arc}
+        editing={editing}
+        setEditing={setEditing}
+        onDone={done}
+      />
     </div>
   )
 }

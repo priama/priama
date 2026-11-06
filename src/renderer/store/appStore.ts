@@ -68,6 +68,7 @@ interface AppState {
   rightPanelOpen: boolean
 
   showNewProjectModal: boolean
+  showRestoreBackupModal: boolean
   showExportDialog: boolean
   showBookSettingsModal: boolean
   showEditorAppearanceModal: boolean
@@ -149,6 +150,7 @@ interface AppState {
   }) => void
   setRightPanelOpen: (open: boolean) => void
   setShowNewProjectModal: (show: boolean) => void
+  setShowRestoreBackupModal: (show: boolean) => void
   setShowExportDialog: (show: boolean) => void
   setShowBookSettingsModal: (show: boolean) => void
   setShowEditorAppearanceModal: (show: boolean) => void
@@ -231,6 +233,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   rightPanelWidth: 320,
   rightPanelOpen: true,
   showNewProjectModal: false,
+  showRestoreBackupModal: false,
   showExportDialog: false,
   showBookSettingsModal: false,
   showEditorAppearanceModal: false,
@@ -591,6 +594,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
   setShowNewProjectModal: (show) => set({ showNewProjectModal: show }),
+  setShowRestoreBackupModal: (show) => set({ showRestoreBackupModal: show }),
   setShowExportDialog: (show) => set({ showExportDialog: show }),
   setShowBookSettingsModal: (show) => set({ showBookSettingsModal: show }),
   setShowEditorAppearanceModal: (show) => set({ showEditorAppearanceModal: show }),

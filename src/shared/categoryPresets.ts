@@ -107,7 +107,7 @@ const NOTES_PRESET: CategoryDefinition = {
   id: BUILTIN_CATEGORY_IDS.notes,
   name: 'Notes',
   icon: 'StickyNote',
-  mode: 'panel',
+  mode: 'editor',
   sortOrder: 3,
   builtIn: true
 }
@@ -261,8 +261,9 @@ export function normalizeCategoryDefinition(cat: CategoryDefinition): CategoryDe
   const nodeKind = inferNodeKindFromCategoryId(cat.id)
   return {
     ...cat,
-    // Notes always open in the right panel; keep stored mode aligned with runtime.
-    ...(cat.id === BUILTIN_CATEGORY_IDS.notes ? { mode: 'panel' as const } : {}),
+    // A note is a page you write on, not a list of fields. Forcing it here also
+    // carries projects made before that was true.
+    ...(cat.id === BUILTIN_CATEGORY_IDS.notes ? { mode: 'editor' as const } : {}),
     nodeKind
   }
 }

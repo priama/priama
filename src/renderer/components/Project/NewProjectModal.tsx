@@ -15,14 +15,7 @@ import {
   Users,
   X
 } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/UI/dialog'
+import { Dialog, DialogContent, DialogFooter } from '@/components/UI/dialog'
 import { Button } from '@/components/UI/button'
 import { Input } from '@/components/UI/input'
 import { Label } from '@/components/UI/label'
@@ -38,6 +31,9 @@ import type {
 } from '@shared/types'
 import { splitManuscript, splitManuscriptAuto } from '@shared/import/splitManuscript'
 import { useProject } from '@/hooks/useProject'
+import { useAppStore } from '@/store/appStore'
+import { WizardStepHeader } from '@/components/Project/WizardStepHeader'
+import { isMac } from '@/lib/platform'
 import {
   ImportPreviewStep,
   type PreviewChapterRow
@@ -86,6 +82,7 @@ function rowsFromParsed(
 
 export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): React.JSX.Element {
   const { createProjectFromInput } = useProject()
+  const setShowRestoreBackupModal = useAppStore((s) => s.setShowRestoreBackupModal)
   const [step, setStep] = useState<WizardStep>('details')
   const [origin, setOrigin] = useState<'blank' | 'import'>('blank')
   const [parsed, setParsed] = useState<ParsedManuscriptFile | null>(null)
@@ -187,6 +184,15 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
     }
   }
 
+  // The import preview is an extra step, so the run is five long instead of four.
+  const stepTotal = origin === 'import' ? 5 : 4
+  const folderName = primaryDir
+    ? (primaryDir.split(/[\\/]/).filter(Boolean).pop() ?? primaryDir)
+    : null
+  const projectFolderName = title.trim().replace(/[<>:"/\\|?*]/g, '') || 'Untitled'
+  const stepNo = (base: 1 | 2 | 3 | 4): number =>
+    origin === 'import' && base > 1 ? base + 1 : base
+
   const handleImport = async (): Promise<void> => {
     const ok = await pickDocx()
     if (ok) {
@@ -287,9 +293,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
 
         {step === 'details' && (
           <>
-            <DialogHeader>
-              <DialogTitle>New Project</DialogTitle>
-            </DialogHeader>
+            <WizardStepHeader step={stepNo(1)} total={stepTotal} title="New Project" />
             <div className="space-y-4 py-2">
               <div className="space-y-2">
                 <Label htmlFor="title">Book title *</Label>
@@ -328,15 +332,31 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
             <DialogFooter className="flex-row items-center justify-between gap-2 sm:justify-between">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => void handleImport()}
-                disabled={parsing}
-              >
-                {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Import
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => void handleImport()}
+                  disabled={parsing}
+                >
+                  {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Import
+                </Button>
+                {/* macOS reaches this from the File menu instead. */}
+                {!isMac && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      onOpenChange(false)
+                      setShowRestoreBackupModal(true)
+                    }}
+                    disabled={parsing}
+                  >
+                    Restore backup
+                  </Button>
+                )}
+              </div>
               <div className="flex gap-2">
                 {origin === 'import' && parsed && (
                   <Button variant="ghost" onClick={() => setStep('preview')} disabled={parsing}>
@@ -356,12 +376,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
 
         {step === 'template' && (
           <>
-            <DialogHeader>
-              <DialogTitle>Choose a template</DialogTitle>
-              <DialogDescription>
-                Templates set up your wiki categories. You can add or remove categories later.
-              </DialogDescription>
-            </DialogHeader>
+            <WizardStepHeader step={stepNo(2)} total={stepTotal} title="Choose a template" />
 
             <div className="space-y-2 py-2">
               {PROJECT_TEMPLATES.map((template) => {
@@ -429,40 +444,50 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
 
         {step === 'location' && (
           <>
-            <DialogHeader>
-              <DialogTitle>Primary Save Location</DialogTitle>
-              <DialogDescription>
-                This is your main working copy. Choose a folder you trust, such as Documents, Desktop, or
-                inside your iCloud/Google Drive folder.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <Button
-                variant="outline"
-                onClick={pickPrimaryFolder}
-                disabled={pickingFolder}
-                className="w-full"
-              >
-                {pickingFolder ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <FolderOpen className="mr-2 h-4 w-4" />
-                )}
-                {pickingFolder ? 'Opening folder picker...' : 'Choose Folder'}
-              </Button>
+            <WizardStepHeader
+              step={stepNo(3)}
+              total={stepTotal}
+              title="Where should the book live?"
+            />
+
+            <div className="overflow-hidden rounded-lg border border-border bg-card">
+              <div className="flex min-w-0 items-center gap-3 px-3 py-2.5">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-muted">
+                  <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-[13px] font-medium">
+                    {folderName ?? 'No folder chosen yet'}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground" title={primaryDir ?? ''}>
+                    {primaryDir ?? 'The project folder goes inside the one you pick'}
+                  </span>
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 shrink-0 px-3 text-xs"
+                  onClick={pickPrimaryFolder}
+                  disabled={pickingFolder}
+                >
+                  {pickingFolder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                  {primaryDir ? 'Change…' : 'Choose…'}
+                </Button>
+              </div>
+
               {primaryDir && (
-                <div className="flex items-start gap-2 rounded-md border border-green-500/30 bg-green-500/10 p-3 text-sm">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
-                  <div>
-                    <p className="font-medium text-green-600 dark:text-green-400">Location selected</p>
-                    <p className="mt-1 break-all text-muted-foreground">{primaryDir}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Project folder: {primaryDir}/{title.trim().replace(/[<>:"/\\|?*]/g, '')}
-                    </p>
-                  </div>
+                <div className="grid gap-1 border-t border-border/60 bg-muted/30 px-3 py-2.5">
+                  <span className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Priama will create
+                  </span>
+                  <span className="truncate text-[13px] font-medium">{projectFolderName}</span>
+                  <span className="text-xs text-muted-foreground">
+                    manuscript, wiki, and a backups folder
+                  </span>
                 </div>
               )}
             </div>
+
             <DialogFooter className="gap-2">
               <Button variant="ghost" onClick={() => setStep('template')}>
                 Back
@@ -476,44 +501,64 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
 
         {step === 'backups' && (
           <>
-            <DialogHeader>
-              <DialogTitle>Backup Locations</DialogTitle>
-              <DialogDescription>
-                Optional: copy zip backups to another drive or folder. Local zips always live in the
-                project&apos;s backups folder. You can add up to 5 locations and manage them later
-                from File → Backups.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3 py-2">
+            <WizardStepHeader step={stepNo(4)} total={stepTotal} title="Copies elsewhere" />
+
+            <div className="overflow-hidden rounded-lg border border-border bg-card">
               {backupRows.map((row) => (
                 <div
                   key={row.id}
-                  className="flex items-center gap-2 rounded-md border border-border p-2 text-sm"
+                  className="flex min-w-0 items-center gap-2.5 border-b border-border/60 px-3 py-2.5"
                 >
-                  <div className="min-w-0 flex-1">
-                    <span className="mb-1 inline-block rounded bg-muted px-1.5 py-0.5 text-xs">
+                  <span
+                    className="h-[7px] w-[7px] shrink-0 rounded-full bg-emerald-500"
+                    aria-hidden
+                  />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] font-medium">
                       {detectPathLabel(row.path)}
                     </span>
-                    <p className="truncate text-muted-foreground">{row.path}</p>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeBackupRow(row.id)}>
-                    <X className="h-4 w-4" />
+                    <span className="truncate text-xs text-muted-foreground" title={row.path}>
+                      {row.path}
+                    </span>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0 text-muted-foreground"
+                    onClick={() => removeBackupRow(row.id)}
+                    aria-label={`Remove ${row.path}`}
+                  >
+                    <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               ))}
-              {backupRows.length < 5 && (
-                <Button variant="outline" size="sm" onClick={addBackupRow} disabled={pickingFolder}>
-                  <Plus className="mr-1 h-3 w-3" />
-                  Add backup location
-                </Button>
-              )}
-              {error && <p className="text-sm text-destructive">{error}</p>}
+
+              <button
+                type="button"
+                onClick={() => void addBackupRow()}
+                disabled={pickingFolder || backupRows.length >= 5}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-accent/50 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="text-[13px] font-medium">Add a location…</span>
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  {backupRows.length} of 5
+                </span>
+              </button>
             </div>
-            <DialogFooter className="gap-2">
-              <Button variant="ghost" onClick={() => setStep('location')}>
-                Back
-              </Button>
-              <Button onClick={() => void handleCreate()}>Continue</Button>
+
+            {error && <p className="text-sm text-destructive">{error}</p>}
+
+            <DialogFooter className="items-center gap-2 sm:justify-between">
+              <span className="text-xs text-muted-foreground">
+                {backupRows.length === 0 ? 'Optional — you can add these later' : ''}
+              </span>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setStep('location')}>
+                  Back
+                </Button>
+                <Button onClick={() => void handleCreate()}>Create</Button>
+              </div>
             </DialogFooter>
           </>
         )}

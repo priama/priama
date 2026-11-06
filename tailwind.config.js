@@ -43,7 +43,8 @@ module.exports = {
           foreground: 'hsl(var(--sidebar-foreground))',
           border: 'hsl(var(--sidebar-border))',
           hover: 'hsl(var(--sidebar-hover))',
-          selected: 'hsl(var(--sidebar-selected))'
+          selected: 'hsl(var(--sidebar-selected))',
+          section: 'hsl(var(--sidebar-section))'
         }
       },
       borderRadius: {

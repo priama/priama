@@ -4,15 +4,23 @@ import { cn } from '@/lib/utils'
 
 export type ToastVariant = 'default' | 'warning' | 'success'
 
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 export interface ToastInput {
   title: string
   description?: string
   variant?: ToastVariant
+  /** Only where the message earns one — "Show", "Undo". Never just to say "done". */
+  action?: ToastAction
 }
 
 interface Toast extends Required<Pick<ToastInput, 'title' | 'variant'>> {
   id: string
   description?: string
+  action?: ToastAction
 }
 
 interface ToastState {
@@ -25,12 +33,12 @@ const AUTO_DISMISS_MS = 6500
 
 export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
-  addToast: ({ title, description, variant = 'default' }) => {
+  addToast: ({ title, description, variant = 'default', action }) => {
     const id = crypto.randomUUID()
     set((s) => ({
       toasts: [
         ...s.toasts.filter((t) => !(t.title === title && t.variant === variant)),
-        { id, title, description, variant }
+        { id, title, description, variant, action }
       ]
     }))
     setTimeout(() => {
@@ -81,6 +89,18 @@ export function Toaster(): React.JSX.Element {
               <p className="text-xs leading-relaxed text-muted-foreground">{toast.description}</p>
             ) : null}
           </div>
+          {toast.action && (
+            <button
+              type="button"
+              onClick={() => {
+                toast.action?.onClick()
+                removeToast(toast.id)
+              }}
+              className="shrink-0 self-center rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-muted"
+            >
+              {toast.action.label}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => removeToast(toast.id)}

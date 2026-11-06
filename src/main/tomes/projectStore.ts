@@ -693,6 +693,8 @@ export async function updateNode(
     metadata?: string
     parentId?: string | null
     sortOrder?: number
+    /** Only meaningful for 'entry' nodes — moves one between entry categories. */
+    categoryId?: string
   }
 ): Promise<TreeNode> {
   const previous = nodeUpdateChains.get(id) ?? Promise.resolve()
@@ -707,6 +709,9 @@ export async function updateNode(
     const timestamp = now()
     const updated: TreeNode = {
       ...current,
+      ...(updates.categoryId !== undefined && current.type === 'entry'
+        ? { categoryId: updates.categoryId }
+        : {}),
       title: updates.title ?? current.title,
       content: updates.content ?? current.content,
       metadata: updates.metadata ?? current.metadata,

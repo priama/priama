@@ -32,7 +32,7 @@ import {
 import { clearEditorHistory, registerActiveEditorInstance } from '@/lib/activeEditor'
 import { loadEditorFontsUsedIn } from '@/lib/editorFonts'
 import { syncWritingMenuState } from '@/lib/writingMenuSync'
-import { openIndexedEntry } from '@/lib/categoryNavigation'
+import { openCategoryItem, openIndexedEntry } from '@/lib/categoryNavigation'
 import { panelEntryFingerprint } from '@/lib/entryTitleIndex'
 import { countWords } from '@/lib/utils'
 import { isWritingSurfaceNode, entityHighlightsVisible } from '@/lib/writingSurface'
@@ -100,7 +100,6 @@ function highlightsAreVisible(): boolean {
 export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element {
   const nodes = useAppStore((s) => s.nodes)
   const categories = useAppStore((s) => s.categories)
-  const setSelectedEntity = useAppStore((s) => s.setSelectedEntity)
   const pendingDocumentSearch = useAppStore((s) => s.pendingDocumentSearch)
   const setPendingDocumentSearch = useAppStore((s) => s.setPendingDocumentSearch)
   const focusChrome = useFocusChromeActive()
@@ -209,10 +208,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           const marks = nodeEl.marks
           const mention = marks.find((m) => m.type.name === 'entityMention')
           if (mention) {
-            setSelectedEntity(
-              mention.attrs.entityId as string,
-              mention.attrs.entityType as 'character' | 'location' | 'lore'
-            )
+            void openCategoryItem(mention.attrs.entityId as string)
             return true
           }
         }

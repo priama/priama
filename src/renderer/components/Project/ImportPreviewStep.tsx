@@ -1,11 +1,8 @@
 import { Button } from '@/components/UI/button'
-import {
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/UI/dialog'
+import { DialogFooter } from '@/components/UI/dialog'
+import { WizardStepHeader } from '@/components/Project/WizardStepHeader'
 import { countHtmlWords } from '@shared/manuscriptMeta'
+import { cn } from '@/lib/utils'
 import type { ManuscriptImportChapter, ManuscriptSplitMode } from '@shared/types'
 
 export interface PreviewChapterRow extends ManuscriptImportChapter {
@@ -31,12 +28,13 @@ interface ImportPreviewStepProps {
   onNext: () => void
 }
 
+/** Only shown when the split fell back to something other than what was asked for. */
 function modeHint(detected: ManuscriptSplitMode): string | null {
   if (detected === 'chapter-pattern') {
-    return "This file doesn't use Heading 1 styles. We split on chapter titles instead — change the setting if that's wrong."
+    return 'This file has no Heading 1 styles, so we split on chapter titles instead.'
   }
   if (detected === 'single') {
-    return "We couldn't find chapter headings. This will import as one document. You can split it later in Priama."
+    return 'No chapter headings found — this comes in as one document. You can split it later.'
   }
   return null
 }
@@ -57,28 +55,38 @@ export function ImportPreviewStep({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>Preview chapters</DialogTitle>
-        <DialogDescription>
-          Nothing is created until you finish this wizard. Uncheck anything you don&apos;t want
-          (title page, contents, and so on).
-        </DialogDescription>
-      </DialogHeader>
-      <div className="space-y-3 py-2">
-        <div className="flex items-start justify-between gap-3">
-          <p className="min-w-0 truncate text-sm text-muted-foreground" title={fileName}>
+      <WizardStepHeader
+        step={2}
+        total={5}
+        title={
+          chapters.length === 1 ? 'We found 1 chapter' : `We found ${chapters.length} chapters`
+        }
+      />
+
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex min-w-0 items-center gap-3 border-b border-border/60 px-3 py-2">
+          <span className="min-w-0 flex-1 truncate text-[13px]" title={fileName}>
             {fileName}
-          </p>
-          <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={onChooseDifferentFile}>
-            Choose different file
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 px-2 text-xs"
+            onClick={onChooseDifferentFile}
+          >
+            Choose another
           </Button>
         </div>
-        <label className="block space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">Split into chapters using</span>
+        <div className="flex items-center justify-between gap-4 px-3 py-2">
+          <label htmlFor="split-mode" className="text-[13px]">
+            Split on
+          </label>
           <select
+            id="split-mode"
             value={splitMode}
             onChange={(e) => onSplitModeChange(e.target.value as ManuscriptSplitMode)}
-            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+            className="h-7 shrink-0 rounded-md border border-input bg-background px-2 text-[13px] shadow-sm outline-none"
           >
             {SPLIT_MODES.map((mode) => (
               <option key={mode.id} value={mode.id}>
@@ -86,43 +94,51 @@ export function ImportPreviewStep({
               </option>
             ))}
           </select>
-        </label>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-        <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-          {chapters.map((chapter, index) => (
-            <label
-              key={chapter.id}
-              className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent/40"
-            >
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={chapter.included}
-                onChange={() => onToggleChapter(chapter.id)}
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">
-                  {index + 1}. {chapter.title}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {countHtmlWords(chapter.html).toLocaleString()} words
-                </span>
-              </span>
-            </label>
-          ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {includedCount} of {chapters.length} chapters will be created. Have a Scrivener project?
-          Export to Word first.
-        </p>
+        {hint && (
+          <p className="border-t border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            {hint}
+          </p>
+        )}
       </div>
-      <DialogFooter className="gap-2">
-        <Button variant="ghost" onClick={onBack}>
-          Back
-        </Button>
-        <Button onClick={onNext} disabled={includedCount === 0}>
-          Next
-        </Button>
+
+      <div className="max-h-56 overflow-y-auto overflow-x-hidden rounded-lg border border-border bg-card">
+        {chapters.map((chapter, index) => (
+          <label
+            key={chapter.id}
+            className={cn(
+              'flex min-w-0 cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-accent/40 [&+label]:border-t [&+label]:border-border/60',
+              !chapter.included && 'opacity-55'
+            )}
+          >
+            <input
+              type="checkbox"
+              className="shrink-0 accent-foreground"
+              checked={chapter.included}
+              onChange={() => onToggleChapter(chapter.id)}
+            />
+            <span className="min-w-0 flex-1 truncate text-[13px]">
+              {index + 1}. {chapter.title}
+            </span>
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+              {countHtmlWords(chapter.html).toLocaleString()} words
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <DialogFooter className="items-center gap-2 sm:justify-between">
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {includedCount} of {chapters.length} will become chapters
+        </span>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={onBack}>
+            Back
+          </Button>
+          <Button onClick={onNext} disabled={includedCount === 0}>
+            Continue
+          </Button>
+        </div>
       </DialogFooter>
     </>
   )

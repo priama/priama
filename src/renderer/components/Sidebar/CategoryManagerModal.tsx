@@ -16,97 +16,79 @@ import {
   arrayMove
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Trash2, Plus, ChevronLeft } from 'lucide-react'
+import { ChevronRight, GripVertical, MoreHorizontal, Plus } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogDescription
+  DialogTitle
 } from '@/components/UI/dialog'
 import { Button } from '@/components/UI/button'
-import { Input } from '@/components/UI/input'
-import { Label } from '@/components/UI/label'
-import { ScrollArea } from '@/components/UI/scroll-area'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/appStore'
 import { captureProjectUiState } from '@/lib/projectUiState'
 import { CATEGORY_ICON_MAP } from '@/components/Sidebar/categoryIcons'
-import { cloneCategoryPreset, countCategoryEntries, getAddableCategoryPresets, nodeKindForCategory } from '@shared/categoryPresets'
-import type { CategoryDefinition, CategoryMode } from '@shared/types'
+import { CategoryBuilderSheet } from '@/components/Sidebar/CategoryBuilderSheet'
+import {
+  cloneCategoryPreset,
+  countCategoryEntries,
+  getAddableCategoryPresets,
+  nodeKindForCategory
+} from '@shared/categoryPresets'
+import type { CategoryDefinition } from '@shared/types'
 
-const ICON_NAMES = Object.keys(CATEGORY_ICON_MAP)
-
-function IconPicker({
-  value,
-  onChange
-}: {
-  value: string
-  onChange: (name: string) => void
-}): React.JSX.Element {
-  return (
-    <div className="grid grid-cols-8 gap-1">
-      {ICON_NAMES.map((name) => {
-        const Icon = CATEGORY_ICON_MAP[name]!
-        return (
-          <button
-            key={name}
-            type="button"
-            title={name}
-            onClick={() => onChange(name)}
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-md border transition-colors',
-              value === name
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-transparent text-muted-foreground hover:border-border hover:bg-accent/50'
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-          </button>
-        )
-      })}
-    </div>
-  )
+interface CategoryManagerModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
-function SortableCategoryRow({
+/** A category whose entries are plain 'entry' nodes can be removed; the others own a node type. */
+function isRemovable(category: CategoryDefinition): boolean {
+  return nodeKindForCategory(category) === 'entry'
+}
+
+function presetSummary(preset: CategoryDefinition): string {
+  const blocks = (preset.panelBlocks ?? []).filter((b) => b.type !== 'heading')
+  if (blocks.length === 0) return 'A blank category, ready to shape'
+  const first = blocks.slice(0, 3).map((b) => b.label).join(', ')
+  return `${blocks.length} fields, ready to edit: ${first}${blocks.length > 3 ? '…' : ''}`
+}
+
+function CategoryRow({
   category,
   entryCount,
+  onOpen,
+  onDuplicate,
   onRemove
 }: {
   category: CategoryDefinition
   entryCount: number
+  onOpen: () => void
+  onDuplicate: () => void
   onRemove: () => void
 }): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: category.id
   })
-
+  const [menuOpen, setMenuOpen] = useState(false)
   const Icon = CATEGORY_ICON_MAP[category.icon] ?? CATEGORY_ICON_MAP.Tag!
-
-  const handleRemove = (): void => {
-    if (entryCount > 0) {
-      const confirmed = window.confirm(
-        `"${category.name}" has ${entryCount} ${entryCount === 1 ? 'entry' : 'entries'}. ` +
-          'Removing this category will move those entries to the trash. Continue?'
-      )
-      if (!confirmed) return
-    }
-    onRemove()
-  }
+  const removable = isRemovable(category)
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        'flex items-center gap-2 rounded-md border border-border bg-background px-2 py-2',
+        'relative flex min-w-0 items-center gap-2 rounded-md border border-border bg-card px-2 py-2',
         isDragging && 'opacity-50 shadow-lg'
       )}
     >
       <button
         type="button"
         className="shrink-0 cursor-grab touch-none text-muted-foreground/50 hover:text-muted-foreground"
+        aria-label="Drag to reorder"
         {...attributes}
         {...listeners}
       >
@@ -114,129 +96,95 @@ function SortableCategoryRow({
       </button>
 
       <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-sm">{category.name}</span>
-
-      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-        {category.mode === 'editor' ? 'Editor' : 'Panel'}
-      </span>
 
       <button
         type="button"
-        onClick={handleRemove}
-        title="Remove category"
-        className="shrink-0 rounded p-0.5 text-muted-foreground/50 hover:text-destructive"
+        onClick={onOpen}
+        className="min-w-0 flex-1 truncate text-left text-sm hover:underline"
       >
-        <Trash2 className="h-3.5 w-3.5" />
+        {category.name}
       </button>
-    </div>
-  )
-}
 
-function TemplateCategoryRow({
-  category,
-  onAdd
-}: {
-  category: CategoryDefinition
-  onAdd: () => void
-}): React.JSX.Element {
-  const Icon = CATEGORY_ICON_MAP[category.icon] ?? CATEGORY_ICON_MAP.Tag!
+      {!removable && (
+        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+          Built in
+        </span>
+      )}
 
-  return (
-    <div className="flex items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-2 py-2">
-      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-sm">{category.name}</span>
-      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-        {category.mode === 'editor' ? 'Editor' : 'Panel'}
-      </span>
-      <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={onAdd}>
-        <Plus className="mr-1 h-3.5 w-3.5" />
-        Add
-      </Button>
-    </div>
-  )
-}
+      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{entryCount}</span>
 
-interface AddCategoryFormProps {
-  onAdd: (cat: Omit<CategoryDefinition, 'sortOrder' | 'builtIn' | 'panelBlocks'>) => void
-  onCancel: () => void
-}
+      <button
+        type="button"
+        aria-label={`More for ${category.name}`}
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((v) => !v)}
+        className={cn(
+          'shrink-0 rounded p-0.5 text-muted-foreground/60 hover:bg-accent hover:text-foreground',
+          menuOpen && 'bg-accent text-foreground'
+        )}
+      >
+        <MoreHorizontal className="h-3.5 w-3.5" />
+      </button>
 
-function AddCategoryForm({ onAdd, onCancel }: AddCategoryFormProps): React.JSX.Element {
-  const [name, setName] = useState('')
-  const [icon, setIcon] = useState('Tag')
-  const [mode, setMode] = useState<CategoryMode>('panel')
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Open ${category.name}`}
+        className="shrink-0 text-muted-foreground/50 hover:text-foreground"
+      >
+        <ChevronRight className="h-3.5 w-3.5" />
+      </button>
 
-  const handleSubmit = (): void => {
-    if (!name.trim()) return
-    onAdd({
-      id: `custom-${crypto.randomUUID()}`,
-      name: name.trim(),
-      icon,
-      mode
-    })
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor="cat-name">Name</Label>
-        <Input
-          id="cat-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Factions, Vehicles, Timeline…"
-          autoFocus
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSubmit()
-            if (e.key === 'Escape') onCancel()
-          }}
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Icon</Label>
-        <IconPicker value={icon} onChange={setIcon} />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Mode</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {(['panel', 'editor'] as CategoryMode[]).map((m) => (
+      {menuOpen && (
+        <>
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            className="fixed inset-0 z-20 cursor-default"
+            onClick={() => setMenuOpen(false)}
+          />
+          <div className="absolute right-6 top-8 z-30 min-w-[180px] rounded-md border border-border bg-popover p-1 shadow-md">
             <button
-              key={m}
               type="button"
-              onClick={() => setMode(m)}
-              className={cn(
-                'rounded-md border p-3 text-left text-sm transition-colors',
-                mode === m ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent/30'
-              )}
+              className="block w-full rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent"
+              onClick={() => {
+                setMenuOpen(false)
+                onOpen()
+              }}
             >
-              <p className="font-medium capitalize">{m === 'panel' ? 'Panel' : 'Editor'}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {m === 'panel'
-                  ? 'Items open in the right panel with structured fields'
-                  : 'Items open in the main editor — write freely'}
-              </p>
+              Name, icon and fields…
             </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-2 pt-2">
-        <Button variant="ghost" size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button size="sm" onClick={handleSubmit} disabled={!name.trim()}>
-          Add category
-        </Button>
-      </div>
+            <button
+              type="button"
+              className="block w-full rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent"
+              onClick={() => {
+                setMenuOpen(false)
+                onDuplicate()
+              }}
+            >
+              Duplicate, empty
+            </button>
+            {removable && (
+              <>
+                <div className="my-1 h-px bg-border" />
+                <button
+                  type="button"
+                  className="block w-full rounded-sm px-2 py-1.5 text-left text-xs text-destructive hover:bg-accent"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onRemove()
+                  }}
+                >
+                  Remove…
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
-}
-
-interface CategoryManagerModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
 }
 
 export function CategoryManagerModal({
@@ -249,12 +197,15 @@ export function CategoryManagerModal({
   const setSectionOrder = useAppStore((s) => s.setSectionOrder)
   const updateCategories = useAppStore((s) => s.updateCategories)
   const setNodes = useAppStore((s) => s.setNodes)
-  const [showAddForm, setShowAddForm] = useState(false)
 
-  const addablePresets = useMemo(
-    () => getAddableCategoryPresets(categories),
-    [categories]
-  )
+  const [builderFor, setBuilderFor] = useState<CategoryDefinition | null>(null)
+  const [builderOpen, setBuilderOpen] = useState(false)
+  const [removing, setRemoving] = useState<CategoryDefinition | null>(null)
+  const [keepEntries, setKeepEntries] = useState(true)
+  const [moveTo, setMoveTo] = useState<string>('')
+  const [working, setWorking] = useState(false)
+
+  const addablePresets = useMemo(() => getAddableCategoryPresets(categories), [categories])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -269,13 +220,18 @@ export function CategoryManagerModal({
     .map((id) => categories.find((c) => c.id === id))
     .filter((c): c is CategoryDefinition => !!c)
 
+  const persist = async (next: CategoryDefinition[], nextOrder: string[]): Promise<void> => {
+    setSectionOrder(nextOrder)
+    await updateCategories(next)
+    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
+  }
+
   const addCategoryToProject = async (cat: CategoryDefinition): Promise<void> => {
     const cloned = cloneCategoryPreset(cat)
-    const updated = [...categories, { ...cloned, sortOrder: categories.length }]
-    const nextOrder = [...sectionOrder, cloned.id]
-    setSectionOrder(nextOrder)
-    await updateCategories(updated)
-    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
+    await persist(
+      [...categories, { ...cloned, sortOrder: categories.length }],
+      [...sectionOrder, cloned.id]
+    )
   }
 
   const handleDragEnd = async (event: DragEndEvent): Promise<void> => {
@@ -293,156 +249,274 @@ export function CategoryManagerModal({
       })
       .filter((c): c is CategoryDefinition => !!c)
 
-    setSectionOrder(nextIds)
-    await updateCategories(reordered)
-    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
+    await persist(reordered, nextIds)
   }
 
-  const handleRemove = async (categoryId: string): Promise<void> => {
-    const cat = categories.find((c) => c.id === categoryId)
-    if (cat) {
-      const kind = nodeKindForCategory(cat)
-      const entriesToTrash = nodes.filter((n) => {
-        if (n.deletedAt) return false
-        if (kind === 'entry') return n.type === 'entry' && n.categoryId === categoryId
-        return n.type === kind
-      })
-      let updatedNodes = nodes
-      for (const entry of entriesToTrash) {
-        updatedNodes = await window.electronAPI.tree.moveToTrash(entry.id)
-      }
-      if (entriesToTrash.length > 0) setNodes(updatedNodes)
+  const handleSaveCategory = async (next: CategoryDefinition): Promise<void> => {
+    const exists = categories.some((c) => c.id === next.id)
+    if (exists) {
+      await persist(
+        categories.map((c) => (c.id === next.id ? next : c)),
+        sectionOrder
+      )
+    } else {
+      await persist([...categories, next], [...sectionOrder, next.id])
     }
-
-    const updated = categories.filter((c) => c.id !== categoryId)
-    const nextOrder = sectionOrder.filter((id) => id !== categoryId)
-    setSectionOrder(nextOrder)
-    await updateCategories(updated)
-    await window.electronAPI.tomes.updateUiState(captureProjectUiState())
   }
 
-  const handleAdd = async (
-    partial: Omit<CategoryDefinition, 'sortOrder' | 'builtIn' | 'panelBlocks'>
-  ): Promise<void> => {
-    await addCategoryToProject({
-      ...partial,
-      sortOrder: categories.length,
+  const handleDuplicate = async (category: CategoryDefinition): Promise<void> => {
+    const copy: CategoryDefinition = {
+      ...category,
+      id: `custom-${crypto.randomUUID()}`,
+      name: `${category.name} copy`,
       builtIn: false,
-      panelBlocks: []
-    })
-    setShowAddForm(false)
+      sortOrder: categories.length,
+      panelBlocks: category.panelBlocks ? JSON.parse(JSON.stringify(category.panelBlocks)) : []
+    }
+    await persist([...categories, copy], [...sectionOrder, copy.id])
   }
 
-  const handleAddTemplateCategory = async (preset: CategoryDefinition): Promise<void> => {
-    await addCategoryToProject(preset)
+  // Only entry-kind categories can receive entries: a built-in owns its own node type.
+  const moveTargets = removing
+    ? categories.filter((c) => c.id !== removing.id && nodeKindForCategory(c) === 'entry')
+    : []
+
+  const openRemove = (category: CategoryDefinition): void => {
+    setRemoving(category)
+    const first = categories.find(
+      (c) => c.id !== category.id && nodeKindForCategory(c) === 'entry'
+    )
+    setKeepEntries(Boolean(first))
+    setMoveTo(first?.id ?? '')
   }
+
+  const confirmRemove = async (): Promise<void> => {
+    if (!removing) return
+    setWorking(true)
+    try {
+      const entries = nodes.filter(
+        (n) => !n.deletedAt && n.type === 'entry' && n.categoryId === removing.id
+      )
+
+      if (keepEntries && moveTo) {
+        for (const entry of entries) {
+          await window.electronAPI.tree.update(entry.id, { categoryId: moveTo })
+        }
+      } else {
+        for (const entry of entries) {
+          await window.electronAPI.tree.moveToTrash(entry.id)
+        }
+      }
+      if (entries.length > 0) {
+        setNodes(await window.electronAPI.tree.getAll())
+      }
+
+      await persist(
+        categories.filter((c) => c.id !== removing.id),
+        sectionOrder.filter((id) => id !== removing.id)
+      )
+      setRemoving(null)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const removingCount = removing ? countCategoryEntries(nodes, removing) : 0
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) setShowAddForm(false)
-        onOpenChange(v)
-      }}
-    >
-      <DialogContent presentation="sheet" className="sm:max-w-lg">
-        <DialogHeader>
-          {showAddForm ? (
-            <>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="rounded p-1 text-muted-foreground hover:bg-accent/50"
+    <>
+      <Dialog open={open && !builderOpen && !removing} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-lg max-h-[calc(100vh-4rem)] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Categories</DialogTitle>
+            <DialogDescription>
+              Drag to reorder. Open one to change its name, its icon or its fields.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              In this book
+            </span>
+            {orderedCategories.length === 0 ? (
+              <p className="py-2 text-center text-sm text-muted-foreground">
+                No categories yet. Add a preset below or make your own.
+              </p>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(e) => void handleDragEnd(e)}
+              >
+                <SortableContext
+                  items={orderedCategories.map((c) => c.id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <DialogTitle>New category</DialogTitle>
-              </div>
-              <DialogDescription>Choose a name, icon, and mode for the new category.</DialogDescription>
-            </>
-          ) : (
-            <>
-              <DialogTitle>Manage categories</DialogTitle>
-              <DialogDescription>
-                Reorder your categories, add a preset, or create a custom one.
-              </DialogDescription>
-            </>
-          )}
-        </DialogHeader>
-
-        {showAddForm ? (
-          <AddCategoryForm onAdd={(cat) => void handleAdd(cat)} onCancel={() => setShowAddForm(false)} />
-        ) : (
-          <ScrollArea className="max-h-[70vh] pr-3">
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Your categories
-                </p>
-                {orderedCategories.length === 0 ? (
-                  <p className="py-2 text-center text-sm text-muted-foreground">
-                    No categories yet. Add a preset below or create a custom one.
-                  </p>
-                ) : (
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(e) => void handleDragEnd(e)}
-                  >
-                    <SortableContext
-                      items={orderedCategories.map((c) => c.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div className="space-y-1.5">
-                        {orderedCategories.map((cat) => (
-                          <SortableCategoryRow
-                            key={cat.id}
-                            category={cat}
-                            entryCount={countCategoryEntries(nodes, cat)}
-                            onRemove={() => void handleRemove(cat.id)}
-                          />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Add category
-                </p>
-                {addablePresets.length === 0 ? (
-                  <p className="text-sm italic text-muted-foreground/80">
-                    All preset categories are already in this project.
-                  </p>
-                ) : (
                   <div className="space-y-1.5">
-                    {addablePresets.map((cat) => (
-                      <TemplateCategoryRow
+                    {orderedCategories.map((cat) => (
+                      <CategoryRow
                         key={cat.id}
                         category={cat}
-                        onAdd={() => void handleAddTemplateCategory(cat)}
+                        entryCount={countCategoryEntries(nodes, cat)}
+                        onOpen={() => {
+                          setBuilderFor(cat)
+                          setBuilderOpen(true)
+                        }}
+                        onDuplicate={() => void handleDuplicate(cat)}
+                        onRemove={() => openRemove(cat)}
                       />
                     ))}
                   </div>
-                )}
-              </div>
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => setShowAddForm(true)}
-              >
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Add custom category
-              </Button>
+          {addablePresets.length > 0 && (
+            <div className="grid gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Ready to add
+              </span>
+              <div className="space-y-1.5">
+                {addablePresets.map((preset) => {
+                  const Icon = CATEGORY_ICON_MAP[preset.icon] ?? CATEGORY_ICON_MAP.Tag!
+                  return (
+                    <div
+                      key={preset.id}
+                      className="flex min-w-0 items-center gap-2.5 rounded-md border border-dashed border-border px-2 py-2"
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-sm font-medium">{preset.name}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {presetSummary(preset)}
+                        </span>
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 shrink-0 px-2 text-xs"
+                        onClick={() => void addCategoryToProject(preset)}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </ScrollArea>
-        )}
-      </DialogContent>
-    </Dialog>
+          )}
+
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              setBuilderFor(null)
+              setBuilderOpen(true)
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New category
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      <CategoryBuilderSheet
+        open={builderOpen}
+        onOpenChange={setBuilderOpen}
+        category={builderFor}
+        entryCount={builderFor ? countCategoryEntries(nodes, builderFor) : 0}
+        onSave={handleSaveCategory}
+        onRemove={
+          builderFor && isRemovable(builderFor)
+            ? () => {
+                const target = builderFor
+                setBuilderOpen(false)
+                openRemove(target)
+              }
+            : undefined
+        }
+      />
+
+      <Dialog open={!!removing} onOpenChange={(v) => !v && !working && setRemoving(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove &ldquo;{removing?.name}&rdquo;?</DialogTitle>
+            <DialogDescription>
+              {removingCount === 0
+                ? 'Nothing belongs to it, so nothing else changes.'
+                : `${removingCount} ${removingCount === 1 ? 'entry belongs' : 'entries belong'} to it. The category goes; they don’t have to.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {removingCount > 0 && (
+            <div className="grid gap-2">
+              {moveTargets.length > 0 && (
+                <label
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2.5',
+                    keepEntries ? 'border-primary bg-primary/5' : 'border-border'
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="remove-entries"
+                    checked={keepEntries}
+                    onChange={() => setKeepEntries(true)}
+                    className="shrink-0 accent-foreground"
+                  />
+                  <span className="min-w-0 flex-1 text-[13px]">Keep the entries, move them to</span>
+                  <select
+                    aria-label="Move the entries to"
+                    value={moveTo}
+                    onChange={(e) => {
+                      setMoveTo(e.target.value)
+                      setKeepEntries(true)
+                    }}
+                    className="h-7 shrink-0 rounded-md border border-input bg-background px-2 text-[13px] shadow-sm outline-none"
+                  >
+                    {moveTargets.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              <label
+                className={cn(
+                  'flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2.5',
+                  !keepEntries ? 'border-primary bg-primary/5' : 'border-border'
+                )}
+              >
+                <input
+                  type="radio"
+                  name="remove-entries"
+                  checked={!keepEntries}
+                  onChange={() => setKeepEntries(false)}
+                  className="shrink-0 accent-foreground"
+                />
+                <span className="text-[13px]">Move them to the trash</span>
+              </label>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setRemoving(null)} disabled={working}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void confirmRemove()}
+              disabled={working}
+            >
+              {working ? 'Removing…' : 'Remove'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

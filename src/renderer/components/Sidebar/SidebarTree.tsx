@@ -44,6 +44,7 @@ import {
   isFolder,
   isWikiEntityType
 } from '@/lib/treeUtils'
+import { listManuscriptChapters } from '@shared/export/manuscript'
 import type { FolderScope, TreeNode } from '@shared/types'
 
 const TREE_INDENT = 12
@@ -152,6 +153,9 @@ function TreeItemRow({
   isExpandable,
   isExpanded,
   onToggleExpand,
+  number,
+  dimmed,
+  reserveGlyph,
   trailingAction,
   overlay,
   dragHandleProps
@@ -165,6 +169,11 @@ function TreeItemRow({
   isExpandable?: boolean
   isExpanded?: boolean
   onToggleExpand?: () => void
+  /** Position in the book — "3" for a chapter, "3.2" for a scene. */
+  number?: string
+  dimmed?: boolean
+  /** Hold the folder-glyph column open. Only worth it when this list has a folder in it. */
+  reserveGlyph?: boolean
   trailingAction?: React.ReactNode
   overlay?: boolean
   dragHandleProps?: {
@@ -181,6 +190,7 @@ function TreeItemRow({
         isFolderNode || node.type === 'chapter' ? 'text-sm' : 'text-xs',
         !overlay && 'cursor-pointer',
         isSelected ? 'text-accent-foreground' : !overlay && 'text-foreground',
+        dimmed && 'opacity-55',
         overlay && 'cursor-grabbing bg-sidebar text-foreground shadow-md ring-1 ring-border'
       )}
       style={{ paddingLeft: `${contentLeft}px` }}
@@ -216,7 +226,21 @@ function TreeItemRow({
       ) : (
         <span className="w-4 shrink-0" />
       )}
-      {isFolderNode && <Folder className="h-3 w-3 shrink-0 opacity-70" />}
+      {/* Held open only where a folder shares the list, so names still line up there
+          without every other row paying for a glyph that is not drawn. */}
+      {(reserveGlyph || isFolderNode) && (
+        <span className="flex w-3 shrink-0 items-center justify-center">
+          {isFolderNode && <Folder className="h-3 w-3 opacity-70" />}
+        </span>
+      )}
+      {number && (
+        <span
+          className="shrink-0 pr-1 text-right text-[11px] font-medium tabular-nums text-muted-foreground"
+          style={{ width: number.includes('.') ? 26 : 20 }}
+        >
+          {number}
+        </span>
+      )}
       <span className="min-w-0 flex-1 truncate" title={node.title}>
         {node.title}
       </span>
@@ -247,6 +271,9 @@ function SortableTreeItem({
   isExpandable,
   isExpanded,
   onToggleExpand,
+  number,
+  dimmed,
+  reserveGlyph,
   onSelect,
   onRename,
   onMoveToTrash,
@@ -263,6 +290,9 @@ function SortableTreeItem({
   isExpandable?: boolean
   isExpanded?: boolean
   onToggleExpand?: () => void
+  number?: string
+  dimmed?: boolean
+  reserveGlyph?: boolean
   onSelect: () => void
   onRename: () => void
   onMoveToTrash: () => void
@@ -309,6 +339,9 @@ function SortableTreeItem({
           isExpandable={isExpandable}
           isExpanded={isExpanded}
           onToggleExpand={onToggleExpand}
+          number={number}
+          dimmed={dimmed}
+          reserveGlyph={reserveGlyph}
           trailingAction={trailingAction}
           dragHandleProps={{ attributes, listeners }}
         />
@@ -345,6 +378,14 @@ export function SidebarTree({
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const renameSession = useAppStore((s) => s.renameSession)
 
+  // Position in the book: a chapter keeps its number wherever it sits in a folder.
+  const chapterNumbers = useMemo(() => {
+    const map = new Map<string, number>()
+    if (scope !== 'manuscript') return map
+    listManuscriptChapters(nodes).forEach((c, i) => map.set(c.id, i + 1))
+    return map
+  }, [nodes, scope])
+
   const children = useMemo(() => {
     const raw = getChildren(nodes, parentId, scope)
     if (scope === 'entry' && categoryId) {
@@ -352,6 +393,7 @@ export function SidebarTree({
     }
     return raw
   }, [nodes, parentId, scope, categoryId])
+  const listHasFolder = useMemo(() => children.some((c) => isFolder(c)), [children])
   const activeDragNode = activeDragId ? (nodes.find((n) => n.id === activeDragId) ?? null) : null
 
   const sensors = useSensors(
@@ -494,7 +536,13 @@ export function SidebarTree({
             const childAncestors = [...rowAncestors, !isLast]
             const folderNode = isFolder(node)
             const sceneChapter = node.type === 'chapter' && isChapterFolder(node)
-            const isExpandable = folderNode || sceneChapter
+            const folderChildCount = folderNode
+              ? getChildren(nodes, node.id, scope).filter(
+                  (c) => scope !== 'entry' || !categoryId || c.type === 'folder' || c.categoryId === categoryId
+                ).length
+              : 0
+            const isEmptyFolder = folderNode && folderChildCount === 0
+            const isExpandable = (folderNode && !isEmptyFolder) || sceneChapter
             const expanded = expandedSections.has(node.id)
             const scenes = sceneChapter ? getScenes(nodes, node.id) : []
 
@@ -534,6 +582,11 @@ export function SidebarTree({
                   isExpandable={isExpandable}
                   isExpanded={expanded}
                   onToggleExpand={() => toggleSection(node.id)}
+                  number={
+                    chapterNumbers.has(node.id) ? String(chapterNumbers.get(node.id)) : undefined
+                  }
+                  dimmed={isEmptyFolder}
+                  reserveGlyph={listHasFolder}
                   onSelect={() => handleSelect(node)}
                   onRename={() => startRename(node)}
                   onMoveToTrash={() =>
@@ -612,6 +665,7 @@ export function SidebarTree({
                     )}>
                       <SceneList
                         chapterId={node.id}
+                        chapterNumber={chapterNumbers.get(node.id)}
                         scenes={scenes}
                         depth={depth + 1}
                         ancestorContinues={childAncestors}
@@ -664,6 +718,7 @@ export function SidebarTree({
 
 function SceneList({
   chapterId,
+  chapterNumber,
   scenes,
   depth,
   ancestorContinues = [],
@@ -680,6 +735,7 @@ function SceneList({
   disabled
 }: {
   chapterId: string
+  chapterNumber?: number
   scenes: TreeNode[]
   depth: number
   ancestorContinues?: boolean[]
@@ -762,6 +818,7 @@ function SceneList({
               ancestorContinues={ancestorContinues}
               isLastSibling={isLastScene}
               isSelected={selectedNodeId === scene.id}
+              number={chapterNumber ? `${chapterNumber}.${sceneIndex + 1}` : undefined}
               onSelect={() => setSelectedNodeId(scene.id)}
               onRename={() => startRename(scene)}
               onMoveToTrash={() =>

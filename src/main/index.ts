@@ -432,6 +432,13 @@ function buildMenu(): void {
           accelerator: 'CmdOrCtrl+O',
           click: () => sendToWindow(mainWindow, 'menu:openProject')
         },
+        // Windows and Linux reach this from the New Project modal instead.
+        ...(isMac
+          ? [{
+              label: 'Restore from Backup…',
+              click: () => sendToWindow(mainWindow, 'menu:restoreBackup')
+            }]
+          : []),
         { type: 'separator' },
         {
           label: 'Save',
