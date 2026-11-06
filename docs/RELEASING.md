@@ -38,11 +38,14 @@ delta downloads and auto-update. Nothing reads them today — there is no
 `electron-updater` in `package.json` — so they are harmless noise on the
 release page.
 
-This doc used to say the portable `.exe` was not published. That was wrong:
-`build.win.target` is `["nsis", "portable"]` and the `windows` job runs
-`--publish always`, so electron-builder uploads both, and every release since
-has carried it. If we do not want to ship it, the fix is to drop `portable`
-from the target list, not to leave the doc disagreeing with the release page.
+We ship the portable `.exe` on purpose: it runs without an installer, which is
+the only way in for someone on a locked-down work machine with no admin rights.
+Both come from `build.win.target` being `["nsis", "portable"]`, and the `windows`
+job publishes always, so both land on the release.
+
+This doc used to claim the portable build was not published. It always was. If
+that ever changes, drop `portable` from the target list — do not just edit this
+paragraph, or the doc goes back to disagreeing with the release page.
 
 One Windows build is enough: x64 covers every Intel/AMD machine, and Windows on
 ARM runs it under emulation. There is no Intel Mac build; `build.mac.target` is
