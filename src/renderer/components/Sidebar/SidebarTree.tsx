@@ -8,6 +8,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
   type DropAnimation
 } from '@dnd-kit/core'
@@ -107,6 +108,12 @@ const dropAnimation: DropAnimation = {
   easing: 'cubic-bezier(0.25, 1, 0.5, 1)'
 }
 
+type DropMode = 'inside' | 'before' | 'after'
+interface DropIntent {
+  overId: string
+  mode: DropMode
+}
+
 interface SidebarTreeProps {
   scope: FolderScope
   parentId: string | null
@@ -156,6 +163,7 @@ function TreeItemRow({
   number,
   dimmed,
   reserveGlyph,
+  dropIndicator,
   trailingAction,
   overlay,
   dragHandleProps
@@ -174,6 +182,7 @@ function TreeItemRow({
   dimmed?: boolean
   /** Hold the folder-glyph column open. Only worth it when this list has a folder in it. */
   reserveGlyph?: boolean
+  dropIndicator?: DropMode
   trailingAction?: React.ReactNode
   overlay?: boolean
   dragHandleProps?: {
@@ -191,6 +200,7 @@ function TreeItemRow({
         !overlay && 'cursor-pointer',
         isSelected ? 'text-accent-foreground' : !overlay && 'text-foreground',
         dimmed && 'opacity-55',
+        dropIndicator === 'inside' && 'bg-sidebar-selected ring-1 ring-inset ring-foreground/40',
         overlay && 'cursor-grabbing bg-sidebar text-foreground shadow-md ring-1 ring-border'
       )}
       style={{ paddingLeft: `${contentLeft}px` }}
@@ -202,6 +212,20 @@ function TreeItemRow({
             'pointer-events-none absolute top-0.5 bottom-0.5 right-1 -z-10 rounded-md',
             isSelected ? 'bg-sidebar-selected' : 'bg-transparent group-hover:bg-sidebar-hover'
           )}
+          style={{ left: `${contentLeft}px` }}
+        />
+      )}
+      {dropIndicator === 'before' && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-0 right-1 top-0 z-10 h-[2px] rounded-full bg-foreground/70"
+          style={{ left: `${contentLeft}px` }}
+        />
+      )}
+      {dropIndicator === 'after' && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute bottom-0 left-0 right-1 z-10 h-[2px] rounded-full bg-foreground/70"
           style={{ left: `${contentLeft}px` }}
         />
       )}
@@ -274,6 +298,7 @@ function SortableTreeItem({
   number,
   dimmed,
   reserveGlyph,
+  dropIndicator,
   onSelect,
   onRename,
   onMoveToTrash,
@@ -293,6 +318,7 @@ function SortableTreeItem({
   number?: string
   dimmed?: boolean
   reserveGlyph?: boolean
+  dropIndicator?: DropMode
   onSelect: () => void
   onRename: () => void
   onMoveToTrash: () => void
@@ -342,6 +368,7 @@ function SortableTreeItem({
           number={number}
           dimmed={dimmed}
           reserveGlyph={reserveGlyph}
+          dropIndicator={dropIndicator}
           trailingAction={trailingAction}
           dragHandleProps={{ attributes, listeners }}
         />
@@ -375,6 +402,10 @@ export function SidebarTree({
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  // Dropping means two different things. 'inside' puts the row in a folder,
+  // 'before'/'after' puts it between two rows. Null means this drop does nothing,
+  // and then nothing is drawn — the sidebar never promises a move it will not make.
+  const [dropIntent, setDropIntent] = useState<DropIntent | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const renameSession = useAppStore((s) => s.renameSession)
 
@@ -457,19 +488,57 @@ export function SidebarTree({
     return selectedNodeId === node.id
   }
 
-  const handleDragEnd = async (event: DragEndEvent): Promise<void> => {
-    setActiveDragId(null)
+  /**
+   * Which of the two drops is being offered. A folder claims its middle band for
+   * 'inside'; its top and bottom quarters, and every non-folder row, mean 'between'.
+   * Returns null when the drop would do nothing, so nothing is drawn for it.
+   */
+  const readDropIntent = (event: DragOverEvent | DragEndEvent): DropIntent | null => {
     const { active, over } = event
-    if (!over || active.id === over.id) return
+    if (!over || active.id === over.id) return null
 
     const activeNode = nodes.find((n) => n.id === active.id)
     const overNode = nodes.find((n) => n.id === over.id)
+    if (!activeNode || !overNode) return null
+
+    const overRect = over.rect
+    const activeRect = active.rect.current.translated
+    const centre = activeRect ? activeRect.top + activeRect.height / 2 : overRect.top + overRect.height / 2
+    const offset = overRect.height > 0 ? (centre - overRect.top) / overRect.height : 0.5
+
+    if (isFolder(overNode) && offset > 0.25 && offset < 0.75) {
+      // A folder cannot go inside itself, nor inside anything it contains —
+      // that would cut the subtree loose from the root.
+      if (activeNode.id === overNode.id) return null
+      let ancestor: string | null | undefined = overNode.parentId ?? null
+      while (ancestor) {
+        if (ancestor === activeNode.id) return null
+        ancestor = nodes.find((n) => n.id === ancestor)?.parentId ?? null
+      }
+      return { overId: String(over.id), mode: 'inside' }
+    }
+
+    const sameParent = (activeNode.parentId ?? null) === (overNode.parentId ?? null)
+    if (!sameParent || activeNode.type !== overNode.type) return null
+
+    return { overId: String(over.id), mode: offset < 0.5 ? 'before' : 'after' }
+  }
+
+  const handleDragOver = (event: DragOverEvent): void => {
+    setDropIntent(readDropIntent(event))
+  }
+
+  const handleDragEnd = async (event: DragEndEvent): Promise<void> => {
+    const intent = dropIntent ?? readDropIntent(event)
+    setActiveDragId(null)
+    setDropIntent(null)
+    if (!intent) return
+
+    const activeNode = nodes.find((n) => n.id === event.active.id)
+    const overNode = nodes.find((n) => n.id === intent.overId)
     if (!activeNode || !overNode) return
 
-    const activeParent = activeNode.parentId ?? null
-    const overParent = overNode.parentId ?? null
-
-    if (isFolder(overNode) && getChildren(nodes, overNode.id, scope).length >= 0) {
+    if (intent.mode === 'inside') {
       await useHistoryStore.getState().push(
         makeReparentCommand({
           nodeId: activeNode.id,
@@ -480,12 +549,16 @@ export function SidebarTree({
       return
     }
 
-    if (activeParent !== overParent || activeNode.type !== overNode.type) return
+    const parentId = activeNode.parentId ?? null
+    const siblings = getChildren(nodes, parentId, scope).filter((n) => n.type === activeNode.type)
+    const oldIndex = siblings.findIndex((n) => n.id === activeNode.id)
+    const overIndex = siblings.findIndex((n) => n.id === overNode.id)
+    if (oldIndex === -1 || overIndex === -1) return
 
-    const siblings = getChildren(nodes, activeParent, scope).filter((n) => n.type === activeNode.type)
-    const oldIndex = siblings.findIndex((n) => n.id === active.id)
-    const newIndex = siblings.findIndex((n) => n.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
+    // 'after' lands past the row; removing the dragged item first shifts anything below it.
+    let newIndex = intent.mode === 'after' ? overIndex + 1 : overIndex
+    if (oldIndex < newIndex) newIndex -= 1
+    if (newIndex === oldIndex) return
 
     const reordered = arrayMove(siblings, oldIndex, newIndex)
     const items = reordered.map((n, i) => ({ id: n.id, parentId: n.parentId, sortOrder: i }))
@@ -526,8 +599,12 @@ export function SidebarTree({
         collisionDetection={closestCorners}
         modifiers={[restrictToVerticalAxis]}
         onDragStart={({ active }: DragStartEvent) => setActiveDragId(String(active.id))}
+        onDragOver={handleDragOver}
         onDragEnd={(event) => void handleDragEnd(event)}
-        onDragCancel={() => setActiveDragId(null)}
+        onDragCancel={() => {
+          setActiveDragId(null)
+          setDropIntent(null)
+        }}
       >
         <SortableContext items={children.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           {children.map((node, index) => {
@@ -587,6 +664,7 @@ export function SidebarTree({
                   }
                   dimmed={isEmptyFolder}
                   reserveGlyph={listHasFolder}
+                  dropIndicator={dropIntent?.overId === node.id ? dropIntent.mode : undefined}
                   onSelect={() => handleSelect(node)}
                   onRename={() => startRename(node)}
                   onMoveToTrash={() =>
