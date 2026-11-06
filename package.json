@@ -1,6 +1,6 @@
 {
   "name": "priama",
-  "version": "0.0.10",
+  "version": "0.1.11",
   "description": "Local-first desktop writing application for authors",
   "main": "./out/main/index.js",
   "author": "Andy Rene Perez Rebollo",
