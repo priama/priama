@@ -155,17 +155,33 @@ function TagsBlock({
   )
 }
 
-/** Older projects stored a bare id; newer ones store an id with a word on it. */
+/**
+ * Three shapes reach this: a bare id, {id, note}, and the typed relationships the
+ * hand-written panels have always written — {characterId, type} and {personId, type}.
+ * Reading only the first two would make every Character and People relationship
+ * vanish the moment those categories are drawn from their field list.
+ */
 function normalizeLinks(raw: unknown): PanelLinkValue[] {
   if (!Array.isArray(raw)) return []
   const out: PanelLinkValue[] = []
   for (const item of raw) {
     if (typeof item === 'string') {
       out.push({ id: item })
-    } else if (item && typeof item === 'object' && typeof (item as PanelLinkValue).id === 'string') {
-      const link = item as PanelLinkValue
-      out.push(link.note ? { id: link.id, note: link.note } : { id: link.id })
+      continue
     }
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const id =
+      typeof rec.id === 'string'
+        ? rec.id
+        : typeof rec.characterId === 'string'
+          ? rec.characterId
+          : typeof rec.personId === 'string'
+            ? rec.personId
+            : null
+    if (!id) continue
+    const note = typeof rec.note === 'string' ? rec.note : typeof rec.type === 'string' ? rec.type : undefined
+    out.push(note ? { id, note } : { id })
   }
   return out
 }

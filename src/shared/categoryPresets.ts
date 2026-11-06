@@ -31,23 +31,32 @@ const CHARACTERS_PRESET: CategoryDefinition = {
   sortOrder: 0,
   builtIn: true,
   panelBlocks: [
-    { id: 'aliases', label: 'Aliases', type: 'tags' },
-    { id: 'general', label: 'General', type: 'textarea', rows: 3 },
+    { id: 'images', label: 'Images', type: 'images' },
+    { id: 'h-glance', label: 'At a glance', type: 'heading' },
+    { id: 'aliases', label: 'Also known as', type: 'tags' },
     { id: 'age', label: 'Age', type: 'text' },
     { id: 'race', label: 'Race', type: 'text' },
     { id: 'gender', label: 'Gender', type: 'text' },
     { id: 'professions', label: 'Profession', type: 'tags' },
-    { id: 'physicalDescription', label: 'Physical Description', type: 'textarea', rows: 3 },
+    { id: 'role', label: 'Role in story', type: 'textarea', rows: 3 },
+    { id: 'h-description', label: 'Description', type: 'heading' },
+    { id: 'general', label: 'General', type: 'textarea', rows: 3 },
+    { id: 'physicalDescription', label: 'Physical description', type: 'textarea', rows: 3 },
     { id: 'personality', label: 'Personality', type: 'textarea', rows: 3 },
     { id: 'background', label: 'Background', type: 'textarea', rows: 3 },
-    { id: 'role', label: 'Role', type: 'text' },
+    { id: 'notes', label: 'Notes', type: 'textarea', rows: 4 },
+    { id: 'h-relationships', label: 'Relationships', type: 'heading' },
     {
       id: 'relationships',
       label: 'Relationships',
       type: 'relationships',
-      allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters]
+      allowedCategoryIds: [BUILTIN_CATEGORY_IDS.characters],
+      // Friend, Rival, Mentor — the word on the link is part of the data.
+      allowNote: true
     },
-    { id: 'notes', label: 'Notes', type: 'textarea', rows: 4 }
+    { id: 'h-arc', label: 'Arc', type: 'heading' },
+    { id: 'startsAs', label: 'Starts as', type: 'textarea', rows: 3 },
+    { id: 'endsAs', label: 'Ends as', type: 'textarea', rows: 3 }
   ]
 }
 
@@ -59,7 +68,10 @@ const LOCATIONS_PRESET: CategoryDefinition = {
   sortOrder: 1,
   builtIn: true,
   panelBlocks: [
-    { id: 'locationType', label: 'Type', type: 'text' },
+    { id: 'images', label: 'Images', type: 'images' },
+    // 'type', not 'locationType' — the id has to be the key the data is under.
+    { id: 'type', label: 'Type', type: 'text' },
+    { id: 'general', label: 'General', type: 'textarea', rows: 3 },
     { id: 'description', label: 'Description', type: 'textarea', rows: 4 },
     {
       id: 'connectedLocations',
@@ -85,7 +97,9 @@ const LORE_PRESET: CategoryDefinition = {
   sortOrder: 2,
   builtIn: true,
   panelBlocks: [
+    { id: 'images', label: 'Images', type: 'images' },
     { id: 'category', label: 'Category', type: 'text' },
+    { id: 'general', label: 'General', type: 'textarea', rows: 3 },
     { id: 'description', label: 'Description', type: 'textarea', rows: 4 },
     {
       id: 'relatedCharacters',
@@ -120,7 +134,8 @@ const PEOPLE_PRESET: CategoryDefinition = {
   sortOrder: 0,
   builtIn: false,
   panelBlocks: [
-    { id: 'knownAs', label: 'Known As', type: 'text' },
+    { id: 'images', label: 'Images', type: 'images' },
+    { id: 'knownAs', label: 'Known as', type: 'text' },
     { id: 'ethnicity', label: 'Ethnicity', type: 'text' },
     { id: 'gender', label: 'Gender', type: 'text' },
     { id: 'age', label: 'Age', type: 'text' },
@@ -139,7 +154,8 @@ const PEOPLE_PRESET: CategoryDefinition = {
       id: 'relationships',
       label: 'Relationships',
       type: 'relationships',
-      allowedCategoryIds: [NF_PEOPLE_CATEGORY_ID]
+      allowedCategoryIds: [NF_PEOPLE_CATEGORY_ID],
+      allowNote: true
     },
     { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
   ]
@@ -202,7 +218,24 @@ const BESTIARY_PRESET: CategoryDefinition = {
   icon: 'PawPrint',
   mode: 'panel',
   sortOrder: 0,
-  builtIn: false
+  builtIn: false,
+  // Had no field list at all, while BestiaryPanel rendered ten of them.
+  panelBlocks: [
+    { id: 'images', label: 'Images', type: 'images' },
+    { id: 'h-glance', label: 'At a glance', type: 'heading' },
+    { id: 'species', label: 'Species', type: 'text' },
+    { id: 'type', label: 'Type', type: 'text' },
+    { id: 'habitat', label: 'Habitat', type: 'text' },
+    { id: 'h-description', label: 'Description', type: 'heading' },
+    { id: 'general', label: 'General', type: 'textarea', rows: 3 },
+    { id: 'physicalDescription', label: 'Physical description', type: 'textarea', rows: 3 },
+    { id: 'behavior', label: 'Behavior', type: 'textarea', rows: 3 },
+    { id: 'h-lore', label: 'Lore', type: 'heading' },
+    { id: 'origin', label: 'Origin', type: 'textarea', rows: 3 },
+    { id: 'abilities', label: 'Abilities', type: 'textarea', rows: 3 },
+    { id: 'weaknesses', label: 'Weaknesses', type: 'textarea', rows: 3 },
+    { id: 'notes', label: 'Notes', type: 'textarea', rows: 3 }
+  ]
 }
 
 const CATEGORY_PRESET_CATALOG: CategoryDefinition[] = [
