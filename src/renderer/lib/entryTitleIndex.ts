@@ -180,11 +180,18 @@ export function findEntityMatches(index: EntryTitleIndex, text: string): EntityT
   return matches
 }
 
+// Store updates (even a content save) hand out a fresh `nodes` array; the fingerprint
+// only changes when the indexed entries themselves change. Memoize by array identity so
+// callers can compute it cheaply on every store generation.
+let fingerprintCache: { nodes: TreeNode[]; categories: CategoryDefinition[]; value: string } | null = null
+
 export function panelEntryFingerprint(
   nodes: TreeNode[],
   categories: CategoryDefinition[]
 ): string {
-  return nodes
+  const cache = fingerprintCache
+  if (cache && cache.nodes === nodes && cache.categories === categories) return cache.value
+  const value = nodes
     .filter((n) => qualifiesForIndex(n, categories))
     .map((n) => {
       const phrases = phrasesForNode(n).join(',')
@@ -192,4 +199,22 @@ export function panelEntryFingerprint(
     })
     .sort()
     .join('|')
+  fingerprintCache = { nodes, categories, value }
+  return value
+}
+
+// The trie walks and re-tokenizes every entry title; rebuilding it on each spell-check
+// pass was a per-pause O(project) cost. Fingerprints cover ids, titles, phrases, and
+// soft-delete state, so reuse the trie until one of those changes.
+let indexCache: { fingerprint: string; index: EntryTitleIndex } | null = null
+
+export function entryTitleIndexFor(
+  nodes: TreeNode[],
+  categories: CategoryDefinition[]
+): EntryTitleIndex {
+  const fingerprint = panelEntryFingerprint(nodes, categories)
+  if (indexCache && indexCache.fingerprint === fingerprint) return indexCache.index
+  const index = buildEntryTitleIndex(nodes, categories)
+  indexCache = { fingerprint, index }
+  return index
 }

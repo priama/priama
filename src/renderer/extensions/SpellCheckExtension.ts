@@ -5,7 +5,7 @@ import type { Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { check } from '@/lib/spellCheck'
 import {
-  buildEntryTitleIndex,
+  entryTitleIndexFor,
   findEntityMatches,
   type EntryTitleIndex
 } from '@/lib/entryTitleIndex'
@@ -138,14 +138,18 @@ async function checkBlock(
 
     if (absFrom < 0 || absTo > doc.content.size) continue
 
-    decorations.push(
-      Decoration.inline(absFrom, absTo, {
-        class: 'spell-error',
-        'data-word': match.word,
-        'data-suggestions': JSON.stringify(match.suggestions),
-        'data-message': match.message ?? ''
-      })
-    )
+    // Offline matches carry no suggestions (they are fetched lazily when a menu
+    // opens), so omit the attribute instead of baking a JSON string per decoration.
+    const attrs: Record<string, string> = {
+      class: 'spell-error',
+      'data-word': match.word,
+      'data-message': match.message ?? ''
+    }
+    if (match.suggestions && match.suggestions.length > 0) {
+      attrs['data-suggestions'] = JSON.stringify(match.suggestions)
+    }
+
+    decorations.push(Decoration.inline(absFrom, absTo, attrs))
   }
 
   return decorations
@@ -249,7 +253,7 @@ export const SpellCheckExtension = Extension.create({
               pendingFullRecheck = false
 
               const { nodes, categories } = useAppStore.getState()
-              const entryIndex = buildEntryTitleIndex(nodes, categories)
+              const entryIndex = entryTitleIndexFor(nodes, categories)
 
               let positionsToCheck: Set<number>
 

@@ -51,6 +51,35 @@ export function computeWritingMenuState(): WritingMenuState {
 }
 
 /** Push Edit-menu enablement for split/merge (and focus chrome) to the main process. */
+
+// Typing moves the caret on every keystroke, but the menu state almost never changes
+// while writing. Compute at most once per pause, and only send when something the menu
+// renders actually differs from what the main process was last given.
+const SYNC_DEBOUNCE_MS = 150
+
+let pendingTimer: ReturnType<typeof setTimeout> | null = null
+let lastSent: WritingMenuState | null = null
+
+function sameMenuState(a: WritingMenuState, b: WritingMenuState): boolean {
+  return (
+    a.focusMode === b.focusMode &&
+    a.focusModeEnabled === b.focusModeEnabled &&
+    a.typewriterScrolling === b.typewriterScrolling &&
+    a.entityHighlights === b.entityHighlights &&
+    a.canSplitDocument === b.canSplitDocument &&
+    a.canMergeWithNext === b.canMergeWithNext &&
+    a.sidebarVisible === b.sidebarVisible &&
+    a.sidebarEnabled === b.sidebarEnabled
+  )
+}
+
 export function syncWritingMenuState(): void {
-  void window.electronAPI.app.setWritingMenuState(computeWritingMenuState())
+  if (pendingTimer) clearTimeout(pendingTimer)
+  pendingTimer = setTimeout(() => {
+    pendingTimer = null
+    const state = computeWritingMenuState()
+    if (lastSent && sameMenuState(lastSent, state)) return
+    lastSent = state
+    void window.electronAPI.app.setWritingMenuState(state)
+  }, SYNC_DEBOUNCE_MS)
 }

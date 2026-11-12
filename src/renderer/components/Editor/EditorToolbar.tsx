@@ -10,6 +10,7 @@ import {
   Search
 } from 'lucide-react'
 import type { Editor } from '@tiptap/react'
+import { useEditorState } from '@tiptap/react'
 import { Button } from '@/components/UI/button'
 import { Separator } from '@/components/UI/separator'
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/UI/tooltip'
@@ -18,11 +19,11 @@ import { TITLEBAR_BUTTONS_INSET } from '@shared/windowChrome'
 import { isMac } from '@/lib/platform'
 import { StyleDropdown } from './StyleDropdown'
 import { ColorPickerButton, TEXT_COLORS, HIGHLIGHT_COLORS } from './ColorPicker'
+import { useWordCount } from '@/hooks/useWordCount'
 import { cn } from '@/lib/utils'
 
 interface EditorToolbarProps {
   editor: Editor | null
-  wordCount: number
   onOpenSearch?: () => void
 }
 
@@ -56,14 +57,40 @@ function ToolbarButton({
 
 const TOOLBAR_PADDING_X = 12
 
-export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbarProps): React.JSX.Element {
+/**
+ * The toolbar's slice of the editor state. Subscribing here (instead of re-rendering
+ * with the whole editor panel per transaction) keeps typing fast: this component only
+ * re-renders when one of these derived values actually changes.
+ */
+function useToolbarState(editor: Editor | null) {
+  return useEditorState({
+    editor,
+    selector: ({ editor: ed }) => {
+      if (!ed) return null
+      return {
+        bold: ed.isActive('bold'),
+        italic: ed.isActive('italic'),
+        underline: ed.isActive('underline'),
+        strike: ed.isActive('strike'),
+        bulletList: ed.isActive('bulletList'),
+        orderedList: ed.isActive('orderedList'),
+        textColor: (ed.getAttributes('textStyle').color as string | undefined) ?? '',
+        highlightColor: (ed.getAttributes('highlight').color as string | undefined) ?? ''
+      }
+    }
+  })
+}
+
+export function EditorToolbar({ editor, onOpenSearch }: EditorToolbarProps): React.JSX.Element {
   // A collapsed sidebar is narrower than the traffic lights; start the controls
   // past them. Only macOS has them, so elsewhere this is just normal padding.
   const paddingLeft = useAppStore((s) =>
     isMac ? Math.max(TOOLBAR_PADDING_X, TITLEBAR_BUTTONS_INSET - s.sidebarWidth) : TOOLBAR_PADDING_X
   )
+  const state = useToolbarState(editor)
+  const wordCount = useWordCount(editor)
 
-  if (!editor) return <div className="h-10 border-b border-border" />
+  if (!editor || !state) return <div className="h-10 border-b border-border" />
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -78,28 +105,28 @@ export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbar
 
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
-          isActive={editor.isActive('bold')}
+          isActive={state.bold}
           tooltip="Bold (⌘B)"
         >
           <Bold className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          isActive={editor.isActive('italic')}
+          isActive={state.italic}
           tooltip="Italic (⌘I)"
         >
           <Italic className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
-          isActive={editor.isActive('underline')}
+          isActive={state.underline}
           tooltip="Underline (⌘U)"
         >
           <UnderlineIcon className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleStrike().run()}
-          isActive={editor.isActive('strike')}
+          isActive={state.strike}
           tooltip="Strikethrough"
         >
           <Strikethrough className="h-4 w-4" />
@@ -108,7 +135,7 @@ export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbar
         <Separator orientation="vertical" className="mx-1 h-6" />
 
         <ColorPickerButton
-          currentColor={editor.getAttributes('textStyle').color ?? ''}
+          currentColor={state.textColor}
           colors={TEXT_COLORS}
           tooltip="Text Color"
           icon={<Type className="h-4 w-4" />}
@@ -121,7 +148,7 @@ export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbar
           }}
         />
         <ColorPickerButton
-          currentColor={editor.getAttributes('highlight').color ?? ''}
+          currentColor={state.highlightColor}
           colors={HIGHLIGHT_COLORS}
           tooltip="Highlight"
           icon={<Highlighter className="h-4 w-4" />}
@@ -138,14 +165,14 @@ export function EditorToolbar({ editor, wordCount, onOpenSearch }: EditorToolbar
 
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
-          isActive={editor.isActive('bulletList')}
+          isActive={state.bulletList}
           tooltip="Bullet List"
         >
           <List className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          isActive={editor.isActive('orderedList')}
+          isActive={state.orderedList}
           tooltip="Numbered List"
         >
           <ListOrdered className="h-4 w-4" />

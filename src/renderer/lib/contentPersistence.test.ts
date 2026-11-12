@@ -256,3 +256,50 @@ describe('typing hot path and the store', () => {
     expect(getLiveContent('missing', 'fallback')).toBe('fallback')
   })
 })
+
+describe('deferred serialization for editor content (getter form)', () => {
+  it('does not call the getter while keystrokes are marked', () => {
+    const getter = vi.fn(() => '<p>live</p>')
+    markContentDirty('scene-1', getter)
+    markContentDirty('scene-1', getter)
+    markContentDirty('scene-1', getter)
+    expect(getter).not.toHaveBeenCalled()
+    expect(getUnsavedContent('scene-1')).toBe('<p>live</p>')
+    expect(getter).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists the text as of the save, not as of the first keystroke', async () => {
+    let text = '<p>s</p>'
+    markContentDirty('scene-1', () => text)
+    text = '<p>saved at flush time</p>'
+    await __test__.persistNow('scene-1')
+    expect(updateMock).toHaveBeenCalledWith('scene-1', { content: '<p>saved at flush time</p>' })
+  })
+
+  it('keeps the last snapshot as a fallback if the getter later throws', () => {
+    let alive = true
+    const getter = (): string => {
+      if (!alive) throw new Error('editor destroyed')
+      return '<p>snapshot</p>'
+    }
+    markContentDirty('scene-1', getter)
+    expect(__test__.getDirtyContent('scene-1')).toBe('<p>snapshot</p>')
+
+    alive = false
+    markContentDirty('scene-1', getter) // same getter reference: must not drop the snapshot
+    expect(__test__.getDirtyContent('scene-1')).toBe('<p>snapshot</p>')
+    expect(getUnsavedContent('scene-1')).toBe('<p>snapshot</p>')
+  })
+
+  it('a later string write overrides a stale getter', async () => {
+    markContentDirty('scene-1', () => '<p>from editor</p>')
+    markContentDirty('scene-1', '<p>programmatic</p>')
+    await __test__.persistNow('scene-1')
+    expect(updateMock).toHaveBeenCalledWith('scene-1', { content: '<p>programmatic</p>' })
+  })
+
+  it('marks the project dirty even before the first snapshot exists', () => {
+    markContentDirty('scene-1', () => '<p>x</p>')
+    expect(hasUnpersistedChanges()).toBe(true)
+  })
+})

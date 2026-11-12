@@ -4,9 +4,27 @@ import { useAppStore } from '@/store/appStore'
 const DEBOUNCE_MS = 400
 const AUTOSAVE_INTERVAL_MS = 30_000
 
-type DirtyEntry = { content: string }
+/**
+ * Dirty text for a node. Either an already-serialized string (notes, programmatic
+ * edits) or a getter the save path calls, so a keystroke never pays for a full
+ * document serialization; `content` then holds the last serialized snapshot.
+ */
+type DirtyEntry = { content?: string; getter?: () => string }
 
 const dirtyNodes = new Map<string, DirtyEntry>()
+
+/** Latest serialized text for an entry: run the getter (and remember the result) if any. */
+function resolveEntry(entry: DirtyEntry): string | null {
+  if (entry.getter) {
+    try {
+      const fresh = entry.getter()
+      if (typeof fresh === 'string') entry.content = fresh
+    } catch {
+      // Editor went away mid-resolve; fall back to the last snapshot below.
+    }
+  }
+  return entry.content ?? null
+}
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const persisting = new Set<string>()
 
@@ -39,11 +57,15 @@ export function resetPersistenceState(): void {
   syncDirtyFlag()
 }
 
-/** Capture active editor/note content. When `nodeId` is set, only that node is captured. */
-function captureActiveContent(nodeId?: string): void {
+/**
+ * Capture active editor/note content. When `nodeId` is set, only that node is captured.
+ * Exported so an unmount can snapshot the latest text while the editor is still alive.
+ */
+export function captureActiveContent(nodeId?: string): void {
   const active = getActiveEditorContent?.()
   if (active && (nodeId === undefined || active.nodeId === nodeId)) {
-    dirtyNodes.set(active.nodeId, { content: active.content })
+    const prev = dirtyNodes.get(active.nodeId)
+    dirtyNodes.set(active.nodeId, { content: active.content, getter: prev?.getter })
   }
   const note = getActiveNoteContent?.()
   if (note && (nodeId === undefined || note.nodeId === nodeId)) {
@@ -63,7 +85,8 @@ async function persistNode(nodeId: string): Promise<void> {
   const entry = dirtyNodes.get(nodeId)
   if (!entry || persisting.has(nodeId)) return
 
-  const writingContent = entry.content
+  const writingContent = resolveEntry(entry)
+  if (writingContent === null) return
   persisting.add(nodeId)
   syncDirtyFlag()
 
@@ -71,7 +94,7 @@ async function persistNode(nodeId: string): Promise<void> {
     await window.electronAPI.tree.update(nodeId, { content: writingContent })
     const current = dirtyNodes.get(nodeId)
     // Only clear if nothing newer arrived while we were writing.
-    if (current && current.content === writingContent) {
+    if (current && resolveEntry(current) === writingContent) {
       dirtyNodes.delete(nodeId)
       // Keystrokes never touch the store; it catches up once per completed write.
       useAppStore.getState().updateNodeInStore(nodeId, { content: writingContent })
@@ -81,7 +104,7 @@ async function persistNode(nodeId: string): Promise<void> {
   } finally {
     persisting.delete(nodeId)
     const current = dirtyNodes.get(nodeId)
-    if (current && current.content !== writingContent) {
+    if (current && resolveEntry(current) !== writingContent) {
       // Newer edit landed during the write — persist it immediately.
       cancelDebounce(nodeId)
       syncDirtyFlag()
@@ -101,6 +124,8 @@ function schedulePersist(nodeId: string): void {
     setTimeout(() => {
       debounceTimers.delete(nodeId)
       syncDirtyFlag()
+      // Snapshot the live editor/note text now (once per save, not per keystroke).
+      captureActiveContent(nodeId)
       void persistNode(nodeId)
     }, DEBOUNCE_MS)
   )
@@ -111,15 +136,27 @@ function schedulePersist(nodeId: string): void {
  * Typing hot path: record the latest text and debounce a write. Deliberately does not
  * touch the store — every `nodes` subscriber would re-render per keystroke. The store's
  * `content` is the last saved copy; read live text with `getLiveContent`.
+ *
+ * Pass a getter (e.g. `() => editor.getHTML()`) for big-editable surfaces: serialization
+ * then happens when the debounce fires, not on every keystroke. A string serializes now.
  */
-export function markContentDirty(nodeId: string, content: string): void {
-  dirtyNodes.set(nodeId, { content })
+export function markContentDirty(nodeId: string, content: string | (() => string)): void {
+  if (typeof content === 'function') {
+    const prev = dirtyNodes.get(nodeId)
+    if (!(prev && prev.getter === content)) {
+      // Keep the last serialized snapshot as a fallback if the getter dies.
+      dirtyNodes.set(nodeId, { getter: content, content: prev?.content })
+    }
+  } else {
+    dirtyNodes.set(nodeId, { content })
+  }
   schedulePersist(nodeId)
 }
 
 /** Text typed for `nodeId` that has not finished saving, if any. */
 export function getUnsavedContent(nodeId: string): string | undefined {
-  return dirtyNodes.get(nodeId)?.content
+  const entry = dirtyNodes.get(nodeId)
+  return entry ? resolveEntry(entry) ?? undefined : undefined
 }
 
 /**
@@ -132,7 +169,10 @@ export function getLiveContent(nodeId: string, fallback: string): string {
   const note = getActiveNoteContent?.()
   if (note?.nodeId === nodeId) return note.content
   const unsaved = dirtyNodes.get(nodeId)
-  if (unsaved) return unsaved.content
+  if (unsaved) {
+    const content = resolveEntry(unsaved)
+    if (content !== null) return content
+  }
   return useAppStore.getState().nodes.find((n) => n.id === nodeId)?.content ?? fallback
 }
 
@@ -142,7 +182,9 @@ export function getLiveContent(nodeId: string, fallback: string): string {
  */
 export function publishUnsavedContent(nodeId: string): void {
   const pending = dirtyNodes.get(nodeId)
-  if (pending) useAppStore.getState().updateNodeInStore(nodeId, { content: pending.content })
+  if (!pending) return
+  const content = resolveEntry(pending)
+  if (content !== null) useAppStore.getState().updateNodeInStore(nodeId, { content })
 }
 
 export function hasUnpersistedChanges(): boolean {
@@ -163,7 +205,8 @@ export function mergeIncomingNodes(incoming: TreeNode[]): TreeNode[] {
     }
     const dirty = dirtyNodes.get(n.id)
     if (dirty) {
-      return { ...n, content: dirty.content }
+      const content = resolveEntry(dirty)
+      if (content !== null) return { ...n, content }
     }
     return n
   })
@@ -194,7 +237,8 @@ export async function flushAndSaveProject(
 /** Test helpers — not for production UI. */
 export const __test__ = {
   getDirtyContent(nodeId: string): string | undefined {
-    return dirtyNodes.get(nodeId)?.content
+    const entry = dirtyNodes.get(nodeId)
+    return entry ? resolveEntry(entry) ?? undefined : undefined
   },
   isPersisting(nodeId: string): boolean {
     return persisting.has(nodeId)

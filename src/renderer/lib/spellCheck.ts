@@ -6,7 +6,8 @@ export interface SpellMatch {
   from: number
   to: number
   word: string
-  suggestions: string[]
+  /** Absent on the offline path — generated lazily when a suggestions menu opens. */
+  suggestions?: string[]
   message?: string
 }
 
@@ -302,12 +303,9 @@ async function checkOffline(
 
     if (isCyrillicWord(word)) {
       if (!spellRu || spellRu.correct(word)) continue
-      matches.push({
-        from,
-        to,
-        word,
-        suggestions: spellRu.suggest(word).slice(0, 6)
-      })
+      // Suggestions are lazy: nspell's `suggest()` is expensive and almost every
+      // wrong word in a draft never gets a right-click.
+      matches.push({ from, to, word })
       continue
     }
 
@@ -315,20 +313,29 @@ async function checkOffline(
     if (spellLatinPrimary.correct(word)) continue
     if (spellLatinSecondary?.correct(word)) continue
 
-    matches.push({
-      from,
-      to,
-      word,
-      suggestions: [
-        ...spellLatinPrimary.suggest(word).slice(0, 4),
-        ...(spellLatinSecondary?.suggest(word).slice(0, 2) ?? [])
-      ]
-        .filter((s, i, arr) => arr.indexOf(s) === i)
-        .slice(0, 6)
-    })
+    matches.push({ from, to, word })
   }
 
   return matches
+}
+
+/**
+ * Suggestions for one word, generated only when actually shown (right-click menu).
+ * Mirrors what the offline check pass would have produced.
+ */
+export async function suggestWord(word: string): Promise<string[]> {
+  if (isCyrillicWord(word)) {
+    const spellRu = await getSpell('ru')
+    return spellRu ? spellRu.suggest(word).slice(0, 6) : []
+  }
+  const { primary, secondary } = latinPair(projectLang)
+  const [spellPrimary, spellSecondary] = await Promise.all([getSpell(primary), getSpell(secondary)])
+  return [
+    ...(spellPrimary ? spellPrimary.suggest(word).slice(0, 4) : []),
+    ...(spellSecondary ? spellSecondary.suggest(word).slice(0, 2) : [])
+  ]
+    .filter((s, i, arr) => arr.indexOf(s) === i)
+    .slice(0, 6)
 }
 
 export async function check(text: string, options?: CheckOptions): Promise<SpellMatch[]> {

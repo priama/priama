@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
+import type { Editor } from '@tiptap/react'
+import { useWordCount } from '@/hooks/useWordCount'
 import { cn } from '@/lib/utils'
 
 interface FocusWordCountProps {
-  wordCount: number
+  editor: Editor | null
   className?: string
 }
 
 const IDLE_MS = 1200
 
 /** Fades in after typing pauses; fades out while the user is typing. */
-export function FocusWordCount({ wordCount, className }: FocusWordCountProps): React.JSX.Element {
+export function FocusWordCount({ editor, className }: FocusWordCountProps): React.JSX.Element {
+  const wordCount = useWordCount(editor)
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { addCustomWord, check, onSpellCheckSettingsChange, type SpellMatch } from '@/lib/spellCheck'
+import { addCustomWord, check, onSpellCheckSettingsChange, suggestWord, type SpellMatch } from '@/lib/spellCheck'
 
 const DEBOUNCE_MS = 400
 const BLUR_MENU_DELAY_MS = 150
@@ -57,6 +57,8 @@ export function useSpellCheckField(
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const blurMenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeMenuRef = useRef<SpellCheckMenuState | null>(null)
+  // Guards against a slow suggestion lookup for a stale right-click opening the menu later.
+  const menuSeqRef = useRef(0)
   const lineCacheRef = useRef<Map<number, LineCache>>(new Map())
 
   const runCheck = useCallback(
@@ -115,6 +117,7 @@ export function useSpellCheckField(
   )
 
   const closeMenu = useCallback(() => {
+    menuSeqRef.current++
     if (blurMenuTimerRef.current) {
       clearTimeout(blurMenuTimerRef.current)
       blurMenuTimerRef.current = null
@@ -178,9 +181,22 @@ export function useSpellCheckField(
       if (!match) return
 
       e.preventDefault()
-      const nextMenu = { x: e.clientX, y: e.clientY, match }
-      activeMenuRef.current = nextMenu
-      setMenu(nextMenu)
+      const seq = ++menuSeqRef.current
+      const open = (withMatch: SpellMatch): void => {
+        // A newer right-click (or a close) superseded this lookup.
+        if (seq !== menuSeqRef.current) return
+        const nextMenu = { x: e.clientX, y: e.clientY, match: withMatch }
+        activeMenuRef.current = nextMenu
+        setMenu(nextMenu)
+      }
+
+      if (match.suggestions && match.suggestions.length > 0) {
+        open(match)
+        return
+      }
+      // Offline matches omit suggestions (the check pass no longer runs nspell's
+      // `suggest()` eagerly): look them up for this one word, now that it is asked for.
+      void suggestWord(match.word).then((fresh) => open({ ...match, suggestions: fresh }))
     },
     [enabled, matches]
   )

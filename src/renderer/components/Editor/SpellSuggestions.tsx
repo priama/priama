@@ -7,6 +7,8 @@ interface SpellSuggestionsProps {
   y: number
   word: string
   suggestions: string[]
+  /** Suggestions are still being looked up (lazy offline check). */
+  loading?: boolean
   message?: string
   isCustomWord?: boolean
   onSelect: (replacement: string) => void
@@ -22,6 +24,7 @@ export function SpellSuggestions({
   y,
   word,
   suggestions,
+  loading,
   message,
   isCustomWord,
   onSelect,
@@ -94,6 +97,8 @@ export function SpellSuggestions({
             {s}
           </button>
         ))
+      ) : loading ? (
+        <p className="px-3 py-1.5 text-xs text-muted-foreground/60 italic">Checking…</p>
       ) : (
         <p className="px-3 py-1.5 text-xs text-muted-foreground/60 italic">No suggestions</p>
       )}

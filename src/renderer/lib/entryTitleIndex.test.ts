@@ -4,6 +4,7 @@ import { BUILTIN_CATEGORY_IDS, serializeMetadata } from '@shared/types'
 import type { CategoryDefinition, CharacterMeta, TreeNode } from '@shared/types'
 import {
   buildEntryTitleIndex,
+  entryTitleIndexFor,
   findEntityMatches,
   panelEntryFingerprint,
   phrasesForNode,
@@ -219,5 +220,26 @@ describe('panelEntryFingerprint', () => {
     const nodesA = [characterWithAliases('c1', 'Ankros', ['Ank'])]
     const nodesB = [characterWithAliases('c1', 'Ankros', ['The Shadow'])]
     expect(panelEntryFingerprint(nodesA, categories)).not.toBe(panelEntryFingerprint(nodesB, categories))
+  })
+})
+
+describe('entryTitleIndexFor', () => {
+  it('reuses the cached trie while the fingerprint is unchanged', () => {
+    const nodesA = [characterWithAliases('cached-1', 'Ankros', ['Ank'])]
+    const first = entryTitleIndexFor(nodesA, categories)
+    expect(entryTitleIndexFor(nodesA, categories)).toBe(first)
+
+    // Content save: brand-new nodes array, same titles/aliases → the same trie instance.
+    const nodesB = [{ ...nodesA[0], content: '<p>wrote a whole scene</p>' }]
+    expect(entryTitleIndexFor(nodesB, categories)).toBe(first)
+  })
+
+  it('rebuilds when an entry title changes', () => {
+    const nodesA = [characterWithAliases('cached-2', 'Ankros', ['Ank'])]
+    const first = entryTitleIndexFor(nodesA, categories)
+    const nodesC = [{ ...nodesA[0], title: 'Ankros the Wise' }]
+    const second = entryTitleIndexFor(nodesC, categories)
+    expect(second).not.toBe(first)
+    expect(findEntityMatches(second, 'Ankros the Wise arrived').length).toBeGreaterThan(0)
   })
 })

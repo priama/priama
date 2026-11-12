@@ -21,9 +21,10 @@ import { SpellSuggestions } from './SpellSuggestions'
 import { PasteMenu } from './PasteMenu'
 import { FocusWordCount } from './FocusWordCount'
 import { FocusModeButton } from './FocusModeButton'
-import { addCustomWord, removeCustomWord, isCustomWord, onSpellCheckSettingsChange } from '@/lib/spellCheck'
+import { addCustomWord, removeCustomWord, isCustomWord, onSpellCheckSettingsChange, suggestWord } from '@/lib/spellCheck'
 import { useAppStore } from '@/store/appStore'
 import {
+  captureActiveContent,
   getUnsavedContent,
   markContentDirty,
   publishUnsavedContent,
@@ -34,7 +35,6 @@ import { loadEditorFontsUsedIn } from '@/lib/editorFonts'
 import { syncWritingMenuState } from '@/lib/writingMenuSync'
 import { openCategoryItem, openIndexedEntry } from '@/lib/categoryNavigation'
 import { panelEntryFingerprint } from '@/lib/entryTitleIndex'
-import { countWords } from '@/lib/utils'
 import { isWritingSurfaceNode, entityHighlightsVisible } from '@/lib/writingSurface'
 import { useBlockStyleShortcuts } from '@/hooks/useBlockStyleShortcuts'
 import { useFocusChromeActive } from '@/hooks/useFocusMode'
@@ -119,6 +119,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     y: number
     word: string
     suggestions: string[]
+    loading?: boolean
     message?: string
     from: number
     to: number
@@ -165,6 +166,9 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     ],
     content: node?.content ?? '',
     editable: !!isEditable,
+    // Keystrokes must not re-render this whole panel; consumers subscribe to the slice
+    // of editor state they need (toolbar marks, word count) via useEditorState.
+    shouldRerenderOnTransaction: false,
     editorProps: {
       attributes: {
         class: 'prose-editor focus:outline-none min-h-full',
@@ -243,7 +247,9 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     },
     onUpdate: ({ editor: ed }) => {
       if (!node) return
-      markContentDirty(node.id, ed.getHTML())
+      // Hand over a getter, not the serialized text: `getHTML()` walks the whole
+      // document, so it runs once when the save debounce fires — never per keystroke.
+      markContentDirty(node.id, () => ed.getHTML())
     },
     onSelectionUpdate: () => {
       syncWritingMenuState()
@@ -266,6 +272,9 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     syncWritingMenuState()
 
     return () => {
+      // Snapshot the last text while this editor is definitely still alive, so the
+      // pending save and the store publish below see the newest keystrokes.
+      captureActiveContent(nodeId)
       registerActiveEditor(null)
       registerActiveEditorInstance(null, null)
       publishUnsavedContent(nodeId)
@@ -401,10 +410,8 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
     }
   }
 
-  // This component re-renders on every transaction (caret moves included); only
-  // re-serialize the document when it actually changed.
-  const doc = editor?.state.doc
-  const wordCount = useMemo(() => (editor ? countWords(editor.getHTML()) : 0), [editor, doc])
+  // This component re-renders on store/UI changes only — not per transaction
+  // (see `shouldRerenderOnTransaction`). Toolbar and word count subscribe themselves.
 
   if (!node) {
     return (
@@ -501,10 +508,21 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
               y: e.clientY,
               word,
               suggestions,
+              loading: suggestions.length === 0,
               message,
               from: deco?.from ?? domPos,
               to: deco?.to ?? domPos + word.length
             })
+            // Offline decorations carry no pre-computed suggestions (running nspell's
+            // `suggest()` per unknown word during typing was the main spell-check cost),
+            // so fetch them now, only because the writer actually asked.
+            if (suggestions.length === 0) {
+              void suggestWord(word).then((fresh) => {
+                setSpellMenu((m) =>
+                  m && m.word === word ? { ...m, suggestions: fresh, loading: false } : m
+                )
+              })
+            }
           } catch {
             return
           }
@@ -513,7 +531,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
       }}
     >
       {!focusChrome && (
-        <EditorToolbar editor={editor} wordCount={wordCount} onOpenSearch={handleOpenSearch} />
+        <EditorToolbar editor={editor} onOpenSearch={handleOpenSearch} />
       )}
       {searchOpen && editor && (
         <SearchBar
@@ -535,7 +553,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
             <div className="pointer-events-auto">
               <FocusModeButton floating />
             </div>
-            <FocusWordCount wordCount={wordCount} />
+            <FocusWordCount editor={editor} />
           </div>
         )}
       </div>
@@ -584,6 +602,7 @@ export function RichTextEditor({ node }: RichTextEditorProps): React.JSX.Element
           y={spellMenu.y}
           word={spellMenu.word}
           suggestions={spellMenu.suggestions}
+          loading={spellMenu.loading}
           message={spellMenu.message}
           isCustomWord={isCustomWord(spellMenu.word)}
           onSelect={(replacement) => {
