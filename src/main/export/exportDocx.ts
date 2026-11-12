@@ -7,11 +7,19 @@ import {
   Paragraph,
   ImageRun,
   AlignmentType,
+  Header,
+  TextRun,
+  PageNumber,
   convertInchesToTwip
 } from 'docx'
 import type { BookSettings, ExportFormatting, ExportOptions, ExportSection } from '@shared/types'
 import { buildFrontMatterBlocks } from '@shared/export/frontMatter'
-import { marginInches, pageDimensions } from './formatting'
+import {
+  docxFontName,
+  effectiveSceneBreakMarker,
+  marginInches,
+  pageDimensions
+} from '@shared/export/formatting'
 import {
   centeredTextParagraph,
   htmlToDocxParagraphs,
@@ -27,11 +35,12 @@ function sectionsToParagraphs(
   bookSettings: BookSettings
 ): Paragraph[] {
   const { fontFamily, fontSize } = formatting
+  const sceneBreakMarker = effectiveSceneBreakMarker(formatting, bookSettings)
   const paragraphs: Paragraph[] = []
 
   for (const section of sections) {
-    if (section.sceneBreakBefore && bookSettings.sceneBreakMarker) {
-      paragraphs.push(sceneBreakParagraph(bookSettings.sceneBreakMarker, fontFamily, fontSize))
+    if (section.sceneBreakBefore && sceneBreakMarker) {
+      paragraphs.push(sceneBreakParagraph(sceneBreakMarker, formatting))
     }
 
     if (section.displayHeading) {
@@ -39,7 +48,7 @@ function sectionsToParagraphs(
     }
 
     if (section.html.trim()) {
-      paragraphs.push(...htmlToDocxParagraphs(section.html, fontFamily, fontSize, bookSettings))
+      paragraphs.push(...htmlToDocxParagraphs(section.html, formatting, bookSettings))
     }
   }
 
@@ -127,6 +136,31 @@ async function coverParagraphs(
   }
 }
 
+/**
+ * Page header for this export, when the formatting asks for one: header text
+ * and/or the page number, right-aligned in the manuscript's own font.
+ * Standard manuscript format puts "Author / TITLE / page" at the top right.
+ */
+function buildPageHeader(formatting: ExportFormatting): Header | undefined {
+  const { headerText, headerPageNumber, fontFamily, fontSize } = formatting
+  const text = headerText.trim()
+  if (!text && !headerPageNumber) return undefined
+
+  const font = docxFontName(fontFamily)
+  const size = fontSize * 2
+  const children: TextRun[] = []
+  if (text) {
+    children.push(new TextRun({ text: headerPageNumber ? `${text} / ` : text, font, size }))
+  }
+  if (headerPageNumber) {
+    children.push(new TextRun({ children: [PageNumber.CURRENT], font, size }))
+  }
+
+  return new Header({
+    children: [new Paragraph({ alignment: AlignmentType.RIGHT, children })]
+  })
+}
+
 export async function exportDocx(
   savePath: string,
   options: ExportOptions,
@@ -143,6 +177,7 @@ export async function exportDocx(
   const cover = await coverParagraphs(bookSettings, widthTwip, heightTwip, marginTwip)
   const frontMatter = frontMatterParagraphs(bookSettings, title, author, formatting)
   const body = sectionsToParagraphs(sections, formatting, bookSettings)
+  const header = buildPageHeader(formatting)
 
   const doc = new Document({
     sections: [
@@ -158,6 +193,8 @@ export async function exportDocx(
             }
           }
         },
+        // docx v9 wants headers at the section level, not inside `properties`.
+        ...(header ? { headers: { default: header } } : {}),
         children: [...cover, ...frontMatter, ...body]
       }
     ]

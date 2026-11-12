@@ -1,6 +1,6 @@
 import type { ExportFormatting, BookSettings, ExportSection } from '@shared/types'
 import { paragraphBodyCss } from '@shared/export/frontMatter'
-import { fontCssFamily, marginCss } from './formatting'
+import { bodyLineHeight, effectiveSceneBreakMarker, fontCssFamily, marginCss } from '@shared/export/formatting'
 
 function escapeHtml(text: string): string {
   return text
@@ -10,11 +10,11 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
 }
 
-function sectionBody(section: ExportSection, settings: BookSettings): string {
+function sectionBody(section: ExportSection, settings: BookSettings, sceneBreakMarker: string): string {
   const parts: string[] = []
 
-  if (section.sceneBreakBefore && settings.sceneBreakMarker) {
-    parts.push(`<p class="scene-break">${escapeHtml(settings.sceneBreakMarker)}</p>`)
+  if (section.sceneBreakBefore && sceneBreakMarker) {
+    parts.push(`<p class="scene-break">${escapeHtml(sceneBreakMarker)}</p>`)
   }
 
   if (section.displayHeading) {
@@ -39,10 +39,11 @@ export function buildManuscriptHtml(
   bookSettings: BookSettings,
   options?: { coverDataUri?: string | null; frontMatterHtml?: string[] }
 ): string {
-  const body = sections.map((s) => sectionBody(s, bookSettings)).join('\n')
+  const body = sections.map((s) => sectionBody(s, bookSettings, effectiveSceneBreakMarker(formatting, bookSettings))).join('\n')
   const font = fontCssFamily(formatting.fontFamily)
   const margin = marginCss(formatting)
   const fontSize = `${formatting.fontSize}pt`
+  const lineHeight = bodyLineHeight(formatting)
   const coverHtml = options?.coverDataUri
     ? `<div class="cover-page"><img src="${options.coverDataUri}" alt="" /></div>`
     : ''
@@ -58,7 +59,7 @@ export function buildManuscriptHtml(
     body {
       font-family: ${font};
       font-size: ${fontSize};
-      line-height: 1.6;
+      line-height: ${lineHeight};
       color: #111;
       margin: ${margin};
       max-width: none;

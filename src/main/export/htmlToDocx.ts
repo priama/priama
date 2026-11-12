@@ -4,10 +4,11 @@ import {
   TextRun,
   UnderlineType,
   AlignmentType,
+  LineRuleType,
   type IParagraphOptions
 } from 'docx'
-import type { BookSettings, ExportFontFamily } from '@shared/types'
-import { docxFontName } from './formatting'
+import type { BookSettings, ExportFontFamily, ExportFormatting } from '@shared/types'
+import { docxFontName, docxLineSpacing } from '@shared/export/formatting'
 
 type InlineStyle = {
   bold?: boolean
@@ -30,18 +31,24 @@ function stripTags(html: string): string {
   return decodeEntities(html.replace(/<[^>]+>/g, ''))
 }
 
-function paragraphStyleOptions(bookSettings: BookSettings): IParagraphOptions {
+function paragraphStyleOptions(bookSettings: BookSettings, formatting: ExportFormatting): IParagraphOptions {
   const alignment =
     bookSettings.textAlign === 'justify' ? AlignmentType.JUSTIFIED : AlignmentType.LEFT
+  const line = docxLineSpacing(formatting)
+
   if (bookSettings.paragraphStyle === 'first-line-indent') {
     return {
       alignment,
-      indent: { firstLine: 360 }
+      indent: { firstLine: 360 },
+      ...(line === undefined ? {} : { spacing: { line, lineRule: LineRuleType.AUTO } })
     }
   }
   return {
     alignment,
-    spacing: { after: 240 }
+    spacing:
+      line === undefined
+        ? { after: 240 }
+        : { after: 240, line, lineRule: LineRuleType.AUTO }
   }
 }
 
@@ -92,19 +99,17 @@ function runsFromHtml(html: string, fontFamily: ExportFontFamily, fontSize: numb
 
 function paragraphFromHtml(
   html: string,
-  fontFamily: ExportFontFamily,
-  fontSize: number,
+  formatting: ExportFormatting,
   bookSettings: BookSettings,
   options?: IParagraphOptions
 ): Paragraph {
-  const runs = runsFromHtml(html, fontFamily, fontSize)
-  return new Paragraph({ children: runs, ...paragraphStyleOptions(bookSettings), ...options })
+  const runs = runsFromHtml(html, formatting.fontFamily, formatting.fontSize)
+  return new Paragraph({ children: runs, ...paragraphStyleOptions(bookSettings, formatting), ...options })
 }
 
 function listParagraphs(
   html: string,
-  fontFamily: ExportFontFamily,
-  fontSize: number,
+  formatting: ExportFormatting,
   bookSettings: BookSettings,
   ordered: boolean
 ): Paragraph[] {
@@ -114,20 +119,20 @@ function listParagraphs(
   while ((match = itemRegex.exec(html)) !== null) {
     items.push(match[1])
   }
-  const font = docxFontName(fontFamily)
-  const size = fontSize * 2
+  const font = docxFontName(formatting.fontFamily)
+  const size = formatting.fontSize * 2
   return items.map((item, index) => {
-    const contentRuns = runsFromHtml(item, fontFamily, fontSize)
+    const contentRuns = runsFromHtml(item, formatting.fontFamily, formatting.fontSize)
     if (ordered) {
       return new Paragraph({
         children: [new TextRun({ text: `${index + 1}. `, font, size }), ...contentRuns],
-        ...paragraphStyleOptions(bookSettings)
+        ...paragraphStyleOptions(bookSettings, formatting)
       })
     }
     return new Paragraph({
       children: contentRuns,
       bullet: { level: 0 },
-      ...paragraphStyleOptions(bookSettings)
+      ...paragraphStyleOptions(bookSettings, formatting)
     })
   })
 }
@@ -137,10 +142,10 @@ const BLOCK_REGEX =
 
 export function htmlToDocxParagraphs(
   html: string,
-  fontFamily: ExportFontFamily,
-  fontSize: number,
+  formatting: ExportFormatting,
   bookSettings: BookSettings
 ): Paragraph[] {
+  const { fontFamily, fontSize } = formatting
   const trimmed = html.trim()
   if (!trimmed) return [new Paragraph({ children: [new TextRun({ text: '' })] })]
 
@@ -188,25 +193,25 @@ export function htmlToDocxParagraphs(
         break
       case 'blockquote':
         paragraphs.push(
-          paragraphFromHtml(inner, fontFamily, fontSize, bookSettings, { indent: { left: 720 } })
+          paragraphFromHtml(inner, formatting, bookSettings, { indent: { left: 720 } })
         )
         break
       case 'ul':
-        paragraphs.push(...listParagraphs(inner, fontFamily, fontSize, bookSettings, false))
+        paragraphs.push(...listParagraphs(inner, formatting, bookSettings, false))
         break
       case 'ol':
-        paragraphs.push(...listParagraphs(inner, fontFamily, fontSize, bookSettings, true))
+        paragraphs.push(...listParagraphs(inner, formatting, bookSettings, true))
         break
       case 'hr':
         paragraphs.push(new Paragraph({ children: [new TextRun({ text: '―'.repeat(20) })] }))
         break
       default:
-        paragraphs.push(paragraphFromHtml(inner || stripTags(html), fontFamily, fontSize, bookSettings))
+        paragraphs.push(paragraphFromHtml(inner || stripTags(html), formatting, bookSettings))
     }
   }
 
   if (!found) {
-    paragraphs.push(paragraphFromHtml(trimmed, fontFamily, fontSize, bookSettings))
+    paragraphs.push(paragraphFromHtml(trimmed, formatting, bookSettings))
   }
 
   return paragraphs
@@ -233,15 +238,20 @@ export function titleParagraph(
   })
 }
 
-export function sceneBreakParagraph(marker: string, fontFamily: ExportFontFamily, fontSize: number): Paragraph {
+export function sceneBreakParagraph(marker: string, formatting: ExportFormatting): Paragraph {
+  const line = docxLineSpacing(formatting)
+  const spacing =
+    line === undefined
+      ? { before: 240, after: 240 }
+      : { before: 240, after: 240, line, lineRule: LineRuleType.AUTO }
   return new Paragraph({
     alignment: AlignmentType.CENTER,
-    spacing: { before: 240, after: 240 },
+    spacing,
     children: [
       new TextRun({
         text: marker,
-        font: docxFontName(fontFamily),
-        size: fontSize * 2
+        font: docxFontName(formatting.fontFamily),
+        size: formatting.fontSize * 2
       })
     ]
   })

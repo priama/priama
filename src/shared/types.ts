@@ -517,20 +517,33 @@ export type EntityMeta = CharacterMeta | LocationMeta | LoreMeta | NoteMeta | Pe
 
 export type ExportPageSize = 'letter' | 'a4'
 export type ExportMarginPreset = 'narrow' | 'normal' | 'wide'
-export type ExportFontFamily = 'serif' | 'sans'
+export type ExportFontFamily = 'serif' | 'sans' | 'times'
+export type ExportLineSpacing = 'single' | 'double'
 
 export interface ExportFormatting {
   fontFamily: ExportFontFamily
   fontSize: number
   marginPreset: ExportMarginPreset
   pageSize: ExportPageSize
+  /** Line spacing for the exported body text. Applies to this export only. */
+  lineSpacing: ExportLineSpacing
+  /** Text printed in the page header, ahead of the page number. '' prints no text. (DOCX only) */
+  headerText: string
+  /** Print the page number in the page header. (DOCX only) */
+  headerPageNumber: boolean
+  /** Scene break marker for this export. null uses the project's book setting, so presets never touch it. */
+  sceneBreakMarker: string | null
 }
 
 export const DEFAULT_EXPORT_FORMATTING: ExportFormatting = {
   fontFamily: 'serif',
   fontSize: 12,
   marginPreset: 'normal',
-  pageSize: 'letter'
+  pageSize: 'letter',
+  lineSpacing: 'single',
+  headerText: '',
+  headerPageNumber: false,
+  sceneBreakMarker: null
 }
 
 export interface ExportOptions {

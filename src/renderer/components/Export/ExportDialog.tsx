@@ -14,6 +14,7 @@ import { useExport } from '@/hooks/useExport'
 import { countNodeWords, isChapterFolder } from '@/lib/treeUtils'
 import { scenesChapterStats } from '@shared/manuscriptMeta'
 import { listManuscriptChapters, resolveChapterId } from '@shared/export/manuscript'
+import { manuscriptFormatting, type ExportFormatPreset } from '@shared/export/formatPresets'
 import { DEFAULT_EXPORT_FORMATTING, type ExportOptions } from '@shared/types'
 import type { TreeNode } from '@shared/types'
 import { cn } from '@/lib/utils'
@@ -141,6 +142,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps): React.J
   )
 
   const [format, setFormat] = useState<ExportOptions['format']>('docx')
+  const [preset, setPreset] = useState<ExportFormatPreset>('book')
   const [scope, setScope] = useState<ExportOptions['scope']>('manuscript')
   const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([])
   const [title, setTitle] = useState(projectMeta?.title ?? '')
@@ -149,6 +151,9 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps): React.J
 
   useEffect(() => {
     if (!open) return
+    // Always start from book defaults so an earlier manuscript export never
+    // leaks into a later ebook export within the same session.
+    setPreset('book')
     setTitle(projectMeta?.title ?? '')
     setAuthor(projectMeta?.author ?? '')
     setGenre(projectMeta?.genre ?? '')
@@ -176,14 +181,22 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps): React.J
   const handleExport = async (): Promise<void> => {
     if (!canExport) return
 
+    const bookTitle = title.trim() || projectMeta?.title || 'Untitled'
+    // Formatting lives on the export options only; it is never written back to
+    // the project's book settings, so ebook exports stay exactly as they were.
+    const formatting =
+      preset === 'manuscript'
+        ? manuscriptFormatting(bookTitle, author.trim())
+        : DEFAULT_EXPORT_FORMATTING
+
     const options: ExportOptions = {
       format,
-      title: title.trim() || projectMeta?.title || 'Untitled',
+      title: bookTitle,
       author: author.trim(),
       genre: genre.trim() || undefined,
       scope,
       chapterIds: scope === 'chapters' ? selectedChapterIds : undefined,
-      formatting: DEFAULT_EXPORT_FORMATTING
+      formatting
     }
 
     const ok = await runExport(options)
@@ -212,6 +225,29 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps): React.J
                 </SegmentedButton>
               ))}
             </Segmented>
+          </div>
+
+          <div className="grid gap-2">
+            <SectionLabel>Formatting</SectionLabel>
+            <Segmented>
+              <SegmentedButton
+                selected={preset === 'book'}
+                onClick={() => setPreset('book')}
+              >
+                Book defaults
+              </SegmentedButton>
+              <SegmentedButton
+                selected={preset === 'manuscript'}
+                onClick={() => setPreset('manuscript')}
+              >
+                Standard manuscript
+              </SegmentedButton>
+            </Segmented>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {preset === 'manuscript'
+                ? 'Agent-ready: Times New Roman 12, double-spaced, 1″ margins, author + title and page number in the header, # scene breaks. Applies to this export only — your book settings stay untouched.'
+                : 'Ebook-friendly: your book settings with Georgia 12 and single spacing.'}
+            </p>
           </div>
 
           <div className="grid gap-2">
