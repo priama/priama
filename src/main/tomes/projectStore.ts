@@ -8,6 +8,7 @@ import type {
   CategoryDefinition,
   CreateProjectInput,
   ManuscriptImportChapter,
+  ManuscriptImportNode,
   FolderMeta,
   FolderScope,
   NodeType,
@@ -381,6 +382,93 @@ async function seedImportedSimpleChapters(chapters: ManuscriptImportChapter[]): 
   }
 }
 
+/**
+ * Seed a structure-preserving import (Scrivener): each top-level node becomes a
+ * chapter — 'scenes' structure when it has children, 'simple' otherwise — and
+ * synopses land in the planning metadata.
+ */
+async function seedImportedTree(tree: ManuscriptImportNode[]): Promise<void> {
+  if (!manifest || !projectRoot) throw new Error('No project open')
+
+  const timestamp = now()
+  let firstChapterId: string | null = null
+
+  for (let i = 0; i < tree.length; i++) {
+    const draft = tree[i]
+    const title = draft.title.trim() || `Chapter ${i + 1}`
+    const content = draft.html.trim() || '<p></p>'
+    const scenes = (draft.children ?? []).slice()
+    const hasScenes = scenes.length > 0
+
+    const id = uuidv4()
+    const filename = generateFilename('chapter', i + 1)
+    if (!firstChapterId) firstChapterId = id
+
+    const node: TreeNode = {
+      id,
+      parentId: null,
+      type: 'chapter',
+      title,
+      sortOrder: i,
+      content,
+      metadata: serializeMetadata({
+        ...DEFAULT_CHAPTER_META,
+        structure: hasScenes ? 'scenes' : 'simple',
+        synopsis: draft.synopsis?.trim() ?? ''
+      }),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      originalParentId: null,
+      categoryId: null
+    }
+
+    manifest.index.chapters.push({ id, filename, title, sortOrder: i })
+    await writeTxdFile(getTxdPath(filename, 'chapter'), nodeToTxd(node))
+    nodeCache.set(id, node)
+
+    for (let s = 0; s < scenes.length; s++) {
+      const sceneDraft = scenes[s]
+      const sceneTitle = sceneDraft.title.trim() || `Scene ${s + 1}`
+      const sceneContent = sceneDraft.html.trim() || '<p></p>'
+      const sceneId = uuidv4()
+      const sceneFilename = generateFilename('scene', s + 1, i + 1)
+
+      const sceneNode: TreeNode = {
+        id: sceneId,
+        parentId: id,
+        type: 'scene',
+        title: sceneTitle,
+        sortOrder: s,
+        content: sceneContent,
+        metadata: serializeMetadata({
+          ...DEFAULT_SCENE_META,
+          synopsis: sceneDraft.synopsis?.trim() ?? ''
+        }),
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        deletedAt: null,
+        originalParentId: null,
+        categoryId: null
+      }
+
+      manifest.index.scenes.push({
+        id: sceneId,
+        filename: sceneFilename,
+        title: sceneTitle,
+        sortOrder: s,
+        parentId: id
+      })
+      await writeTxdFile(getTxdPath(sceneFilename, 'scene'), nodeToTxd(sceneNode))
+      nodeCache.set(sceneId, sceneNode)
+    }
+  }
+
+  if (firstChapterId && manifest.uiState) {
+    manifest.uiState = { ...manifest.uiState, selectedNodeId: firstChapterId }
+  }
+}
+
 export async function createProject(input: CreateProjectInput): Promise<{
   path: string
   meta: ProjectMeta
@@ -440,6 +528,9 @@ export async function createProject(input: CreateProjectInput): Promise<{
 
   if (input.importedChapters && input.importedChapters.length > 0) {
     await seedImportedSimpleChapters(input.importedChapters)
+  }
+  if (input.importedTree && input.importedTree.length > 0) {
+    await seedImportedTree(input.importedTree)
   }
 
   await writeFileAtomic(tomes, JSON.stringify(manifest, null, 2))

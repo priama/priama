@@ -19,6 +19,7 @@ import type {
   NodeType,
   OpenProjectResult,
   ParsedManuscriptFile,
+  ParsedScrivenerProject,
   PriamaConfig,
   PriamaPreferences,
   ProjectMeta,
@@ -78,9 +79,11 @@ export interface ElectronAPI {
     selectBackupZip: () => Promise<string | null>
     selectImage: () => Promise<string | null>
     selectDocx: () => Promise<string | null>
+    selectScrivener: () => Promise<string | null>
   }
   manuscript: {
     parseDocx: (path: string) => Promise<ParsedManuscriptFile>
+    parseScrivener: (path: string) => Promise<ParsedScrivenerProject>
   }
   tree: {
     getAll: () => Promise<TreeNode[]>
@@ -193,10 +196,12 @@ const api: ElectronAPI = {
     chooseFolder: (title) => ipcRenderer.invoke('dialog:chooseFolder', title),
     selectBackupZip: () => ipcRenderer.invoke('dialog:selectBackupZip'),
     selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
-    selectDocx: () => ipcRenderer.invoke('dialog:selectDocx')
+    selectDocx: () => ipcRenderer.invoke('dialog:selectDocx'),
+    selectScrivener: () => ipcRenderer.invoke('dialog:selectScrivener')
   },
   manuscript: {
-    parseDocx: (path) => ipcRenderer.invoke('manuscript:parseDocx', { path })
+    parseDocx: (path) => ipcRenderer.invoke('manuscript:parseDocx', { path }),
+    parseScrivener: (path) => ipcRenderer.invoke('manuscript:parseScrivener', { path })
   },
   tree: {
     getAll: () => ipcRenderer.invoke('tree:getAll'),

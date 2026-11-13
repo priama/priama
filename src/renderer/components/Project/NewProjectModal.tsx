@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import {
   BookMarked,
   BookOpen,
   Check,
+  ChevronDown,
   FileText,
   FolderOpen,
   Lightbulb,
@@ -27,6 +29,7 @@ import type {
   CategoryDefinition,
   ManuscriptSplitMode,
   ParsedManuscriptFile,
+  ParsedScrivenerProject,
   TemplateId
 } from '@shared/types'
 import { splitManuscript, splitManuscriptAuto } from '@shared/import/splitManuscript'
@@ -38,6 +41,8 @@ import {
   ImportPreviewStep,
   type PreviewChapterRow
 } from '@/components/Project/ImportPreviewStep'
+import { ScrivenerPreviewStep } from '@/components/Project/ScrivenerPreviewStep'
+import { buildImportedTree } from '@shared/import/buildImportedTree'
 
 const GENRES = ['Fantasy', 'Sci-Fi', 'Romance', 'Mystery', 'Horror', 'Other'] as const
 
@@ -80,12 +85,20 @@ function rowsFromParsed(
   }
 }
 
+/**
+ * Rebuild the nested tree from the flat preview rows, honoring the checkboxes.
+ * An unchecked row hides its whole subtree even if a descendant stayed checked.
+ */
+
 export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): React.JSX.Element {
   const { createProjectFromInput } = useProject()
   const setShowRestoreBackupModal = useAppStore((s) => s.setShowRestoreBackupModal)
   const [step, setStep] = useState<WizardStep>('details')
   const [origin, setOrigin] = useState<'blank' | 'import'>('blank')
+  const [importKind, setImportKind] = useState<'docx' | 'scrivener' | null>(null)
   const [parsed, setParsed] = useState<ParsedManuscriptFile | null>(null)
+  const [parsedScrivener, setParsedScrivener] = useState<ParsedScrivenerProject | null>(null)
+  const [scrivenerChecked, setScrivenerChecked] = useState<boolean[]>([])
   const [splitMode, setSplitMode] = useState<ManuscriptSplitMode>('heading1')
   const [detectedMode, setDetectedMode] = useState<ManuscriptSplitMode>('heading1')
   const [previewRows, setPreviewRows] = useState<PreviewChapterRow[]>([])
@@ -105,7 +118,10 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const reset = (): void => {
     setStep('details')
     setOrigin('blank')
+    setImportKind(null)
     setParsed(null)
+    setParsedScrivener(null)
+    setScrivenerChecked([])
     setSplitMode('heading1')
     setDetectedMode('heading1')
     setPreviewRows([])
@@ -146,11 +162,39 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const applyParsedFile = (next: ParsedManuscriptFile): void => {
     const split = rowsFromParsed(next)
     setParsed(next)
+    setImportKind('docx')
     setDetectedMode(split.mode)
     setSplitMode(split.mode)
     setPreviewRows(split.rows)
     if (next.suggestedTitle) setTitle(next.suggestedTitle)
     if (next.suggestedAuthor) setAuthor(next.suggestedAuthor)
+  }
+
+  const applyParsedScrivener = (next: ParsedScrivenerProject): void => {
+    setParsedScrivener(next)
+    setImportKind('scrivener')
+    // Scrivener's own Include-in-Compile flags are the defaults.
+    setScrivenerChecked(next.rows.map((r) => r.includeInCompile))
+    if (next.suggestedTitle) setTitle(next.suggestedTitle)
+    if (next.suggestedAuthor) setAuthor(next.suggestedAuthor)
+  }
+
+  /** Folder toggles cascade: off hides the subtree, on restores compile defaults. */
+  const toggleScrivenerRow = (index: number): void => {
+    if (!parsedScrivener) return
+    const rows = parsedScrivener.rows
+    setScrivenerChecked((prev) => {
+      const next = [...prev]
+      const becoming = !next[index]
+      next[index] = becoming
+      const row = rows[index]
+      if (row.kind === 'folder') {
+        for (let j = index + 1; j < rows.length && rows[j].depth > row.depth; j++) {
+          next[j] = becoming ? rows[j].includeInCompile : false
+        }
+      }
+      return next
+    })
   }
 
   const pickDocx = async (): Promise<boolean> => {
@@ -184,6 +228,37 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
     }
   }
 
+  const pickScrivener = async (): Promise<boolean> => {
+    setError(null)
+    setHiddenForPicker(true)
+    setPickingFolder(true)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    let filePath: string | null = null
+    try {
+      filePath = await window.electronAPI.dialog.selectScrivener()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not open file picker')
+      setPickingFolder(false)
+      setHiddenForPicker(false)
+      return false
+    }
+    setPickingFolder(false)
+    setHiddenForPicker(false)
+    if (!filePath) return false
+
+    setParsing(true)
+    try {
+      const next = await window.electronAPI.manuscript.parseScrivener(filePath)
+      applyParsedScrivener(next)
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not import that Scrivener project')
+      return false
+    } finally {
+      setParsing(false)
+    }
+  }
+
   // The import preview is an extra step, so the run is five long instead of four.
   const stepTotal = origin === 'import' ? 5 : 4
   const folderName = primaryDir
@@ -193,8 +268,16 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const stepNo = (base: 1 | 2 | 3 | 4): number =>
     origin === 'import' && base > 1 ? base + 1 : base
 
-  const handleImport = async (): Promise<void> => {
+  const handleImportDocx = async (): Promise<void> => {
     const ok = await pickDocx()
+    if (ok) {
+      setOrigin('import')
+      setStep('preview')
+    }
+  }
+
+  const handleImportScrivener = async (): Promise<void> => {
+    const ok = await pickScrivener()
     if (ok) {
       setOrigin('import')
       setStep('preview')
@@ -230,13 +313,22 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
   const handleCreate = async (): Promise<void> => {
     if (!primaryDir || !title.trim() || !author.trim() || !selectedTemplateId) return
     const importedChapters =
-      origin === 'import'
+      origin === 'import' && importKind === 'docx'
         ? previewRows.filter((row) => row.included).map(({ title: chapterTitle, html }) => ({
             title: chapterTitle,
             html
           }))
         : undefined
-    if (origin === 'import' && (!importedChapters || importedChapters.length === 0)) {
+    const importedTree =
+      origin === 'import' && importKind === 'scrivener' && parsedScrivener
+        ? buildImportedTree(parsedScrivener.rows, scrivenerChecked)
+        : undefined
+    if (origin === 'import' && importKind === 'docx' && (!importedChapters || importedChapters.length === 0)) {
+      setError('Select at least one chapter to import')
+      setStep('preview')
+      return
+    }
+    if (origin === 'import' && importKind === 'scrivener' && (!importedTree || importedTree.length === 0)) {
       setError('Select at least one chapter to import')
       setStep('preview')
       return
@@ -253,7 +345,8 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
         backupLocations: backupRows.map((r) => r.path),
         templateId: selectedTemplateId,
         categories: selectedCategories,
-        importedChapters
+        importedChapters,
+        importedTree
       })
       reset()
       onOpenChange(false)
@@ -270,7 +363,23 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
         className={step === 'preview' ? 'sm:max-w-xl' : 'sm:max-w-lg'}
         onPointerDownOutside={(e) => (creating || parsing) && e.preventDefault()}
       >
-        {step === 'preview' && parsed && (
+        {step === 'preview' && importKind === 'scrivener' && parsedScrivener && (
+          <ScrivenerPreviewStep
+            fileName={parsedScrivener.fileName}
+            rows={parsedScrivener.rows}
+            checked={scrivenerChecked}
+            stats={parsedScrivener.stats}
+            onToggle={toggleScrivenerRow}
+            onChooseDifferentFile={() => void handleImportScrivener()}
+            onBack={() => {
+              setError(null)
+              setStep('details')
+            }}
+            onNext={() => setStep('details')}
+          />
+        )}
+
+        {step === 'preview' && importKind === 'docx' && parsed && (
           <ImportPreviewStep
             fileName={parsed.fileName}
             splitMode={splitMode}
@@ -282,7 +391,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
                 rows.map((row) => (row.id === id ? { ...row, included: !row.included } : row))
               )
             }}
-            onChooseDifferentFile={() => void handleImport()}
+            onChooseDifferentFile={() => void handleImportDocx()}
             onBack={() => {
               setError(null)
               setStep('details')
@@ -333,15 +442,36 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
             </div>
             <DialogFooter className="flex-row items-center justify-between gap-2 sm:justify-between">
               <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => void handleImport()}
-                  disabled={parsing}
-                >
-                  {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Import
-                </Button>
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger asChild>
+                    <Button type="button" variant="ghost" disabled={parsing}>
+                      {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      Import
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content
+                      className="z-50 min-w-[220px] rounded-md border border-border bg-popover p-1 shadow-md"
+                      align="start"
+                    >
+                      <DropdownMenu.Item
+                        className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                        onSelect={() => void handleImportDocx()}
+                      >
+                        <FileText className="h-4 w-4 opacity-70" />
+                        Word document (.docx)
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Item
+                        className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent"
+                        onSelect={() => void handleImportScrivener()}
+                      >
+                        <FolderOpen className="h-4 w-4 opacity-70" />
+                        Scrivener project (.scriv)
+                      </DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
                 {/* macOS reaches this from the File menu instead. */}
                 {!isMac && (
                   <Button
@@ -358,7 +488,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps): R
                 )}
               </div>
               <div className="flex gap-2">
-                {origin === 'import' && parsed && (
+                {origin === 'import' && (parsed || parsedScrivener) && (
                   <Button variant="ghost" onClick={() => setStep('preview')} disabled={parsing}>
                     Back
                   </Button>

@@ -30,7 +30,7 @@ import {
   getUiState,
   updateUiState
 } from './projectStore'
-import type { CategoryDefinition, CreateProjectInput } from '@shared/types'
+import type { CategoryDefinition, CreateProjectInput, ManuscriptImportNode } from '@shared/types'
 import { PROJECT_FILENAME } from '@shared/types'
 import { getRecoveryDir } from './paths'
 
@@ -170,6 +170,49 @@ describe('createProject', () => {
     expect(reopened.map((n) => n.title)).toEqual(['Chapter 1', 'Chapter 2'])
     expect(reopened[1].content).toBe('<p>The next day.</p>')
     expect(getUiState().selectedNodeId).toBe(reopened[0].id)
+  })
+
+  it('seeds a chapter/scene tree from a structure-preserving import', async () => {
+    const result = await createProject(
+      makeInput({
+        importedTree: [
+          {
+            title: 'Chapter One',
+            html: '<p>Chapter intro.</p>',
+            synopsis: 'A chapter about beginnings.',
+            children: [
+              { title: 'Scene A', html: '<p>Scene one.</p>', synopsis: 'Scene A synopsis.' },
+              { title: 'Scene B', html: '' }
+            ]
+          },
+          { title: 'Loose Doc', html: '<p>Standalone.</p>' }
+        ] as ManuscriptImportNode[]
+      })
+    )
+
+    const nodes = getAllNodes()
+    expect(nodes).toHaveLength(4)
+
+    const chapter = nodes.find((n) => n.title === 'Chapter One')!
+    expect(chapter.type).toBe('chapter')
+    expect(chapter.metadata).toContain('"structure":"scenes"')
+    expect(chapter.metadata).toContain('"synopsis":"A chapter about beginnings."')
+
+    const scenes = nodes.filter((n) => n.type === 'scene')
+    expect(scenes.map((s) => s.title)).toEqual(['Scene A', 'Scene B'])
+    expect(scenes.every((s) => s.parentId === chapter.id)).toBe(true)
+    expect(scenes[1].content).toBe('<p></p>')
+    expect(scenes[0].metadata).toContain('"synopsis":"Scene A synopsis."')
+
+    const loose = nodes.find((n) => n.title === 'Loose Doc')!
+    expect(loose.metadata).toContain('"structure":"simple"')
+
+    expect(await fse.pathExists(join(result.projectRoot, 'manuscript', 'scene-01-01.txd'))).toBe(true)
+
+    closeProject()
+    await openProject(result.path)
+    expect(getAllNodes()).toHaveLength(4)
+    expect(getUiState().selectedNodeId).toBe(chapter.id)
   })
 })
 

@@ -45,6 +45,7 @@ import {
   showSelectBackupZipDialog,
   showSelectImageDialog,
   showSelectDocxDialog,
+  showSelectScrivenerDialog,
   showSaveExportDialog
 } from './fileSystem'
 import {
@@ -84,6 +85,7 @@ import {
 import { registerAssetScheme, registerAssetProtocol } from './assetProtocol'
 import { exportDocument } from './export'
 import { parseDocxFile } from './import/parseDocx'
+import { parseScrivenerPath } from './import/scrivener/parseScrivener'
 import { generatePreviewEpub } from './tomes/preview/generatePreviewEpub'
 import { checkForAppUpdate } from './appUpdate'
 import type {
@@ -904,8 +906,18 @@ function registerIpcHandlers(): void {
     return showSelectDocxDialog(win)
   })
 
+  ipcMain.handle('dialog:selectScrivener', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? mainWindow
+    if (!win) return null
+    return showSelectScrivenerDialog(win)
+  })
+
   ipcMain.handle('manuscript:parseDocx', async (_, { path }: { path: string }) => {
     return parseDocxFile(path)
+  })
+
+  ipcMain.handle('manuscript:parseScrivener', async (_, { path }: { path: string }) => {
+    return parseScrivenerPath(path)
   })
 
   ipcMain.handle('tree:getAll', async () => {

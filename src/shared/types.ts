@@ -891,6 +891,39 @@ export interface ParsedManuscriptFile {
   fileName: string
 }
 
+/** Nested manuscript tree for structure-preserving imports (Scrivener binder). */
+export interface ManuscriptImportNode {
+  title: string
+  html: string
+  synopsis?: string
+  children?: ManuscriptImportNode[]
+}
+
+/** Flat preview row for a Scrivener import; `depth` + order encode the tree. */
+export interface ScrivenerImportRow {
+  id: string
+  title: string
+  kind: 'folder' | 'document'
+  depth: number
+  /** Sanitized HTML for documents (and folders that carry their own text). */
+  html: string
+  synopsis: string
+  includeInCompile: boolean
+}
+
+export interface ParsedScrivenerProject {
+  fileName: string
+  suggestedTitle: string
+  suggestedAuthor: string
+  rows: ScrivenerImportRow[]
+  stats: {
+    folders: number
+    documents: number
+    researchSkipped: number
+    compileExcluded: number
+  }
+}
+
 export interface CreateProjectInput {
   title: string
   author: string
@@ -901,6 +934,8 @@ export interface CreateProjectInput {
   templateId?: TemplateId
   categories?: CategoryDefinition[]
   importedChapters?: ManuscriptImportChapter[]
+  /** Structure-preserving import (Scrivener): chapters with optional scenes. */
+  importedTree?: ManuscriptImportNode[]
 }
 
 export interface TomesIndexEntry {
