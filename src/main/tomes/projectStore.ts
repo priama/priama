@@ -382,10 +382,30 @@ async function seedImportedSimpleChapters(chapters: ManuscriptImportChapter[]): 
   }
 }
 
+function escapeHtmlText(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * Anything nested below a scene, flattened into HTML: each node's title as a
+ * bold paragraph, then its text, then its own descendants, in binder order.
+ */
+function nestedImportHtml(nodes: ManuscriptImportNode[]): string {
+  return nodes
+    .map((n) => {
+      const title = n.title.trim()
+      const heading = title ? `<p><strong>${escapeHtmlText(title)}</strong></p>` : ''
+      return heading + n.html.trim() + nestedImportHtml(n.children ?? [])
+    })
+    .join('')
+}
+
 /**
  * Seed a structure-preserving import (Scrivener): each top-level node becomes a
- * chapter — 'scenes' structure when it has children, 'simple' otherwise — and
- * synopses land in the planning metadata.
+ * chapter — 'scenes' structure when it has children, 'simple' otherwise — its
+ * children become scenes, and synopses land in the planning metadata. A
+ * scene's own descendants (Part › Chapter › Scene) are appended to that scene,
+ * titled, so no text is lost.
  */
 async function seedImportedTree(tree: ManuscriptImportNode[]): Promise<void> {
   if (!manifest || !projectRoot) throw new Error('No project open')
@@ -430,7 +450,8 @@ async function seedImportedTree(tree: ManuscriptImportNode[]): Promise<void> {
     for (let s = 0; s < scenes.length; s++) {
       const sceneDraft = scenes[s]
       const sceneTitle = sceneDraft.title.trim() || `Scene ${s + 1}`
-      const sceneContent = sceneDraft.html.trim() || '<p></p>'
+      const sceneContent =
+        sceneDraft.html.trim() + nestedImportHtml(sceneDraft.children ?? []) || '<p></p>'
       const sceneId = uuidv4()
       const sceneFilename = generateFilename('scene', s + 1, i + 1)
 

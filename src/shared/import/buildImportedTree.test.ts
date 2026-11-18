@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildImportedTree } from './buildImportedTree'
+import { buildImportedTree, includedWordCount } from './buildImportedTree'
 import type { ScrivenerImportRow } from '../types'
 
 function row(
@@ -38,5 +38,18 @@ describe('buildImportedTree', () => {
 
   it('drops everything when nothing is checked', () => {
     expect(buildImportedTree(ROWS, [false, false, false, false])).toEqual([])
+  })
+})
+
+describe('includedWordCount', () => {
+  it('keeps the running total across unchecked rows', () => {
+    const rows = [
+      row({ id: '1', title: 'A', kind: 'document', depth: 0, html: '<p>one two</p>' }),
+      row({ id: '2', title: 'B', kind: 'document', depth: 0, html: '<p>three four five</p>' }),
+      row({ id: '3', title: 'C', kind: 'document', depth: 0, html: '<p>six</p>' })
+    ]
+    expect(includedWordCount(rows, [true, false, true])).toBe(3)
+    expect(includedWordCount(rows, [true, true, false])).toBe(5)
+    expect(includedWordCount(rows, [false, false, false])).toBe(0)
   })
 })
