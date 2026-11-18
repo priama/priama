@@ -21,10 +21,11 @@ npm run lint         # eslint
 npm test             # vitest
 ```
 
-The Tests workflow (`.github/workflows/test.yml`) is disabled on GitHub
-(since 2026-11-18), so pushes and PRs get no CI checks: run typecheck, lint and
-test locally before you say a change is done. Release builds run only on `v*`
-tags or by hand. Don't re-enable workflows or add new ones without asking.
+CI (`.github/workflows/test.yml`) runs typecheck, lint and test on pushes and
+PRs to `main`, except docs-only changes (`*.md`, `docs/`, `LICENSE`, `.claude/`).
+Release builds run only on `v*` tags or by hand. Keep CI to what is needed: don't
+add workflows or triggers without asking. Run all three checks before you say a
+change is done.
 
 ## Layout
 
