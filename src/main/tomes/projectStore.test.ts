@@ -214,6 +214,44 @@ describe('createProject', () => {
     expect(getAllNodes()).toHaveLength(4)
     expect(getUiState().selectedNodeId).toBe(chapter.id)
   })
+
+  it('appends text nested below a scene to that scene, titled', async () => {
+    await createProject(
+      makeInput({
+        importedTree: [
+          {
+            title: 'Part One',
+            html: '',
+            children: [
+              {
+                title: 'Chapter 1',
+                html: '<p>Chapter text.</p>',
+                children: [
+                  { title: 'Scene <A> & B', html: '<p>Deep one.</p>' },
+                  {
+                    title: '',
+                    html: '<p>Untitled deep.</p>',
+                    children: [{ title: 'Deeper', html: '<p>Deepest.</p>' }]
+                  }
+                ]
+              },
+              { title: 'Empty folder', html: '', children: [{ title: 'Only child', html: '' }] }
+            ]
+          }
+        ] as ManuscriptImportNode[]
+      })
+    )
+
+    const scenes = getAllNodes().filter((n) => n.type === 'scene')
+    expect(scenes.map((s) => s.title)).toEqual(['Chapter 1', 'Empty folder'])
+    expect(scenes[0].content).toBe(
+      '<p>Chapter text.</p>' +
+        '<p><strong>Scene &lt;A&gt; &amp; B</strong></p><p>Deep one.</p>' +
+        '<p>Untitled deep.</p>' +
+        '<p><strong>Deeper</strong></p><p>Deepest.</p>'
+    )
+    expect(scenes[1].content).toBe('<p><strong>Only child</strong></p>')
+  })
 })
 
 describe('openProject / closeProject', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseScrivx, ScrivenerFormatError } from './scrivx'
 
-/** Hand-built in the shape of a Scrivener 3 project.scrivx. VERIFY against a real fixture. */
+/** The older hand-built shape (FileFormat, ID + UUID, MetaDataTable). Still accepted. */
 function scrivx(overrides: {
   fileFormat?: string
   title?: string
@@ -126,5 +126,104 @@ describe('parseScrivx', () => {
       })
     )
     expect(info.draftItems.map((i) => i.title)).toEqual(['Only Scene'])
+  })
+})
+
+/**
+ * The shape Scrivener 3 itself writes, taken from projects saved by Scrivener
+ * 3.5.2 for macOS (titles and UUIDs made up): no FileFormat, UUID without ID,
+ * <Children>, Type="Text", Include in Compile in each item's own <MetaData>.
+ */
+const REAL_SCRIVX = `<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="0000" Version="2.0" Creator="SCRMAC-3.5.2-17487" Device="Mac" Author="Ana Writer" Modified="2026-11-13 21:52:12 +0300" ModID="1111">
+    <Binder>
+        <BinderItem UUID="D-1" Type="DraftFolder" Created="2026-11-13 21:00:00 +0300" Modified="2026-11-13 21:00:00 +0300">
+            <Title>Draft</Title>
+            <MetaData>
+                <IncludeInCompile>Yes</IncludeInCompile>
+            </MetaData>
+            <Children>
+                <BinderItem UUID="P-1" Type="Folder" Created="2026-11-13 21:00:00 +0300" Modified="2026-11-13 21:00:00 +0300">
+                    <Title>Part One</Title>
+                    <MetaData>
+                        <IncludeInCompile>Yes</IncludeInCompile>
+                    </MetaData>
+                    <Children>
+                        <BinderItem UUID="T-1" Type="Text" Created="2026-11-13 21:00:00 +0300" Modified="2026-11-13 21:00:00 +0300">
+                            <Title>Opening</Title>
+                            <MetaData>
+                                <IncludeInCompile>Yes</IncludeInCompile>
+                            </MetaData>
+                            <TextSettings>
+                                <TextSelection>0,0</TextSelection>
+                            </TextSettings>
+                        </BinderItem>
+                        <BinderItem UUID="T-2" Type="Text" Created="2026-11-13 21:00:00 +0300" Modified="2026-11-13 21:00:00 +0300">
+                            <Title>Cut</Title>
+                            <MetaData>
+                                <IncludeInCompile>No</IncludeInCompile>
+                            </MetaData>
+                        </BinderItem>
+                        <BinderItem UUID="I-1" Type="Image" Created="2026-11-13 21:00:00 +0300" Modified="2026-11-13 21:00:00 +0300">
+                            <Title>Map</Title>
+                        </BinderItem>
+                    </Children>
+                </BinderItem>
+            </Children>
+        </BinderItem>
+        <BinderItem UUID="R-1" Type="ResearchFolder" Created="2026-11-13 21:00:00 +0300" Modified="2026-11-13 21:00:00 +0300">
+            <Title>Research</Title>
+            <Children>
+                <BinderItem UUID="R-2" Type="Text" Created="2026-11-13 21:00:00 +0300" Modified="2026-11-13 21:00:00 +0300">
+                    <Title>Notes</Title>
+                </BinderItem>
+            </Children>
+        </BinderItem>
+        <BinderItem UUID="X-1" Type="TrashFolder" Created="2026-11-13 21:00:00 +0300" Modified="2026-11-13 21:00:00 +0300">
+            <Title>Trash</Title>
+        </BinderItem>
+    </Binder>
+    <Collections/>
+</ScrivenerProject>`
+
+describe('parseScrivx on the layout Scrivener 3 writes', () => {
+  it('accepts Version="2.0" with a Scrivener 3 Creator and no FileFormat', () => {
+    const info = parseScrivx(REAL_SCRIVX)
+    expect(info.fileFormat).toBe('2.0')
+    expect(info.author).toBe('Ana Writer')
+    expect(info.title).toBe('')
+  })
+
+  it('reads children under <Children> and Type="Text" as documents', () => {
+    const info = parseScrivx(REAL_SCRIVX)
+    expect(info.draftItems.map((i) => [i.title, i.kind])).toEqual([['Part One', 'folder']])
+    expect(info.draftItems[0].children.map((i) => [i.title, i.kind])).toEqual([
+      ['Opening', 'document'],
+      ['Cut', 'document'],
+      ['Map', 'other']
+    ])
+    expect(info.researchCount).toBe(1)
+    expect(info.trashCount).toBe(0)
+  })
+
+  it('uses the UUID as the id and reads Include in Compile from the item', () => {
+    const [opening, cut, map] = parseScrivx(REAL_SCRIVX).draftItems[0].children
+    expect(opening).toMatchObject({ id: 'T-1', uuid: 'T-1', includeInCompile: true })
+    expect(cut.includeInCompile).toBe(false)
+    // No <MetaData> → included by default.
+    expect(map.includeInCompile).toBe(true)
+  })
+
+  it('rejects a Scrivener 2 Creator', () => {
+    const old = REAL_SCRIVX.replace('SCRMAC-3.5.2-17487', 'SCRMAC-2.9-1234')
+    expect(() => parseScrivx(old)).toThrow(/Scrivener 2/)
+  })
+
+  it('accepts a missing Creator when items carry UUIDs, rejects it otherwise', () => {
+    const noCreator = REAL_SCRIVX.replace(' Creator="SCRMAC-3.5.2-17487"', '')
+    expect(parseScrivx(noCreator).draftItems).toHaveLength(1)
+    expect(() => parseScrivx(noCreator.replace(/ UUID="[^"]*"/g, ''))).toThrow(
+      /Unrecognized Scrivener project format/
+    )
   })
 })

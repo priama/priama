@@ -1,12 +1,20 @@
 import { XMLParser } from 'fast-xml-parser'
 
 /**
- * Reader for Scrivener 3's project.scrivx.
+ * Reader for a Scrivener 3 project's <Name>.scrivx.
  *
- * The binder is a recursive <BinderItem> tree (Type: DraftFolder, Folder,
- * TextDocument, ResearchFolder, TrashFolder, ...). Per-document metadata —
- * synopsis and the Include-in-Compile flag — lives in a flat <MetaDataTable>
- * keyed by binder ID.
+ * The binder is a recursive <BinderItem> tree. Two layouts are accepted:
+ *
+ * - What Scrivener 3 writes (checked against projects saved by Scrivener
+ *   3.5.2 for macOS on 2026-11-18): root `Version="2.0"` with a `Creator` such
+ *   as `SCRMAC-3.5.2-…` and no `FileFormat`; items carry a `UUID` but no `ID`;
+ *   children sit under <Children>; documents are `Type="Text"`; Include in
+ *   Compile is in each item's own <MetaData>; the author is a root attribute.
+ *   Synopses are not in the XML (they live in Files/Data/<UUID>/synopsis.txt,
+ *   read by parseScrivener.ts).
+ * - The older hand-built shape: `FileFormat="3.0"`, `ID` + `UUID`, children
+ *   directly inside the item, `Type="TextDocument"`, and synopsis + Include in
+ *   Compile in a flat <MetaDataTable> keyed by ID, which wins when present.
  */
 
 export type ScrivenerItemKind = 'folder' | 'document' | 'other'
@@ -59,7 +67,7 @@ function text(node: unknown, tag: string): string {
 }
 
 function kindForType(type: string): ScrivenerItemKind {
-  if (type === 'TextDocument') return 'document'
+  if (type === 'Text' || type === 'TextDocument') return 'document'
   if (type === 'Folder' || type === 'DraftFolder' || type === 'ResearchFolder') return 'folder'
   return 'other'
 }
@@ -87,26 +95,66 @@ function readMetaTable(root: Record<string, unknown>): Map<string, MetaRow> {
   return table
 }
 
+function binderItems(node: unknown): Record<string, unknown>[] {
+  if (typeof node !== 'object' || node === null) return []
+  return ((node as Record<string, unknown>)['BinderItem'] ?? []) as Record<string, unknown>[]
+}
+
 function readBinderItem(
   raw: Record<string, unknown>,
   meta: Map<string, MetaRow>
 ): ScrivenerBinderItem {
-  const id = attr(raw, 'ID')
-  const row = meta.get(id)
-  const children = ((raw['BinderItem'] ?? []) as unknown[])
-    .filter((c): c is Record<string, unknown> => typeof c === 'object' && c !== null)
+  const uuid = attr(raw, 'UUID')
+  // Scrivener 3 writes no ID; the UUID is the item's identity.
+  const id = attr(raw, 'ID') || uuid
+  const row = meta.get(attr(raw, 'ID'))
+  const children = [...binderItems(raw), ...binderItems(raw['Children'])]
+    .filter((c) => typeof c === 'object' && c !== null)
     .map((c) => readBinderItem(c, meta))
+  const ownMeta = (raw['MetaData'] as unknown[] | undefined)?.[0]
+  const ownInclude = text(ownMeta, 'IncludeInCompile')
 
   return {
     id,
-    uuid: attr(raw, 'UUID'),
+    uuid,
     type: attr(raw, 'Type'),
     title: text(raw, 'Title'),
     kind: kindForType(attr(raw, 'Type')),
-    includeInCompile: row?.includeInCompile ?? true,
+    // Absent means included — that is Scrivener's own default.
+    includeInCompile: row?.includeInCompile ?? ownInclude.toLowerCase() !== 'no',
     synopsis: row?.synopsis ?? '',
     children
   }
+}
+
+/**
+ * The project's format, or a ScrivenerFormatError. Older files say
+ * `FileFormat="3.0"`; Scrivener 3 itself writes no FileFormat, only
+ * `Version="2.0"` and a `Creator` naming the app version.
+ */
+function readFormat(root: Record<string, unknown>): string {
+  const unsupported = (major: string): ScrivenerFormatError =>
+    new ScrivenerFormatError(
+      `Scrivener ${major} projects are not supported yet — open the project in Scrivener 3 and save it again`
+    )
+
+  const fileFormat = attr(root, 'FileFormat')
+  if (fileFormat) {
+    if (!fileFormat.startsWith('3')) throw unsupported(fileFormat.split('.')[0])
+    return fileFormat
+  }
+
+  const creatorMajor = /^SCR[A-Z]*-(\d+)/i.exec(attr(root, 'Creator'))?.[1]
+  if (creatorMajor) {
+    if (Number(creatorMajor) < 3) throw unsupported(creatorMajor)
+    return attr(root, 'Version') || creatorMajor
+  }
+
+  // No Creator: Scrivener 3 is the format whose binder items carry UUIDs.
+  const version = attr(root, 'Version')
+  const first = binderItems(root['Binder'])[0]
+  if (version.startsWith('2') && first && attr(first, 'UUID')) return version
+  throw new ScrivenerFormatError('Unrecognized Scrivener project format')
 }
 
 function countDocuments(items: ScrivenerBinderItem[]): number {
@@ -123,26 +171,18 @@ export function parseScrivx(xml: string): ScrivenerProjectInfo {
   try {
     parsed = parser.parse(xml) as Record<string, unknown>
   } catch {
-    throw new ScrivenerFormatError('project.scrivx is not valid XML')
+    throw new ScrivenerFormatError('The .scrivx file is not valid XML')
   }
 
   const root = parsed['ScrivenerProject'] as Record<string, unknown> | undefined
   if (!root) throw new ScrivenerFormatError('Not a Scrivener project file')
 
-  const fileFormat = attr(root, 'FileFormat')
-  if (!fileFormat.startsWith('3')) {
-    throw new ScrivenerFormatError(
-      fileFormat
-        ? `Scrivener ${fileFormat.split('.')[0]} projects are not supported yet — open the project in Scrivener 3 and save it again`
-        : 'Unrecognized Scrivener project format'
-    )
-  }
+  const fileFormat = readFormat(root)
 
   const meta = readMetaTable(root)
 
-  const binder = root['Binder'] as Record<string, unknown> | undefined
-  const topLevel = ((binder?.['BinderItem'] ?? []) as unknown[])
-    .filter((c): c is Record<string, unknown> => typeof c === 'object' && c !== null)
+  const topLevel = binderItems(root['Binder'])
+    .filter((c) => typeof c === 'object' && c !== null)
     .map((c) => readBinderItem(c, meta))
 
   let researchCount = 0
@@ -171,7 +211,7 @@ export function parseScrivx(xml: string): ScrivenerProjectInfo {
   return {
     fileFormat,
     title: text(props, 'Title').trim(),
-    author: text(props, 'Author').trim(),
+    author: (text(props, 'Author') || attr(root, 'Author')).trim(),
     draftItems,
     researchCount,
     trashCount

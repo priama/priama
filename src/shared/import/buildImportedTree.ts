@@ -1,4 +1,10 @@
 import type { ManuscriptImportNode, ScrivenerImportRow } from '../types'
+import { countHtmlWords } from '../manuscriptMeta'
+
+/** Words in the checked preview rows, for the Scrivener preview's total. */
+export function includedWordCount(rows: ScrivenerImportRow[], checked: boolean[]): number {
+  return rows.reduce((sum, r, i) => (checked[i] ? sum + countHtmlWords(r.html) : sum), 0)
+}
 
 /**
  * Rebuild the nested manuscript tree from the flat Scrivener preview rows,

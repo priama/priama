@@ -8,17 +8,20 @@ import { rtfToHtml } from './rtfToHtml'
 
 /**
  * Entry point for .scriv imports. A Scrivener project is a directory bundle
- * (or a .zip of one, from "Zip & Send"); the prose lives in one RTF file per
- * binder document under Files/Data/, and the structure + synopses live in
- * project.scrivx.
+ * (or a .zip of one, from "Zip & Send"). The structure lives in <Name>.scrivx
+ * at the bundle root (see scrivx.ts). Scrivener 3 keeps each binder document in
+ * its own folder, Files/Data/<UUID>/, with the prose in content.rtf and the
+ * synopsis in synopsis.txt; the older flat layout, Files/Data/<UUID>.rtf, is
+ * still read.
  */
 
-const SCRIVX_PATH = 'project.scrivx'
 const DATA_DIR = 'Files/Data'
 const MAX_ZIP_RTF_BYTES = 200 * 1024 * 1024
 
 interface ScrivenerSource {
   read(relPath: string): Promise<string | null>
+  /** Names of the files at the bundle root. */
+  rootFiles(): Promise<string[]>
   cleanup(): Promise<void>
 }
 
@@ -29,6 +32,13 @@ async function dirSource(root: string): Promise<ScrivenerSource> {
         return await fse.readFile(join(root, relPath), 'utf8')
       } catch {
         return null
+      }
+    },
+    async rootFiles() {
+      try {
+        return await fse.readdir(root)
+      } catch {
+        return []
       }
     },
     async cleanup() {}
@@ -66,8 +76,9 @@ async function zipSource(zipPath: string): Promise<ScrivenerSource> {
         const stripped = name.replace(/^[^/]+\.scriv\//i, '')
         const wanted = [name, stripped].some(
           (n) =>
-            n === SCRIVX_PATH ||
-            (n.startsWith(`${DATA_DIR}/`) && n.toLowerCase().endsWith('.rtf'))
+            isScrivxName(n) ||
+            (n.startsWith(`${DATA_DIR}/`) &&
+              (n.toLowerCase().endsWith('.rtf') || n.endsWith('/synopsis.txt')))
         )
         if (!wanted || /\/$/.test(name)) {
           zipfile.readEntry()
@@ -102,22 +113,45 @@ async function zipSource(zipPath: string): Promise<ScrivenerSource> {
     async read(relPath) {
       return files.get(relPath.replace(/\\/g, '/')) ?? null
     },
+    async rootFiles() {
+      return [...files.keys()].filter((n) => !n.includes('/'))
+    },
     async cleanup() {
       files.clear()
     }
   }
 }
 
+/** A .scrivx at the bundle root (no folder part). */
+function isScrivxName(name: string): boolean {
+  return !name.includes('/') && name.toLowerCase().endsWith('.scrivx')
+}
+
+/**
+ * Scrivener 3 names the file after the project (Untitled.scrivx); older
+ * hand-built bundles use project.scrivx. Prefer the one named like the bundle.
+ */
+async function findScrivx(source: ScrivenerSource, bundleName: string): Promise<string | null> {
+  const names = (await source.rootFiles()).filter(isScrivxName).sort()
+  const stem = bundleName.replace(/\.scriv$|\.zip$/i, '').toLowerCase()
+  const pick =
+    names.find((n) => n.toLowerCase() === `${stem}.scrivx`) ??
+    names.find((n) => n.toLowerCase() === 'project.scrivx') ??
+    names[0]
+  return pick ? source.read(pick) : null
+}
+
 function rtfCandidates(item: ScrivenerBinderItem): string[] {
   const candidates: string[] = []
   if (item.uuid) {
     candidates.push(
+      `${DATA_DIR}/${item.uuid}/content.rtf`,
       `${DATA_DIR}/${item.uuid}.rtf`,
       `${DATA_DIR}/${item.uuid.toUpperCase()}.rtf`,
       `${DATA_DIR}/${item.uuid.toLowerCase()}.rtf`
     )
   }
-  if (item.id) candidates.push(`${DATA_DIR}/${item.id}.rtf`)
+  if (item.id && item.id !== item.uuid) candidates.push(`${DATA_DIR}/${item.id}.rtf`)
   return candidates
 }
 
@@ -133,6 +167,11 @@ async function readDocumentHtml(
   }
   // Documents that were never edited have no RTF on disk; they import empty.
   return ''
+}
+
+async function readSynopsis(source: ScrivenerSource, item: ScrivenerBinderItem): Promise<string> {
+  if (item.synopsis || !item.uuid) return item.synopsis
+  return ((await source.read(`${DATA_DIR}/${item.uuid}/synopsis.txt`)) ?? '').trim()
 }
 
 interface WalkStats {
@@ -158,14 +197,15 @@ async function walkBinder(
 
     const title = item.title.trim() || 'Untitled'
     const html = await readDocumentHtml(source, item)
+    const synopsis = await readSynopsis(source, item)
 
     if (item.kind === 'folder') {
       stats.folders += 1
-      rows.push({ id: item.id, title, kind: 'folder', depth, html, synopsis: item.synopsis, includeInCompile })
+      rows.push({ id: item.id, title, kind: 'folder', depth, html, synopsis, includeInCompile })
       await walkBinder(source, item.children, depth + 1, includeInCompile, rows, stats)
     } else {
       stats.documents += 1
-      rows.push({ id: item.id, title, kind: 'document', depth, html, synopsis: item.synopsis, includeInCompile })
+      rows.push({ id: item.id, title, kind: 'document', depth, html, synopsis, includeInCompile })
     }
   }
 }
@@ -184,9 +224,10 @@ export async function parseScrivenerPath(sourcePath: string): Promise<ParsedScri
   }
 
   try {
-    const scrivxXml = await source.read(SCRIVX_PATH)
+    const fileName = sourcePath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? 'project'
+    const scrivxXml = await findScrivx(source, fileName)
     if (!scrivxXml) {
-      throw new ScrivenerFormatError('No project.scrivx found — not a Scrivener project')
+      throw new ScrivenerFormatError('No .scrivx file found — not a Scrivener project')
     }
 
     const info = parseScrivx(scrivxXml)
@@ -198,8 +239,6 @@ export async function parseScrivenerPath(sourcePath: string): Promise<ParsedScri
     if (rows.length === 0) {
       throw new ScrivenerFormatError('The Draft folder is empty — nothing to import')
     }
-
-    const fileName = sourcePath.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? 'project'
 
     return {
       fileName: fileName.replace(/\.scrivx?$|\.zip$/i, '') || fileName,

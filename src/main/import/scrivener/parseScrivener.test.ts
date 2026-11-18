@@ -128,7 +128,7 @@ describe('parseScrivenerPath', () => {
     expect(parsed.suggestedTitle).toBe('Fixture Novel')
   })
 
-  it('rejects a directory without project.scrivx', async () => {
+  it('rejects a directory without a .scrivx', async () => {
     await mkdir(join(root, 'empty.scriv'), { recursive: true })
     await expect(parseScrivenerPath(join(root, 'empty.scriv'))).rejects.toThrow(/not a Scrivener project/)
   })
@@ -156,5 +156,84 @@ describe('parseScrivenerPath', () => {
       'utf8'
     )
     await expect(parseScrivenerPath(bundle)).rejects.toThrow(/empty/)
+  })
+})
+
+/** The layout Scrivener 3 writes: <Name>.scrivx and one folder per document. */
+const REAL_SCRIVX = `<?xml version="1.0" encoding="UTF-8"?>
+<ScrivenerProject Identifier="0000" Version="2.0" Creator="SCRMAC-3.5.2-17487" Author="Ana Writer">
+    <Binder>
+        <BinderItem UUID="D-1" Type="DraftFolder">
+            <Title>Draft</Title>
+            <Children>
+                <BinderItem UUID="F-1" Type="Folder">
+                    <Title>Chapter One</Title>
+                    <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+                    <Children>
+                        <BinderItem UUID="T-1" Type="Text">
+                            <Title>Opening</Title>
+                            <MetaData><IncludeInCompile>Yes</IncludeInCompile></MetaData>
+                        </BinderItem>
+                        <BinderItem UUID="T-2" Type="Text">
+                            <Title>Cut</Title>
+                            <MetaData><IncludeInCompile>No</IncludeInCompile></MetaData>
+                        </BinderItem>
+                    </Children>
+                </BinderItem>
+            </Children>
+        </BinderItem>
+        <BinderItem UUID="R-1" Type="ResearchFolder">
+            <Title>Research</Title>
+        </BinderItem>
+    </Binder>
+</ScrivenerProject>`
+
+async function writeRealBundle(): Promise<string> {
+  const bundle = join(root, 'My Novel.scriv')
+  const data = join(bundle, 'Files', 'Data')
+  await mkdir(join(data, 'T-1'), { recursive: true })
+  await mkdir(join(data, 'F-1'), { recursive: true })
+  await writeFile(join(bundle, 'My Novel.scrivx'), REAL_SCRIVX, 'utf8')
+  await writeFile(join(data, 'T-1', 'content.rtf'), rtf('{\\pard\\plain It began at dawn.\\par}'), 'utf8')
+  await writeFile(join(data, 'T-1', 'synopsis.txt'), 'Ana arrives.\n', 'utf8')
+  await writeFile(join(data, 'T-1', 'notes.rtf'), rtf('{\\pard\\plain Not prose.\\par}'), 'utf8')
+  await writeFile(join(data, 'F-1', 'content.rtf'), rtf('{\\pard\\plain Chapter intro.\\par}'), 'utf8')
+  return bundle
+}
+
+describe('parseScrivenerPath on the layout Scrivener 3 writes', () => {
+  it('finds <Name>.scrivx and reads content.rtf and synopsis.txt per document', async () => {
+    const parsed = await parseScrivenerPath(await writeRealBundle())
+
+    expect(parsed.fileName).toBe('My Novel')
+    expect(parsed.suggestedTitle).toBe('My Novel')
+    expect(parsed.suggestedAuthor).toBe('Ana Writer')
+    expect(parsed.rows.map((r) => [r.id, r.title, r.kind, r.depth, r.html, r.synopsis, r.includeInCompile])).toEqual([
+      ['F-1', 'Chapter One', 'folder', 0, '<p>Chapter intro.</p>', '', true],
+      ['T-1', 'Opening', 'document', 1, '<p>It began at dawn.</p>', 'Ana arrives.', true],
+      ['T-2', 'Cut', 'document', 1, '', '', false]
+    ])
+    expect(parsed.stats).toEqual({ folders: 1, documents: 2, researchSkipped: 0, compileExcluded: 1 })
+  })
+
+  it('reads the same project from a Zip & Send archive', async () => {
+    const bundle = await writeRealBundle()
+    const zipPath = join(root, 'My Novel.zip')
+    await new Promise<void>((res, rej) => {
+      const archive = archiver('zip')
+      const out = createWriteStream(zipPath)
+      archive.pipe(out)
+      out.on('close', res)
+      archive.on('error', rej)
+      archive.directory(bundle, 'My Novel.scriv')
+      void archive.finalize()
+    })
+
+    const parsed = await parseScrivenerPath(zipPath)
+    expect(parsed.rows.map((r) => [r.title, r.html, r.synopsis])).toEqual([
+      ['Chapter One', '<p>Chapter intro.</p>', ''],
+      ['Opening', '<p>It began at dawn.</p>', 'Ana arrives.'],
+      ['Cut', '', '']
+    ])
   })
 })

@@ -3,6 +3,7 @@ import { Button } from '@/components/UI/button'
 import { DialogFooter } from '@/components/UI/dialog'
 import { WizardStepHeader } from '@/components/Project/WizardStepHeader'
 import { countHtmlWords } from '@shared/manuscriptMeta'
+import { includedWordCount } from '@shared/import/buildImportedTree'
 import { cn } from '@/lib/utils'
 import type { ParsedScrivenerProject, ScrivenerImportRow } from '@shared/types'
 
@@ -34,7 +35,7 @@ export function ScrivenerPreviewStep({
 }: ScrivenerPreviewStepProps): React.JSX.Element {
   const chapterCount = rows.filter((r) => r.depth === 0).length
   const includedCount = rows.filter((_, i) => checked[i]).length
-  const includedWords = rows.reduce((sum, r, i) => (checked[i] ? sum + countHtmlWords(r.html) : 0), 0)
+  const includedWords = includedWordCount(rows, checked)
 
   return (
     <>
