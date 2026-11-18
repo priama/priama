@@ -88,6 +88,8 @@ function frontMatterParagraphs(
   return paragraphs
 }
 
+const TWIPS_PER_PIXEL = 15
+
 async function coverParagraphs(
   bookSettings: BookSettings,
   pageWidthTwip: number,
@@ -110,8 +112,10 @@ async function coverParagraphs(
     const type =
       ext === '.png' ? 'png' : ext === '.gif' ? 'gif' : ext === '.bmp' ? 'bmp' : 'jpg'
 
-    const maxWidth = pageWidthTwip - marginTwip * 2
-    const maxHeight = pageHeightTwip - marginTwip * 2
+    // ImageRun sizes are pixels at 96 dpi (1 px = 15 twips), so measure the
+    // content area in pixels too. Fit inside the margins; never enlarge.
+    const maxWidth = (pageWidthTwip - marginTwip * 2) / TWIPS_PER_PIXEL
+    const maxHeight = (pageHeightTwip - marginTwip * 2) / TWIPS_PER_PIXEL
     const widthRatio = maxWidth / dimensions.width
     const heightRatio = maxHeight / dimensions.height
     const scale = Math.min(widthRatio, heightRatio, 1)
@@ -169,10 +173,8 @@ export async function exportDocx(
 ): Promise<void> {
   const { formatting, title, author } = options
   const margin = marginInches(formatting.marginPreset)
-  const { width, height } = pageDimensions(formatting.pageSize)
+  const { width: widthTwip, height: heightTwip } = pageDimensions(formatting.pageSize)
   const marginTwip = convertInchesToTwip(margin)
-  const widthTwip = convertInchesToTwip(width)
-  const heightTwip = convertInchesToTwip(height)
 
   const cover = await coverParagraphs(bookSettings, widthTwip, heightTwip, marginTwip)
   const frontMatter = frontMatterParagraphs(bookSettings, title, author, formatting)

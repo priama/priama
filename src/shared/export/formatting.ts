@@ -39,6 +39,7 @@ export function docxFontName(family: ExportFontFamily): string {
   }
 }
 
+/** Page size in twips (1/1440 inch). */
 export function pageDimensions(pageSize: ExportPageSize): { width: number; height: number } {
   if (pageSize === 'a4') {
     return { width: 11906, height: 16838 }
