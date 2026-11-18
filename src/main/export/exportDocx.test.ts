@@ -13,6 +13,11 @@ vi.mock('../config', () => ({
   getConfig: vi.fn().mockResolvedValue({ preferences: {}, recentProjects: [] })
 }))
 
+const projectRoot = vi.hoisted(() => ({ path: null as string | null }))
+vi.mock('../tomes/projectStore', () => ({
+  getProjectRootPath: () => projectRoot.path
+}))
+
 import {
   DEFAULT_BOOK_SETTINGS,
   DEFAULT_EXPORT_FORMATTING,
@@ -99,6 +104,45 @@ async function exportToEntries(
   }
 }
 
+/** A PNG header that declares the given size; enough for image-size and docx. */
+function pngOfSize(width: number, height: number): Buffer {
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0)
+  ihdr.writeUInt32BE(height, 4)
+  ihdr.writeUInt8(8, 8) // bit depth
+  ihdr.writeUInt8(2, 9) // colour type: RGB
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const length = Buffer.alloc(4)
+    length.writeUInt32BE(data.length)
+    return Buffer.concat([length, Buffer.from(type, 'ascii'), data, Buffer.alloc(4)])
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IEND', Buffer.alloc(0))
+  ])
+}
+
+/** Exports with a cover of the given pixel size and returns its extent in pixels. */
+async function coverExtentPx(width: number, height: number): Promise<{ cx: number; cy: number }> {
+  const root = await fse.mkdtemp(join(tmpdir(), 'priama-cover-'))
+  projectRoot.path = root
+  try {
+    await fse.writeFile(join(root, 'cover.png'), pngOfSize(width, height))
+    const entries = await exportToEntries(DEFAULT_EXPORT_FORMATTING, {
+      ...DEFAULT_BOOK_SETTINGS,
+      coverImagePath: 'cover.png'
+    })
+    const match = entries.get('word/document.xml')?.match(/<wp:extent cx="(\d+)" cy="(\d+)"/)
+    expect(match).toBeTruthy()
+    const emuPerPixel = 9525
+    return { cx: Number(match![1]) / emuPerPixel, cy: Number(match![2]) / emuPerPixel }
+  } finally {
+    projectRoot.path = null
+    await fse.remove(root)
+  }
+}
+
 function headerXml(entries: Map<string, string>): string | undefined {
   for (const [name, xml] of entries) {
     if (/^word\/header\d+\.xml$/.test(name)) return xml
@@ -137,6 +181,24 @@ describe('exportDocx', () => {
     expect(header).toContain('Jane Smith / MY BOOK / ')
     expect(header).toContain('PAGE')
     expect(header).toContain('Times New Roman')
+  })
+
+  it('uses the real page size in twips', async () => {
+    const document = (await exportToEntries(DEFAULT_EXPORT_FORMATTING)).get('word/document.xml')
+    expect(document).toContain('<w:pgSz w:w="12240" w:h="15840"')
+  })
+
+  it('shrinks a large cover to fit inside the margins', async () => {
+    // Letter with 1-inch margins: 6.5 x 9 inches = 624 x 864 px at 96 dpi.
+    const { cx, cy } = await coverExtentPx(1600, 2400)
+    expect(cx).toBeLessThanOrEqual(624)
+    expect(cy).toBeLessThanOrEqual(864)
+    expect(cx).toBe(576)
+    expect(cy).toBe(864)
+  })
+
+  it('keeps a small cover at its own size', async () => {
+    expect(await coverExtentPx(300, 450)).toEqual({ cx: 300, cy: 450 })
   })
 
   it('leaves the project book settings untouched', async () => {
