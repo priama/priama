@@ -15,7 +15,8 @@ TypeScript, TipTap, and a file-based `.tomes` project format.
 - **Manuscript** — chapters and scenes with drag-and-drop reordering
 - **Wiki** — characters, locations and lore entries with rich metadata
 - **Rich text editor** — TipTap with entity mentions, autosave and export
-- **Export** — DOCX, EPUB and PDF; imports DOCX back in
+- **Export** — DOCX, EPUB and PDF
+- **Import** — start a project from a DOCX file or a Scrivener 3 project (`.scriv`, or a Zip & Send archive)
 - **Spell check** — offline dictionaries for English, Spanish and Russian
 - **Disaster recovery** — automatic zip copies in `backups/`; restore from File → Backups,
   or rebuild a whole project from any backup zip, including one off an external drive
@@ -55,6 +56,7 @@ or from [priama.app](https://priama.app).
 |---|---|
 | macOS, Apple Silicon | `Priama-<version>-mac-arm64.dmg` |
 | Windows, 64-bit | `Priama-<version>-win-x64-setup.exe` |
+| Windows, no installer | `Priama-<version>-win-x64-portable.exe` |
 | Linux, any distribution | `Priama-<version>-linux-x86_64.AppImage` |
 | Linux, Debian and Ubuntu | `Priama-<version>-linux-amd64.deb` |
 
