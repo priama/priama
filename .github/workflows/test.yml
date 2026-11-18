@@ -1,10 +1,21 @@
 name: Tests
 
+# Docs-only changes can't break typecheck, lint or tests, so they don't run CI.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.claude/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.claude/**'
 
 permissions:
   contents: read

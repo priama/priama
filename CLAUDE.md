@@ -21,8 +21,11 @@ npm run lint         # eslint
 npm test             # vitest
 ```
 
-CI (`.github/workflows/test.yml`) runs typecheck, lint and test on every push.
-Run all three before you say a change is done.
+CI (`.github/workflows/test.yml`) runs typecheck, lint and test on pushes and
+PRs to `main`, except docs-only changes (`*.md`, `docs/`, `LICENSE`, `.claude/`).
+Release builds run only on `v*` tags or by hand. Keep CI to what is needed: don't
+add workflows or triggers without asking. Run all three checks before you say a
+change is done.
 
 ## Layout
 
